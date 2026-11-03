@@ -334,6 +334,10 @@ func parseEnv(cfg *Config) error {
 	// Merge initial admin keys from both config file and environment variables.
 	initialAdminKeys := append([]string{}, cfg.InitialAdminKeys...)
 
+	if err := applyOutpostPort(cfg); err != nil {
+		return err
+	}
+
 	// Override with environment variables
 	if err := env.ParseWithOptions(cfg, env.Options{
 		Prefix: "SOFT_SERVE_",
@@ -415,7 +419,7 @@ func (c *Config) Exist() bool {
 // to the data directory.
 // Use Validate() to validate the config and ensure absolute paths.
 func DefaultConfig() *Config {
-	return &Config{
+	c := &Config{
 		Name: "Soft Serve",
 		// DefaultRepo: "",
 		DataPath: DefaultDataPath(),
@@ -468,6 +472,8 @@ func DefaultConfig() *Config {
 			MirrorPull: "@every 10m",
 		},
 	}
+	applyOutpostDefaults(c)
+	return c
 }
 
 // Validate validates the configuration.
