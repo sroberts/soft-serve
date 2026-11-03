@@ -1,0 +1,15 @@
+# How Outpost (https://github.com/sroberts/outpost) runs Soft Serve.
+# See outpost-service-spec.md §14 for the format, and README.md
+# ("Running under Outpost") for what to add to the generated manifest.
+
+name        = "soft-serve"
+title       = "Soft Serve"
+description = "A self-hostable Git server for the command line"
+
+# Soft Serve takes its HTTP port from OUTPOST_PORT, which `outpost add`
+# writes into the manifest, so there is no ${PORT} to pass.
+args = ["serve"]
+
+# /livez answers without touching the database. Soft Serve runs its
+# migrations before it binds any port, so it only answers once it is ready.
+healthcheck = "/livez"

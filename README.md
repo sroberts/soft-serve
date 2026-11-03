@@ -372,6 +372,66 @@ Use the `lfs` config section to customize your Git LFS server.
 
 > **Note**: The pure-SSH transfer is disabled by default.
 
+### Running under Outpost
+
+[Outpost](https://github.com/sroberts/outpost) runs services as native
+processes behind their own Tailscale node. Soft Serve follows its service
+spec ([`outpost-service-spec.md`](outpost-service-spec.md)), and
+[`outpost.toml`](outpost.toml) describes it to `outpost add`.
+
+When Outpost starts Soft Serve (it sets `OUTPOST_STORAGE_DIR`), two things
+change:
+
+- **Every listener binds `127.0.0.1`.** SSH, the Git daemon and HTTP default to
+  loopback instead of all interfaces, so nothing is reachable except through
+  Outpost. These are written to a new `config.yaml` like any other default, and
+  a `SOFT_SERVE_*_LISTEN_ADDR` variable still overrides them.
+- **HTTP listens on `OUTPOST_PORT`.** It takes precedence over `config.yaml`,
+  so a port Outpost reassigns takes effect without editing the file.
+  `SOFT_SERVE_HTTP_LISTEN_ADDR`, if set, still wins.
+
+State lives in `data/` inside the storage directory, so `outpost backup` and
+`outpost restore` cover it. The healthcheck is `/livez`.
+
+Outpost proxies only HTTP by default. To reach Soft Serve over SSH, forward a
+tailnet port to it in the service's manifest (this needs an Outpost with `tcp`
+forwards), and tell Soft Serve the addresses it is served at so clone URLs are
+right:
+
+```toml
+tailscale_name = "soft-serve"
+tcp = { 22 = 23231 }   # tailnet port 22 -> SSH on 127.0.0.1:23231
+
+[env]
+SOFT_SERVE_INITIAL_ADMIN_KEYS = "ssh-ed25519 AAAA..."
+SOFT_SERVE_SSH_PUBLIC_URL = "ssh://soft-serve.<tailnet>.ts.net"
+SOFT_SERVE_HTTP_PUBLIC_URL = "https://soft-serve.<tailnet>.ts.net"
+```
+
+Then `git clone ssh://soft-serve.<tailnet>.ts.net/<repo>` and
+`ssh soft-serve.<tailnet>.ts.net` work from any device on your tailnet.
+
+Things to know:
+
+- **Who can reach SSH.** With Outpost's login gateway on, only devices whose
+  Tailscale login belongs to an Outpost user allowed to open Soft Serve can
+  connect (`outpost user tailnet` links a login to a user). Soft Serve still
+  checks SSH keys as usual. Every connection reaches Soft Serve from
+  `127.0.0.1`, so its logs can't tell callers apart by address.
+- **Git over HTTPS goes through the gateway.** Git can't do a browser login, so
+  send an Outpost access token with each request:
+  `git -c http.extraHeader="Outpost-Token: opat_..." clone https://soft-serve.<tailnet>.ts.net/<repo>`.
+  Soft Serve's own HTTP authentication still applies on top.
+- **The Git daemon isn't forwarded.** `git://` has no authentication, so it
+  stays on loopback. Set `SOFT_SERVE_GIT_ENABLED=false` if you don't want it at
+  all.
+- **The public URLs are configured, not derived.** Soft Serve uses them in
+  places that have no request to read a hostname from, such as webhooks and
+  access tokens, so set them in `env` as above.
+- **Soft Serve ignores Outpost's identity headers.** It has no browser login
+  for them to replace; SSH keys and Soft Serve tokens decide what each user
+  may do.
+
 ## Server Access
 
 Soft Serve at its core manages your server authentication and authorization. Authentication verifies the identity of a user, while authorization determines their access rights to a repository.
