@@ -427,10 +427,15 @@ Things to know:
   all.
 - **The public URLs are configured, not derived.** Soft Serve uses them in
   places that have no request to read a hostname from, such as webhooks and
-  access tokens, so set them in `env` as above.
-- **Soft Serve ignores Outpost's identity headers.** It has no browser login
-  for them to replace; SSH keys and Soft Serve tokens decide what each user
-  may do.
+  access tokens, so set them in `env` as above. The [web view](#the-web-view-rest-api-and-mcp)
+  builds its own links from the request instead.
+- **The web view, REST API and MCP use your Outpost login.** Behind the
+  gateway, Soft Serve verifies each request's signed `X-Outpost-Identity`
+  token and gives you the access of the Soft Serve user with the same name as
+  your Outpost user. If the names differ, rename one, for example
+  `ssh soft-serve.<tailnet>.ts.net user set-username admin <outpost-name>`;
+  until then you see public repositories only, and the page says so. MCP is
+  at `/mcp`, so Outpost's portal serves it at `/mcp/soft-serve` too.
 
 ## Server Access
 
@@ -852,6 +857,37 @@ Available Commands:
 Flags:
   -h, --help   help for webhook
 ```
+
+## The Web View, REST API and MCP
+
+Soft Serve's HTTP port also serves a read-only view of its repositories, three
+ways, all showing exactly what the caller may read:
+
+- **Web pages** at `/`: repositories, files with syntax highlighting, rendered
+  READMEs, history, commits with their diffs, and branches and tags. Pages
+  are plain HTML with no script.
+- **A REST API** under `/v1`, described by `/v1/openapi.json`. Repository
+  names can contain slashes, so the name and the action are separated by
+  `/-/`:
+
+  ```sh
+  curl http://localhost:23232/v1/repos
+  curl "http://localhost:23232/v1/repos/icecream/-/tree?ref=main&path=docs"
+  curl http://localhost:23232/v1/repos/icecream/-/blob?path=README.md
+  curl http://localhost:23232/v1/repos/icecream/-/commits?per_page=10
+  ```
+
+- **MCP** at `/mcp` (Streamable HTTP), with read-only tools to list
+  repositories, branches, tags and commits, read a README, list a directory,
+  read a file and get a commit's diff.
+
+Anonymous callers get the server's `anon-access` level. To read as a user,
+send a Soft Serve access token (`ssh localhost -p 23231 token create`) as
+`Authorization: Token <token>`. Behind Outpost's login gateway, your Outpost
+login is used instead (see [Running under Outpost](#running-under-outpost)).
+
+Nothing in a repository is ever served as a page: raw files go out as plain
+text, images or downloads, with `nosniff` and a sandbox policy.
 
 ## The Soft Serve TUI
 

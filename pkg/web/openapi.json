@@ -1,0 +1,251 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Soft Serve",
+    "version": "1",
+    "description": "Read-only access to the repositories on a Soft Serve server. Every endpoint answers with what the caller may read: behind Outpost's login gateway the caller is the Soft Serve user named like the signed-in Outpost user; otherwise send a Soft Serve access token as `Authorization: Token <token>`, or nothing for anonymous access. A repository the caller may not read answers 404, like one that does not exist. Repository names can contain slashes, so the name and the action are separated by `/-/`."
+  },
+  "paths": {
+    "/v1/repos": {
+      "get": {
+        "operationId": "listRepositories",
+        "summary": "List the repositories the caller can read",
+        "description": "Hidden repositories are left out; they can still be fetched by name.",
+        "responses": {
+          "200": {"description": "Repositories, by name", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Repo"}}}}},
+          "401": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}],
+      "get": {
+        "operationId": "getRepository",
+        "summary": "Describe a repository",
+        "responses": {
+          "200": {"description": "The repository", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Repo"}}}},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/refs": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}],
+      "get": {
+        "operationId": "listRefs",
+        "summary": "List branches and tags",
+        "responses": {
+          "200": {"description": "Branches (default first) and tags (newest name first)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Refs"}}}},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/commits": {
+      "parameters": [
+        {"$ref": "#/components/parameters/Repo"},
+        {"$ref": "#/components/parameters/Ref"},
+        {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "default": 1}},
+        {"name": "per_page", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 30}}
+      ],
+      "get": {
+        "operationId": "listCommits",
+        "summary": "List commits reachable from a ref, newest first",
+        "responses": {
+          "200": {"description": "One page of history", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CommitPage"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/commits/{sha}": {
+      "parameters": [
+        {"$ref": "#/components/parameters/Repo"},
+        {"name": "sha", "in": "path", "required": true, "description": "A full or abbreviated commit hash", "schema": {"type": "string", "pattern": "^[0-9a-fA-F]{4,64}$"}}
+      ],
+      "get": {
+        "operationId": "getCommit",
+        "summary": "Get a commit, the files it changed and its patch",
+        "responses": {
+          "200": {"description": "The commit", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CommitDetail"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/tree": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/Ref"}, {"$ref": "#/components/parameters/Path"}],
+      "get": {
+        "operationId": "listDirectory",
+        "summary": "List a directory",
+        "responses": {
+          "200": {"description": "The directory's entries, directories first", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Tree"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/blob": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/Ref"}, {"$ref": "#/components/parameters/Path"}],
+      "get": {
+        "operationId": "getFile",
+        "summary": "Get a file's text",
+        "description": "Up to 1 MiB of text inline; `truncated` says when there is more. A binary file has `binary` set and no content; fetch it from `/-/raw`.",
+        "responses": {
+          "200": {"description": "The file", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Blob"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/raw": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/Ref"}, {"$ref": "#/components/parameters/Path"}],
+      "get": {
+        "operationId": "getRawFile",
+        "summary": "Download a file's bytes",
+        "description": "Text is served as text/plain and binaries as attachments, so nothing in a repository renders as a page.",
+        "responses": {
+          "200": {"description": "The file's bytes", "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}, "text/plain": {"schema": {"type": "string"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/readme": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/Ref"}],
+      "get": {
+        "operationId": "getReadme",
+        "summary": "Get the README",
+        "description": "Looked for in the root, then .github, then docs, preferring Markdown.",
+        "responses": {
+          "200": {"description": "The README", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Readme"}}}},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "Repo": {"name": "repo", "in": "path", "required": true, "description": "Repository name; may contain slashes", "schema": {"type": "string"}},
+      "Ref": {"name": "ref", "in": "query", "description": "Branch, tag or commit hash; the default branch when omitted", "schema": {"type": "string"}},
+      "Path": {"name": "path", "in": "query", "description": "Path inside the repository; the root when omitted", "schema": {"type": "string"}}
+    },
+    "responses": {
+      "Error": {"description": "An error", "content": {"application/json": {"schema": {"type": "object", "properties": {"error": {"type": "string"}}, "required": ["error"]}}}}
+    },
+    "schemas": {
+      "Repo": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "project_name": {"type": "string"},
+          "description": {"type": "string"},
+          "private": {"type": "boolean"},
+          "mirror": {"type": "boolean"},
+          "hidden": {"type": "boolean"},
+          "empty": {"type": "boolean", "description": "True when the repository has no commits yet"},
+          "default_branch": {"type": "string"},
+          "updated_at": {"type": "string", "format": "date-time"},
+          "clone": {"type": "object", "properties": {"ssh": {"type": "string"}, "https": {"type": "string"}}}
+        },
+        "required": ["name", "private", "mirror", "hidden", "empty", "updated_at", "clone"]
+      },
+      "Ref": {"type": "object", "properties": {"name": {"type": "string"}, "commit": {"type": "string"}}, "required": ["name", "commit"]},
+      "Refs": {
+        "type": "object",
+        "properties": {
+          "default_branch": {"type": "string"},
+          "branches": {"type": "array", "items": {"$ref": "#/components/schemas/Ref"}},
+          "tags": {"type": "array", "items": {"$ref": "#/components/schemas/Ref"}}
+        },
+        "required": ["branches", "tags"]
+      },
+      "Signature": {"type": "object", "properties": {"name": {"type": "string"}, "email": {"type": "string"}, "when": {"type": "string", "format": "date-time"}}},
+      "Commit": {
+        "type": "object",
+        "properties": {
+          "sha": {"type": "string"},
+          "short_sha": {"type": "string"},
+          "summary": {"type": "string"},
+          "message": {"type": "string"},
+          "author": {"$ref": "#/components/schemas/Signature"},
+          "committer": {"$ref": "#/components/schemas/Signature"},
+          "parents": {"type": "array", "items": {"type": "string"}}
+        },
+        "required": ["sha", "short_sha", "summary", "message", "author", "committer", "parents"]
+      },
+      "CommitPage": {
+        "type": "object",
+        "properties": {
+          "ref": {"type": "string"},
+          "page": {"type": "integer"},
+          "per_page": {"type": "integer"},
+          "total": {"type": "integer", "description": "Commits reachable from ref"},
+          "commits": {"type": "array", "items": {"$ref": "#/components/schemas/Commit"}}
+        },
+        "required": ["ref", "page", "per_page", "total", "commits"]
+      },
+      "CommitDetail": {
+        "allOf": [
+          {"$ref": "#/components/schemas/Commit"},
+          {
+            "type": "object",
+            "properties": {
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {"type": "string"},
+                    "old_path": {"type": "string"},
+                    "status": {"type": "string", "enum": ["added", "deleted", "renamed", "modified"]},
+                    "additions": {"type": "integer"},
+                    "deletions": {"type": "integer"},
+                    "binary": {"type": "boolean"}
+                  },
+                  "required": ["path", "status", "additions", "deletions", "binary"]
+                }
+              },
+              "patch": {"type": "string", "description": "Unified diff, up to 1 MiB"},
+              "patch_truncated": {"type": "boolean"}
+            },
+            "required": ["files", "patch", "patch_truncated"]
+          }
+        ]
+      },
+      "TreeEntry": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "path": {"type": "string"},
+          "type": {"type": "string", "enum": ["dir", "file", "symlink", "submodule"]},
+          "size": {"type": "integer"},
+          "mode": {"type": "string"}
+        },
+        "required": ["name", "path", "type", "size", "mode"]
+      },
+      "Tree": {
+        "type": "object",
+        "properties": {
+          "ref": {"type": "string"},
+          "commit": {"type": "string"},
+          "path": {"type": "string"},
+          "entries": {"type": "array", "items": {"$ref": "#/components/schemas/TreeEntry"}}
+        },
+        "required": ["ref", "commit", "path", "entries"]
+      },
+      "Blob": {
+        "type": "object",
+        "properties": {
+          "ref": {"type": "string"},
+          "commit": {"type": "string"},
+          "path": {"type": "string"},
+          "size": {"type": "integer"},
+          "binary": {"type": "boolean"},
+          "truncated": {"type": "boolean"},
+          "content": {"type": "string"}
+        },
+        "required": ["ref", "commit", "path", "size", "binary", "truncated", "content"]
+      },
+      "Readme": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}}, "required": ["path", "content"]}
+    }
+  }
+}

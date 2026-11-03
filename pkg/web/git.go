@@ -112,8 +112,8 @@ func GitController(_ context.Context, r *mux.Router) {
 		r.Handle(basePrefix+route.path, withParams(route))
 	}
 
-	// Handle go-get
-	r.Handle(basePrefix, withParams(withCaller(http.HandlerFunc(GoGetHandler)))).Methods(http.MethodGet)
+	// Handle go-get. Any other GET of a repository path is a web page.
+	r.Handle(basePrefix, withParams(withCaller(http.HandlerFunc(GoGetHandler)))).Methods(http.MethodGet).Queries("go-get", "1")
 }
 
 var gitRoutes = []GitRoute{
