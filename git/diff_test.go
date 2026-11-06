@@ -51,16 +51,16 @@ func TestDiffWithPath(t *testing.T) {
 	dir := t.TempDir()
 	gitIn(t, dir, "init", "-q", "-b", "main")
 	writeFiles(t, dir, map[string]string{
-		"a.txt":         "a\n",
-		"old/name.txt":  strings.Repeat("a long enough line to be found as a rename\n", 20),
-		":(exclude)odd": "odd\n",
+		"a.txt":        "a\n",
+		"old/name.txt": strings.Repeat("a long enough line to be found as a rename\n", 20),
+		"[ab].txt":     "odd\n",
 	})
 	gitIn(t, dir, "add", "-A")
 	gitIn(t, dir, "commit", "-q", "-m", "first")
 	first := gitIn(t, dir, "rev-parse", "HEAD")
 
 	// A commit with more files than a diff shows, a rename and a change.
-	many := map[string]string{"a.txt": "a, changed\n", ":(exclude)odd": "odd, changed\n"}
+	many := map[string]string{"a.txt": "a, changed\n", "[ab].txt": "odd, changed\n"}
 	for i := range DiffMaxFiles + 5 {
 		many[fmt.Sprintf("gen/%04d.txt", i)] = "x\n"
 	}
@@ -98,10 +98,12 @@ func TestDiffWithPath(t *testing.T) {
 	is.NoErr(err)
 	is.True(len(cmp.Files) == 1 && cmp.Files[0].IsRenamed())
 
-	// A path is a path, never pathspec magic.
-	odd, err := r.DiffWithOptions("", second, DiffOptions{Path: ":(exclude)odd"})
+	// A path is a path, never a pattern: as a glob, [ab].txt would match
+	// a.txt too. (A name with : would do as well, but Windows can't make
+	// one.)
+	odd, err := r.DiffWithOptions("", second, DiffOptions{Path: "[ab].txt"})
 	is.NoErr(err)
-	is.Equal(diffNames(odd), []string{":(exclude)odd"})
+	is.Equal(diffNames(odd), []string{"[ab].txt"})
 
 	// The first commit has no parent to diff against.
 	root, err := r.DiffWithOptions("", first, DiffOptions{Path: "a.txt"})
