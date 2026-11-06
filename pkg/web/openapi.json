@@ -11,6 +11,7 @@
         "operationId": "listRepositories",
         "summary": "List the repositories the caller can read",
         "description": "Hidden repositories are left out; they can still be fetched by name.",
+        "parameters": [{"name": "q", "in": "query", "description": "Only repositories whose name, project name or description contains this, ignoring case", "schema": {"type": "string"}}],
         "responses": {
           "200": {"description": "Repositories, by name", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Repo"}}}}},
           "401": {"$ref": "#/components/responses/Error"}
@@ -34,7 +35,7 @@
         "operationId": "listRefs",
         "summary": "List branches and tags",
         "responses": {
-          "200": {"description": "Branches (default first) and tags (newest name first)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Refs"}}}},
+          "200": {"description": "Branches (the default first, then most recently updated) and tags (newest first)", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Refs"}}}},
           "404": {"$ref": "#/components/responses/Error"}
         }
       }
@@ -73,7 +74,12 @@
       }
     },
     "/v1/repos/{repo}/-/tree": {
-      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/Ref"}, {"$ref": "#/components/parameters/Path"}],
+      "parameters": [
+        {"$ref": "#/components/parameters/Repo"},
+        {"$ref": "#/components/parameters/Ref"},
+        {"$ref": "#/components/parameters/Path"},
+        {"name": "last_commits", "in": "query", "description": "Set to true for the latest commit of the directory and of each entry. It walks the history, so it is bounded: an entry not reached in time has none.", "schema": {"type": "boolean", "default": false}}
+      ],
       "get": {
         "operationId": "listDirectory",
         "summary": "List a directory",
@@ -106,6 +112,83 @@
         "responses": {
           "200": {"description": "The file's bytes", "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}, "text/plain": {"schema": {"type": "string"}}}},
           "400": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/blame": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/Ref"}, {"$ref": "#/components/parameters/Path"}],
+      "get": {
+        "operationId": "blameFile",
+        "summary": "Who last changed each line of a text file",
+        "description": "Lines come in hunks, runs last changed by one commit; `commits` describes each. Binary files and files over 1 MiB are refused.",
+        "responses": {
+          "200": {"description": "The blame", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Blame"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/compare": {
+      "parameters": [
+        {"$ref": "#/components/parameters/Repo"},
+        {"name": "base", "in": "query", "description": "Branch, tag or commit to compare against; the default branch when omitted", "schema": {"type": "string"}},
+        {"name": "head", "in": "query", "required": true, "description": "Branch, tag or commit whose changes to show", "schema": {"type": "string"}}
+      ],
+      "get": {
+        "operationId": "compareRefs",
+        "summary": "What head has that base doesn't",
+        "description": "The commits since head and base diverged (up to 250), and the diff from their merge base to head: what merging head into base would bring in.",
+        "responses": {
+          "200": {"description": "The comparison", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Compare"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/search": {
+      "parameters": [
+        {"$ref": "#/components/parameters/Repo"},
+        {"$ref": "#/components/parameters/Ref"},
+        {"name": "q", "in": "query", "required": true, "description": "Text to find, 2 to 200 characters, matched as written and ignoring case", "schema": {"type": "string", "minLength": 2, "maxLength": 200}}
+      ],
+      "get": {
+        "operationId": "searchCode",
+        "summary": "Find text in the files at a ref",
+        "description": "Text files only. Up to 5 matching lines per file and 200 in all; `truncated` says when there were more.",
+        "responses": {
+          "200": {"description": "The matches", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SearchResult"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/archive": {
+      "parameters": [
+        {"$ref": "#/components/parameters/Repo"},
+        {"$ref": "#/components/parameters/Ref"},
+        {"name": "format", "in": "query", "schema": {"type": "string", "enum": ["tar.gz", "tgz", "zip"], "default": "tar.gz"}}
+      ],
+      "get": {
+        "operationId": "downloadArchive",
+        "summary": "Download a snapshot of the files at a ref",
+        "description": "Every file is under one directory named for the repository and ref. Files tracked by Git LFS are included as their pointers.",
+        "responses": {
+          "200": {"description": "The archive", "content": {"application/gzip": {"schema": {"type": "string", "format": "binary"}}, "application/zip": {"schema": {"type": "string", "format": "binary"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/collaborators": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}],
+      "get": {
+        "operationId": "listCollaborators",
+        "summary": "List a repository's collaborators",
+        "description": "Only the repository's admins can.",
+        "responses": {
+          "200": {"description": "Collaborators, by name", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Collaborator"}}}}},
+          "403": {"$ref": "#/components/responses/Error"},
           "404": {"$ref": "#/components/responses/Error"}
         }
       }
@@ -145,11 +228,35 @@
           "empty": {"type": "boolean", "description": "True when the repository has no commits yet"},
           "default_branch": {"type": "string"},
           "updated_at": {"type": "string", "format": "date-time"},
+          "access": {"type": "string", "enum": ["read-only", "read-write", "admin-access"], "description": "The caller's access"},
           "clone": {"type": "object", "description": "How to clone. `https` is left out behind Outpost's login gateway, where git over HTTPS can't sign in; use SSH there.", "properties": {"ssh": {"type": "string"}, "https": {"type": "string"}}}
         },
-        "required": ["name", "private", "mirror", "hidden", "empty", "updated_at", "clone"]
+        "required": ["name", "private", "mirror", "hidden", "empty", "updated_at", "clone", "access"]
       },
-      "Ref": {"type": "object", "properties": {"name": {"type": "string"}, "commit": {"type": "string"}}, "required": ["name", "commit"]},
+      "Ref": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "commit": {"type": "string", "description": "The commit it points at (peeled, for an annotated tag)"},
+          "date": {"type": "string", "format": "date-time", "description": "When a branch's tip was committed, or a tag made"},
+          "summary": {"type": "string", "description": "The commit's summary line"},
+          "annotated": {"type": "boolean"},
+          "tagger": {"$ref": "#/components/schemas/Signature"},
+          "message": {"type": "string", "description": "An annotated tag's message, without its signature"}
+        },
+        "required": ["name", "commit", "date", "summary"]
+      },
+      "CommitBrief": {
+        "type": "object",
+        "properties": {
+          "sha": {"type": "string"},
+          "short_sha": {"type": "string"},
+          "summary": {"type": "string"},
+          "author": {"type": "string"},
+          "when": {"type": "string", "format": "date-time"}
+        },
+        "required": ["sha", "short_sha", "summary", "author", "when"]
+      },
       "Refs": {
         "type": "object",
         "properties": {
@@ -191,21 +298,7 @@
           {
             "type": "object",
             "properties": {
-              "files": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "path": {"type": "string"},
-                    "old_path": {"type": "string"},
-                    "status": {"type": "string", "enum": ["added", "deleted", "renamed", "modified"]},
-                    "additions": {"type": "integer"},
-                    "deletions": {"type": "integer"},
-                    "binary": {"type": "boolean"}
-                  },
-                  "required": ["path", "status", "additions", "deletions", "binary"]
-                }
-              },
+              "files": {"type": "array", "items": {"$ref": "#/components/schemas/FileChange"}},
               "patch": {"type": "string", "description": "Unified diff, up to 1 MiB"},
               "patch_truncated": {"type": "boolean"}
             },
@@ -220,7 +313,8 @@
           "path": {"type": "string"},
           "type": {"type": "string", "enum": ["dir", "file", "symlink", "submodule"]},
           "size": {"type": "integer"},
-          "mode": {"type": "string"}
+          "mode": {"type": "string"},
+          "last_commit": {"$ref": "#/components/schemas/CommitBrief"}
         },
         "required": ["name", "path", "type", "size", "mode"]
       },
@@ -230,7 +324,8 @@
           "ref": {"type": "string"},
           "commit": {"type": "string"},
           "path": {"type": "string"},
-          "entries": {"type": "array", "items": {"$ref": "#/components/schemas/TreeEntry"}}
+          "entries": {"type": "array", "items": {"$ref": "#/components/schemas/TreeEntry"}},
+          "last_commit": {"$ref": "#/components/schemas/CommitBrief"}
         },
         "required": ["ref", "commit", "path", "entries"]
       },
@@ -249,7 +344,81 @@
         },
         "required": ["ref", "commit", "path", "size", "binary", "truncated", "content"]
       },
-      "Readme": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}}, "required": ["path", "content"]}
+      "Readme": {"type": "object", "properties": {"path": {"type": "string"}, "content": {"type": "string"}}, "required": ["path", "content"]},
+      "FileChange": {
+        "type": "object",
+        "properties": {
+          "path": {"type": "string"},
+          "old_path": {"type": "string"},
+          "status": {"type": "string", "enum": ["added", "deleted", "renamed", "modified"]},
+          "additions": {"type": "integer"},
+          "deletions": {"type": "integer"},
+          "binary": {"type": "boolean"}
+        },
+        "required": ["path", "status", "additions", "deletions", "binary"]
+      },
+      "Blame": {
+        "type": "object",
+        "properties": {
+          "ref": {"type": "string"},
+          "commit": {"type": "string"},
+          "path": {"type": "string"},
+          "commits": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/CommitBrief"}, "description": "The commits the hunks name, by hash"},
+          "hunks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "commit": {"type": "string"},
+                "start": {"type": "integer", "description": "Line number of the first line, from 1"},
+                "lines": {"type": "array", "items": {"type": "string"}}
+              },
+              "required": ["commit", "start", "lines"]
+            }
+          }
+        },
+        "required": ["ref", "commit", "path", "commits", "hunks"]
+      },
+      "Compare": {
+        "type": "object",
+        "properties": {
+          "base": {"type": "string"},
+          "head": {"type": "string"},
+          "base_commit": {"type": "string"},
+          "head_commit": {"type": "string"},
+          "merge_base": {"type": "string", "description": "Where head and base diverged; equal to head_commit when head has nothing new"},
+          "total_commits": {"type": "integer"},
+          "commits": {"type": "array", "items": {"$ref": "#/components/schemas/Commit"}},
+          "commits_truncated": {"type": "boolean"},
+          "files": {"type": "array", "items": {"$ref": "#/components/schemas/FileChange"}},
+          "patch": {"type": "string", "description": "Unified diff from merge_base to head, up to 1 MiB"},
+          "patch_truncated": {"type": "boolean"}
+        },
+        "required": ["base", "head", "base_commit", "head_commit", "merge_base", "total_commits", "commits", "commits_truncated", "files", "patch", "patch_truncated"]
+      },
+      "SearchResult": {
+        "type": "object",
+        "properties": {
+          "ref": {"type": "string"},
+          "commit": {"type": "string"},
+          "query": {"type": "string"},
+          "truncated": {"type": "boolean"},
+          "files": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "path": {"type": "string"},
+                "matches": {"type": "array", "items": {"type": "object", "properties": {"line": {"type": "integer"}, "text": {"type": "string"}}, "required": ["line", "text"]}},
+                "more": {"type": "integer", "description": "Matches in this file past the ones shown"}
+              },
+              "required": ["path", "matches"]
+            }
+          }
+        },
+        "required": ["ref", "commit", "query", "files", "truncated"]
+      },
+      "Collaborator": {"type": "object", "properties": {"username": {"type": "string"}, "access": {"type": "string", "enum": ["read-only", "read-write", "admin-access"]}}, "required": ["username", "access"]}
     }
   }
 }

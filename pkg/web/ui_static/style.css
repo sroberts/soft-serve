@@ -123,6 +123,8 @@ button.link:hover { text-decoration: underline; }
 
 .repohead h1 { font-size: 22px; margin: 0; overflow-wrap: anywhere; }
 .repohead .desc { margin: 4px 0 0; color: var(--muted); }
+.repohead .access { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.clone .downloads { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
 
 .clone { margin: 12px 0 0; }
 .clone summary { cursor: pointer; color: var(--accent); font-size: 14px; width: max-content; }
@@ -195,10 +197,19 @@ table { border-collapse: collapse; width: 100%; }
   overflow: hidden;
 }
 .files td { padding: 7px 12px; border-top: 1px solid var(--line); }
-.files tr:first-child td { border-top: 0; }
 .files .icon { width: 20px; color: var(--muted); padding-right: 0; }
 .files .name { overflow-wrap: anywhere; }
 .files .size { text-align: right; color: var(--muted); white-space: nowrap; font-size: 13px; width: 1%; }
+.files .last { color: var(--muted); font-size: 13px; max-width: 0; width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.files .last a { color: var(--muted); }
+.files .last a:hover { color: var(--accent); }
+.files .when { color: var(--muted); font-size: 13px; white-space: nowrap; text-align: right; width: 1%; }
+.files thead td { padding: 9px 12px; background: var(--bg); border-bottom: 1px solid var(--line); font-size: 13px; }
+.files .latest .row { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+.files .latest a:not(.sha) { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.files .latest .author { font-weight: 600; white-space: nowrap; }
+.files .latest time { color: var(--muted); white-space: nowrap; }
+.files tbody tr:first-child td { border-top: 0; }
 
 .readme, .file, .card {
   margin-top: 20px;
@@ -298,14 +309,102 @@ pre.diff .meta { color: var(--muted); font-weight: 600; }
 .refs h2 { font-size: 16px; margin: 20px 0 8px; }
 .refs h2:first-child { margin-top: 0; }
 .refs ul { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
-.refs li { display: flex; gap: 10px; align-items: center; padding: 8px 14px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.refs li { display: flex; gap: 10px 16px; align-items: baseline; padding: 10px 14px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
 .refs li:first-child { border-top: 0; }
-.refs .sha { margin-left: auto; }
+.refs .refmain { flex: 1; min-width: 0; }
+.refs .refname { font-family: var(--mono); font-size: 14px; font-weight: 600; }
+.refs .meta { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
+.refs .meta a:not(.sha) { color: var(--muted); }
+.refs .meta a:hover { color: var(--accent); }
+.refs .refactions { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.refs .notes { margin-top: 6px; font-size: 13px; }
+.refs .notes summary { cursor: pointer; color: var(--accent); width: max-content; }
+.refs .notes .message { margin: 6px 0 0; padding: 10px 12px; background: var(--bg); border-radius: 6px; white-space: pre-wrap; font-size: 13px; }
+.refs .badge { margin-left: auto; }
+
+/* Forms */
+
+input[type="search"], .compareform input {
+  font: inherit;
+  font-size: 14px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  min-width: 0;
+}
+input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button[type="submit"]:not(.link) {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 550;
+  padding: 7px 14px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--surface);
+  cursor: pointer;
+}
+button[type="submit"]:not(.link):hover { filter: brightness(1.08); }
+
+form.search { display: flex; gap: 8px; margin: 0 0 16px; }
+form.search input { flex: 1; }
+.compareform { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: end; margin: 0 0 16px; }
+.compareform label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); flex: 1 1 180px; }
+.compareform input { font-family: var(--mono); font-size: 13px; }
+.compareform .dots { color: var(--muted); padding-bottom: 8px; }
+.formerror { margin: -4px 0 16px; color: var(--del); font-size: 14px; }
+.summaryline { margin: 0 0 14px; font-size: 14px; }
+.compared { margin-top: 20px; }
+.summaryline code { font-size: 13px; }
+
+/* Search results */
+
+.file.hit { margin-top: 12px; }
+.file.hit > header a { font-family: var(--mono); color: var(--text); }
+.matches { font-family: var(--mono); font-size: 13px; }
+.matches td { padding: 3px 0; vertical-align: top; }
+.matches .ln { width: 1%; padding: 3px 12px 3px 14px; text-align: right; white-space: nowrap; }
+.matches .ln a { color: var(--muted); }
+.matches .text { white-space: pre-wrap; overflow-wrap: anywhere; padding-right: 14px; }
+.matches mark { background: var(--accent-soft); color: inherit; border-radius: 2px; box-shadow: 0 0 0 1px var(--accent-soft); }
+.matches tr:first-child td { padding-top: 8px; }
+.matches tr:last-child td { padding-bottom: 8px; }
+
+/* Blame */
+
+.blame { border-spacing: 0; width: 100%; font-family: var(--mono); font-size: 13px; line-height: 1.5; }
+.blame td { padding: 0; vertical-align: top; }
+.blame tr.start td { border-top: 1px solid var(--line); }
+.blame tr.start:first-child td { border-top: 0; }
+.blame .who {
+  width: 19rem;
+  max-width: 19rem;
+  padding: 0 12px;
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 19.5px;
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+}
+.blame .who .row { display: flex; gap: 10px; min-width: 0; }
+.blame .who a { flex: 1; min-width: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.blame .who time { color: var(--muted); white-space: nowrap; }
+.blame .ln { width: 1%; padding: 0 10px 0 12px; text-align: right; user-select: none; }
+.blame .ln a { color: var(--muted); }
+.blame .ln:target, .blame .ln:target + .src { background: var(--accent-soft); }
+.blame .src { white-space: pre; padding-right: 14px; }
 
 .error h1 { font-size: 20px; }
 
 @media (max-width: 600px) {
   body { font-size: 14px; }
+  .files .last { display: none; }
+  .blame .who { width: 9rem; max-width: 9rem; }
+  .blame .who time { display: none; }
+  .refs li { flex-wrap: wrap; }
+  .refs .refactions { flex-basis: 100%; }
   main { padding: 16px 16px 48px; }
   .markdown { padding: 4px 16px 16px; }
   .commits li { grid-template-columns: 1fr; }

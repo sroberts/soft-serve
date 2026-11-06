@@ -153,6 +153,20 @@ func (r *Repository) Diff(commit *Commit) (*Diff, error) {
 	return toDiff(diff), nil
 }
 
+// DiffRange returns the changes from base to head.
+func (r *Repository) DiffRange(base, head string) (*Diff, error) {
+	diff, err := r.Repository.Diff(head, DiffMaxFiles, DiffMaxFileLines, DiffMaxLineChars, git.DiffOptions{
+		Base: base,
+		CommandOptions: git.CommandOptions{
+			Envs: []string{"GIT_CONFIG_GLOBAL=/dev/null"},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toDiff(diff), nil
+}
+
 // Patch returns the patch for the given reference.
 func (r *Repository) Patch(commit *Commit) (string, error) {
 	diff, err := r.Diff(commit)

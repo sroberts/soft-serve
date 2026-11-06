@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"charm.land/log/v2"
+	"github.com/charmbracelet/soft-serve/pkg/access"
 	"github.com/charmbracelet/soft-serve/pkg/config"
 	"github.com/dustin/go-humanize"
 )
@@ -31,23 +32,34 @@ import (
 //	/{repo}/-/commits?ref=&page=   history
 //	/{repo}/-/commit/{sha}         one commit and its diff
 //	/{repo}/-/refs                 branches and tags
+//	/{repo}/-/blame?ref=&path=     who last changed each line of a file
+//	/{repo}/-/compare?base=&head=  what head has that base doesn't
+//	/{repo}/-/search?ref=&q=       text in the files
+//	/{repo}/-/archive?ref=&format= a snapshot as .tar.gz or .zip
+//	/{repo}/-/commits.atom?ref=    an Atom feed of the history
+//	/{repo}/-/access               your access, and collaborators (admins)
 //	/-/static/...                  stylesheets
 
 //go:embed ui_templates/*.html ui_static/*
 var uiFS embed.FS
 
 var uiTemplates = template.Must(template.New("").Funcs(template.FuncMap{
-	"ago":       ago,
-	"bytes":     func(n int64) string { return humanize.Bytes(uint64(max(n, 0))) }, //nolint:gosec
-	"short":     func(s string) string { return s[:min(len(s), 7)] },
-	"repoURL":   repoURL,
-	"pathParts": pathParts,
-	"diffClass": diffClass,
-	"lines":     func(s string) []string { return strings.Split(strings.TrimSuffix(s, "\n"), "\n") },
-	"parentDir": parentDir,
-	"pageURL":   pageURL,
-	"body":      messageBody,
-	"dataPath":  dataPath,
+	"ago":        ago,
+	"bytes":      func(n int64) string { return humanize.Bytes(uint64(max(n, 0))) }, //nolint:gosec
+	"short":      func(s string) string { return s[:min(len(s), 7)] },
+	"repoURL":    repoURL,
+	"pathParts":  pathParts,
+	"diffClass":  diffClass,
+	"lines":      func(s string) []string { return strings.Split(strings.TrimSuffix(s, "\n"), "\n") },
+	"parentDir":  parentDir,
+	"pageURL":    pageURL,
+	"body":       messageBody,
+	"dataPath":   dataPath,
+	"archiveURL": archiveURL,
+	"compareURL": compareURL,
+	"accessText": accessText,
+	"mark":       markMatches,
+	"isAdmin":    func(level string) bool { return level == access.AdminAccess.String() },
 }).ParseFS(uiFS, "ui_templates/*.html"))
 
 // uiHandler serves the web pages.
@@ -66,7 +78,9 @@ type page struct {
 	Repo      *RepoInfo
 	Ref       string
 	Tab       string
-	Data      any
+	// Feed is an Atom feed for the page, if it has one.
+	Feed string
+	Data any
 }
 
 func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -130,9 +144,27 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.commit(w, r, b, p, strings.TrimPrefix(action, "commit/"))
 	case action == "refs":
 		h.refs(w, r, b, p)
+	case action == "blame":
+		h.blame(w, r, b, p, q.Get("path"))
+	case action == "compare":
+		h.compare(w, r, b, p, q.Get("base"), q.Get("head"))
+	case action == "search":
+		h.search(w, r, b, p, q.Get("q"))
+	case action == "archive":
+		serveArchive(w, r, b, info.Name)
+	case action == "commits.atom":
+		h.feed(w, r, b, p, q.Get("path"))
+	case action == "access":
+		h.access(w, r, b, p)
 	default:
 		h.fail(w, r, p, errNotFound)
 	}
+}
+
+type indexData struct {
+	Repos []RepoInfo
+	Query string
+	Total int
 }
 
 func (h uiHandler) index(w http.ResponseWriter, r *http.Request, b *browser, p page) {
@@ -141,8 +173,9 @@ func (h uiHandler) index(w http.ResponseWriter, r *http.Request, b *browser, p p
 		h.fail(w, r, p, err)
 		return
 	}
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	p.Title = p.SiteName
-	p.Data = repos
+	p.Data = indexData{Repos: filterRepos(repos, q), Query: q, Total: len(repos)}
 	h.render(w, r, "index", p)
 }
 
@@ -156,7 +189,7 @@ func (h uiHandler) summary(w http.ResponseWriter, r *http.Request, b *browser, p
 	p.Tab = "files"
 	d := summaryData{}
 	if !p.Repo.Empty {
-		t, err := b.tree(r.Context(), p.Repo.Name, p.Ref, "")
+		t, err := b.tree(r.Context(), p.Repo.Name, p.Ref, "", true)
 		if err != nil {
 			h.fail(w, r, p, err)
 			return
@@ -189,7 +222,7 @@ func (h uiHandler) readme(r *http.Request, b *browser, p page) (template.HTML, s
 
 func (h uiHandler) tree(w http.ResponseWriter, r *http.Request, b *browser, p page, path string) {
 	p.Tab = "files"
-	t, err := b.tree(r.Context(), p.Repo.Name, p.Ref, path)
+	t, err := b.tree(r.Context(), p.Repo.Name, p.Ref, path, true)
 	if errors.Is(err, errNotDir) {
 		http.Redirect(w, r, repoURL(p.Repo.Name, "blob", p.Ref, path), http.StatusFound)
 		return
@@ -259,6 +292,7 @@ func (h uiHandler) commits(w http.ResponseWriter, r *http.Request, b *browser, p
 		return
 	}
 	p.Ref = cp.Ref
+	p.Feed = feedURL(p.Repo.Name, p.Ref, cp.Path)
 	p.Title = "Commits · " + p.Repo.Name
 	if cp.Path != "" {
 		p.Title = "History of " + cp.Path + " · " + p.Repo.Name
@@ -308,6 +342,8 @@ func (h uiHandler) fail(w http.ResponseWriter, r *http.Request, p page, err erro
 		msg = "There's nothing here, or you don't have access to it."
 	case status == http.StatusBadRequest:
 		msg = publicMessage(err)
+	case status == http.StatusForbidden:
+		msg = "Only this repository's admins can see this."
 	default:
 		log.FromContext(r.Context()).Error("web", "path", r.URL.Path, "err", err)
 	}
@@ -326,6 +362,19 @@ func (h uiHandler) renderError(w http.ResponseWriter, r *http.Request, p *page, 
 
 func (h uiHandler) render(w http.ResponseWriter, r *http.Request, name string, p page) {
 	h.write(w, r, name, p)
+}
+
+// renderStatus renders a page with a status other than 200.
+func (h uiHandler) renderStatus(w http.ResponseWriter, r *http.Request, status int, name string, p page) {
+	var buf bytes.Buffer
+	if err := uiTemplates.ExecuteTemplate(&buf, name, p); err != nil {
+		log.FromContext(r.Context()).Error("web: render", "template", name, "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	setPageHeaders(w)
+	w.WriteHeader(status)
+	w.Write(buf.Bytes()) //nolint:errcheck
 }
 
 func (h uiHandler) write(w http.ResponseWriter, r *http.Request, name string, p page) {
@@ -428,6 +477,8 @@ func dataPath(d any) string {
 		}
 	case blobData:
 		return v.Blob.Path
+	case blameData:
+		return v.Blame.Path
 	}
 	return ""
 }

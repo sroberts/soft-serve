@@ -45,7 +45,8 @@ func mcpHandler(v *outpostVerifier) http.Handler {
 }
 
 const mcpInstructions = `Read-only access to the Git repositories on this Soft Serve server.
-Start with list_repositories. A repository name may contain slashes. Every
+Start with list_repositories, or search_code inside one. A repository name
+may contain slashes. Every
 tool that takes a ref accepts a branch, a tag or a commit hash, and uses the
 default branch when it is left out. Files and patches longer than 1 MiB are
 cut off, and say so.`
@@ -83,6 +84,33 @@ type commitArgs struct {
 	SHA  string `json:"sha" jsonschema:"full or abbreviated commit hash"`
 }
 
+type listArgs struct {
+	Query string `json:"query,omitempty" jsonschema:"only repositories whose name or description contains this, ignoring case"`
+}
+
+type dirArgs struct {
+	Repo        string `json:"repo" jsonschema:"repository name, as list_repositories gives it"`
+	Ref         string `json:"ref,omitempty" jsonschema:"branch, tag or commit hash; the default branch when omitted"`
+	Path        string `json:"path,omitempty" jsonschema:"path inside the repository; the root when omitted"`
+	LastCommits bool   `json:"last_commits,omitempty" jsonschema:"also give each entry's latest commit (slower on long histories)"`
+}
+
+type compareArgs struct {
+	Repo string `json:"repo" jsonschema:"repository name, as list_repositories gives it"`
+	Base string `json:"base,omitempty" jsonschema:"branch, tag or commit to compare against; the default branch when omitted"`
+	Head string `json:"head" jsonschema:"branch, tag or commit whose changes to show"`
+}
+
+type searchArgs struct {
+	Repo  string `json:"repo" jsonschema:"repository name, as list_repositories gives it"`
+	Ref   string `json:"ref,omitempty" jsonschema:"branch, tag or commit hash; the default branch when omitted"`
+	Query string `json:"query" jsonschema:"text to find, 2 to 200 characters; matched as written, ignoring case"`
+}
+
+type collaboratorList struct {
+	Collaborators []Collaborator `json:"collaborators"`
+}
+
 type repoList struct {
 	Repositories []RepoInfo `json:"repositories"`
 }
@@ -116,16 +144,16 @@ func newMCPServer(b *browser, cache *mcp.SchemaCache) *mcp.Server {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "list_repositories",
-		Description: "List the repositories you can read, with their descriptions, default branches and clone URLs.",
+		Description: "List the repositories you can read, with their descriptions, default branches, clone URLs and your access to each. Give a query to filter by name or description.",
 		Annotations: readOnly("List repositories"),
-	}, tool(func(ctx context.Context, _ struct{}) (repoList, error) {
+	}, tool(func(ctx context.Context, in listArgs) (repoList, error) {
 		rs, err := b.repos(ctx)
-		return repoList{Repositories: rs}, err
+		return repoList{Repositories: filterRepos(rs, in.Query)}, err
 	}))
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "get_repository",
-		Description: "Describe one repository: description, privacy, default branch and clone URLs.",
+		Description: "Describe one repository: description, privacy, default branch, clone URLs and your access (read-only, read-write or admin-access).",
 		Annotations: readOnly("Get repository"),
 	}, tool(func(ctx context.Context, in repoArg) (RepoInfo, error) {
 		return b.repo(ctx, in.Repo)
@@ -141,7 +169,7 @@ func newMCPServer(b *browser, cache *mcp.SchemaCache) *mcp.Server {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "list_refs",
-		Description: "List a repository's branches and tags, each with the commit it points at.",
+		Description: "List a repository's branches and tags, newest first, each with its commit, date and summary. Annotated tags also have their tagger and message (often release notes).",
 		Annotations: readOnly("List branches and tags"),
 	}, tool(func(ctx context.Context, in repoArg) (Refs, error) {
 		return b.refs(ctx, in.Repo)
@@ -165,10 +193,10 @@ func newMCPServer(b *browser, cache *mcp.SchemaCache) *mcp.Server {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "list_directory",
-		Description: "List a directory in a repository at a ref: names, types (dir, file, symlink, submodule) and sizes.",
+		Description: "List a directory in a repository at a ref: names, types (dir, file, symlink, submodule) and sizes, and optionally each entry's latest commit.",
 		Annotations: readOnly("List directory"),
-	}, tool(func(ctx context.Context, in pathArgs) (Tree, error) {
-		return b.tree(ctx, in.Repo, in.Ref, in.Path)
+	}, tool(func(ctx context.Context, in dirArgs) (Tree, error) {
+		return b.tree(ctx, in.Repo, in.Ref, in.Path, in.LastCommits)
 	}))
 
 	mcp.AddTool(s, &mcp.Tool{
@@ -177,6 +205,39 @@ func newMCPServer(b *browser, cache *mcp.SchemaCache) *mcp.Server {
 		Annotations: readOnly("Read file"),
 	}, tool(func(ctx context.Context, in pathArgs) (Blob, error) {
 		return b.blob(ctx, in.Repo, in.Ref, in.Path)
+	}))
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "blame_file",
+		Description: "Show who last changed each line of a text file at a ref: runs of lines (hunks), each with its commit, and the commits' authors, dates and summaries.",
+		Annotations: readOnly("Blame file"),
+	}, tool(func(ctx context.Context, in pathArgs) (Blame, error) {
+		return b.blame(ctx, in.Repo, in.Ref, in.Path)
+	}))
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "compare_refs",
+		Description: "Compare two branches, tags or commits: the commits head has that base doesn't, and the diff from where they diverged to head (what merging head into base would bring in).",
+		Annotations: readOnly("Compare refs"),
+	}, tool(func(ctx context.Context, in compareArgs) (Compare, error) {
+		return b.compare(ctx, in.Repo, in.Base, in.Head)
+	}))
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "search_code",
+		Description: "Find text in a repository's files at a ref, ignoring case. Returns matching lines with their line numbers, up to 5 per file and 200 in all.",
+		Annotations: readOnly("Search code"),
+	}, tool(func(ctx context.Context, in searchArgs) (SearchResult, error) {
+		return b.search(ctx, in.Repo, in.Ref, in.Query)
+	}))
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "list_collaborators",
+		Description: "List a repository's collaborators and their access. Only the repository's admins can.",
+		Annotations: readOnly("List collaborators"),
+	}, tool(func(ctx context.Context, in repoArg) (collaboratorList, error) {
+		cs, err := b.collaborators(ctx, in.Repo)
+		return collaboratorList{Collaborators: cs}, err
 	}))
 
 	return s

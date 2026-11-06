@@ -131,6 +131,57 @@ func highlight(name, src string) template.HTML {
 	return template.HTML("<pre class=\"plain\">" + template.HTMLEscapeString(src) + "</pre>") //nolint:gosec // escaped
 }
 
+// highlightLines colours a file's text and returns it a line at a time, for
+// pages that interleave code with other columns (blame). The classes are
+// the ones highlightCSS styles; wrap the lines in an element of class chroma.
+func highlightLines(name, src string) []template.HTML {
+	text := strings.Split(strings.TrimSuffix(src, "\n"), "\n")
+	out := make([]template.HTML, len(text))
+	if len(src) <= maxHighlightBytes {
+		lexer := lexers.Match(name)
+		if lexer == nil {
+			lexer = lexers.Analyse(src)
+		}
+		if lexer != nil {
+			if it, err := chroma.Coalesce(lexer).Tokenise(nil, src); err == nil {
+				lines := chroma.SplitTokensIntoLines(it.Tokens())
+				if len(lines) >= len(text) {
+					for i := range out {
+						var b strings.Builder
+						for _, tok := range lines[i] {
+							v := strings.TrimSuffix(tok.Value, "\n")
+							if v == "" {
+								continue
+							}
+							if cls := tokenClass(tok.Type); cls != "" {
+								b.WriteString(`<span class="` + cls + `">` + template.HTMLEscapeString(v) + `</span>`)
+							} else {
+								b.WriteString(template.HTMLEscapeString(v))
+							}
+						}
+						out[i] = template.HTML(b.String()) //nolint:gosec // tokens escaped
+					}
+					return out
+				}
+			}
+		}
+	}
+	for i, l := range text {
+		out[i] = template.HTML(template.HTMLEscapeString(l)) //nolint:gosec // escaped
+	}
+	return out
+}
+
+// tokenClass is the CSS class chroma's HTML formatter gives a token type.
+func tokenClass(t chroma.TokenType) string {
+	for ; t != 0; t = t.Parent() {
+		if cls, ok := chroma.StandardTypes[t]; ok {
+			return cls
+		}
+	}
+	return chroma.StandardTypes[t]
+}
+
 var (
 	codeCSSOnce sync.Once
 	codeCSS     []byte

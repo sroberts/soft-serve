@@ -865,9 +865,14 @@ Flags:
 Soft Serve's HTTP port also serves a read-only view of its repositories, three
 ways, all showing exactly what the caller may read:
 
-- **Web pages** at `/`: repositories, files with syntax highlighting, rendered
-  READMEs, history, commits with their diffs, and branches and tags. Pages
-  are plain HTML with no script.
+- **Web pages** at `/`: repositories (with a filter), files with syntax
+  highlighting and each one's latest commit, rendered READMEs, history of
+  the repository or of one file or folder, commits with their diffs, blame,
+  branches and tags with their dates and release notes, comparing two
+  branches, tags or commits, searching the files, and `.tar.gz` and `.zip`
+  downloads of any of them. Each history has an Atom feed
+  (`/<repo>/-/commits.atom`). A repository's admins also see its
+  collaborators. Pages are plain HTML with no script.
 - **A REST API** under `/v1`, described by `/v1/openapi.json`. Repository
   names can contain slashes, so the name and the action are separated by
   `/-/`:
@@ -878,11 +883,15 @@ ways, all showing exactly what the caller may read:
   curl http://localhost:23232/v1/repos/icecream/-/blob?path=README.md
   curl http://localhost:23232/v1/repos/icecream/-/commits?per_page=10
   curl "http://localhost:23232/v1/repos/icecream/-/commits?path=docs/guide.md"
+  curl "http://localhost:23232/v1/repos/icecream/-/compare?base=main&head=feature"
+  curl "http://localhost:23232/v1/repos/icecream/-/search?q=scoop"
+  curl -OJ "http://localhost:23232/v1/repos/icecream/-/archive?ref=v1.0&format=zip"
   ```
 
 - **MCP** at `/mcp` (Streamable HTTP), with read-only tools to list
   repositories, branches, tags and commits, read a README, list a directory,
-  read a file and get a commit's diff.
+  read and blame a file, get a commit's diff, compare two refs, search the
+  files, and (for admins) list collaborators.
 
 Anonymous callers get the server's `anon-access` level. To read as a user,
 send a Soft Serve access token (`ssh localhost -p 23231 token create`) as

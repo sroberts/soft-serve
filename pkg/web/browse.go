@@ -58,6 +58,8 @@ func statusFor(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, errBadRequest), errors.Is(err, errIsDir), errors.Is(err, errNotDir):
 		return http.StatusBadRequest
+	case errors.Is(err, errForbidden):
+		return http.StatusForbidden
 	}
 	return http.StatusInternalServerError
 }
@@ -102,6 +104,8 @@ type RepoInfo struct {
 	DefaultBranch string    `json:"default_branch,omitempty"`
 	UpdatedAt     time.Time `json:"updated_at"`
 	Clone         CloneURLs `json:"clone"`
+	// Access is the caller's: read-only, read-write or admin-access.
+	Access string `json:"access"`
 }
 
 // CloneURLs are the ways to clone a repository.
@@ -114,6 +118,13 @@ type CloneURLs struct {
 type RefInfo struct {
 	Name   string `json:"name"`
 	Commit string `json:"commit"`
+	// Date is when a branch's tip was committed, or a tag made.
+	Date    time.Time `json:"date"`
+	Summary string    `json:"summary"` // of the commit
+	// Annotated tags have a tagger and a message: release notes, often.
+	Annotated bool       `json:"annotated,omitempty"`
+	Tagger    *Signature `json:"tagger,omitempty"`
+	Message   string     `json:"message,omitempty"`
 }
 
 // Refs are a repository's branches and tags.
@@ -177,6 +188,8 @@ type TreeEntry struct {
 	Type string `json:"type"` // dir, file, symlink or submodule
 	Size int64  `json:"size"`
 	Mode string `json:"mode"`
+	// LastCommit is the latest commit to touch the entry, when asked for.
+	LastCommit *CommitBrief `json:"last_commit,omitempty"`
 }
 
 // Tree is a directory at a revision.
@@ -185,6 +198,8 @@ type Tree struct {
 	Commit  string      `json:"commit"`
 	Path    string      `json:"path"`
 	Entries []TreeEntry `json:"entries"`
+	// LastCommit is the latest commit to touch the directory, when asked for.
+	LastCommit *CommitBrief `json:"last_commit,omitempty"`
 }
 
 // Blob is a file at a revision.
@@ -212,19 +227,25 @@ type Readme struct {
 
 // open returns a repository the caller may read, or errNotFound.
 func (b *browser) open(ctx context.Context, name string) (proto.Repository, *git.Repository, error) {
+	r, gr, _, err := b.openLevel(ctx, name)
+	return r, gr, err
+}
+
+// openLevel is open, with the caller's access level.
+func (b *browser) openLevel(ctx context.Context, name string) (proto.Repository, *git.Repository, access.AccessLevel, error) {
 	name = utils.SanitizeRepo(name)
 	if name == "" {
-		return nil, nil, errNotFound
+		return nil, nil, access.NoAccess, errNotFound
 	}
-	r, _ := b.be.Readable(ctx, name, b.user)
+	r, level := b.be.Readable(ctx, name, b.user)
 	if r == nil {
-		return nil, nil, errNotFound
+		return nil, nil, access.NoAccess, errNotFound
 	}
 	gr, err := r.Open()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, access.NoAccess, err
 	}
-	return r, gr, nil
+	return r, gr, level, nil
 }
 
 // repos lists the repositories the caller may read, by name. Hidden
@@ -237,12 +258,13 @@ func (b *browser) repos(ctx context.Context) ([]RepoInfo, error) {
 	}
 	out := make([]RepoInfo, 0, len(all))
 	for _, r := range all {
-		if r.IsHidden() || b.be.AccessLevelForUser(ctx, r.Name(), b.user) < access.ReadOnlyAccess {
+		level := b.be.AccessLevelForUser(ctx, r.Name(), b.user)
+		if r.IsHidden() || level < access.ReadOnlyAccess {
 			continue
 		}
-		info := b.info(r, nil)
+		info := b.info(r, nil, level)
 		if gr, err := r.Open(); err == nil {
-			info = b.info(r, gr)
+			info = b.info(r, gr, level)
 		}
 		out = append(out, info)
 	}
@@ -252,14 +274,14 @@ func (b *browser) repos(ctx context.Context) ([]RepoInfo, error) {
 
 // repo describes one repository.
 func (b *browser) repo(ctx context.Context, name string) (RepoInfo, error) {
-	r, gr, err := b.open(ctx, name)
+	r, gr, level, err := b.openLevel(ctx, name)
 	if err != nil {
 		return RepoInfo{}, err
 	}
-	return b.info(r, gr), nil
+	return b.info(r, gr, level), nil
 }
 
-func (b *browser) info(r proto.Repository, gr *git.Repository) RepoInfo {
+func (b *browser) info(r proto.Repository, gr *git.Repository, level access.AccessLevel) RepoInfo {
 	info := RepoInfo{
 		Name:        r.Name(),
 		ProjectName: r.ProjectName(),
@@ -270,6 +292,7 @@ func (b *browser) info(r proto.Repository, gr *git.Repository) RepoInfo {
 		UpdatedAt:   r.UpdatedAt(),
 		Clone:       b.cloneURLs(r.Name()),
 		Empty:       true,
+		Access:      level.String(),
 	}
 	if gr != nil {
 		if head, err := gr.HEAD(); err == nil {
@@ -332,41 +355,6 @@ func cleanPath(p string) (string, error) {
 		return "", nil
 	}
 	return p, nil
-}
-
-func (b *browser) refs(ctx context.Context, name string) (Refs, error) {
-	_, gr, err := b.open(ctx, name)
-	if err != nil {
-		return Refs{}, err
-	}
-	refs, err := gr.References()
-	if err != nil {
-		return Refs{}, err
-	}
-	out := Refs{Branches: []RefInfo{}, Tags: []RefInfo{}}
-	if head, err := gr.HEAD(); err == nil {
-		out.DefaultBranch = head.Name().Short()
-	}
-	for _, r := range refs {
-		ri := RefInfo{Name: r.Name().Short(), Commit: r.ID}
-		switch {
-		case r.IsBranch():
-			out.Branches = append(out.Branches, ri)
-		case r.IsTag():
-			out.Tags = append(out.Tags, ri)
-		}
-	}
-	slices.SortFunc(out.Branches, func(a, c RefInfo) int {
-		switch {
-		case a.Name == out.DefaultBranch:
-			return -1
-		case c.Name == out.DefaultBranch:
-			return 1
-		}
-		return strings.Compare(a.Name, c.Name)
-	})
-	slices.SortFunc(out.Tags, func(a, c RefInfo) int { return strings.Compare(c.Name, a.Name) })
-	return out, nil
 }
 
 func commitInfo(c *git.Commit) CommitInfo {
@@ -447,30 +435,7 @@ func (b *browser) commit(ctx context.Context, name, sha string) (CommitDetail, e
 	if err != nil {
 		return CommitDetail{}, err
 	}
-	for _, f := range diff.Files {
-		fc := FileChange{
-			Path:      f.Name,
-			Status:    "modified",
-			Additions: f.NumAdditions(),
-			Deletions: f.NumDeletions(),
-			Binary:    f.IsBinary(),
-		}
-		switch {
-		case f.IsCreated():
-			fc.Status = "added"
-		case f.IsDeleted():
-			fc.Status = "deleted"
-		case f.IsRenamed():
-			fc.Status = "renamed"
-			fc.OldPath = f.OldName()
-		}
-		out.Files = append(out.Files, fc)
-	}
-	out.Patch = diff.Patch()
-	if len(out.Patch) > maxPatchBytes {
-		out.Patch = truncateUTF8(out.Patch, maxPatchBytes)
-		out.PatchTruncated = true
-	}
+	out.Files, out.Patch, out.PatchTruncated = changes(diff)
 	return out, nil
 }
 
@@ -520,7 +485,8 @@ func lookup(gr *git.Repository, rev, p string) (string, *git.Commit, *git.Tree, 
 	return rev, c, nil, te, nil
 }
 
-func (b *browser) tree(ctx context.Context, name, rev, p string) (Tree, error) {
+// tree lists a directory; withLast adds each entry's latest commit.
+func (b *browser) tree(ctx context.Context, name, rev, p string, withLast bool) (Tree, error) {
 	_, gr, err := b.open(ctx, name)
 	if err != nil {
 		return Tree{}, err
@@ -546,6 +512,11 @@ func (b *browser) tree(ctx context.Context, name, rev, p string) (Tree, error) {
 			Size: e.Size(),
 			Mode: e.Mode().String(),
 		})
+	}
+	if withLast {
+		if err := lastCommits(ctx, gr, out.Commit, &out); err != nil {
+			return Tree{}, err
+		}
 	}
 	return out, nil
 }
