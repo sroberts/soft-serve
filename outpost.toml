@@ -10,9 +10,12 @@ description = "A self-hostable Git server for the command line"
 # writes into the manifest, so there is no ${PORT} to pass.
 args = ["serve"]
 
-# Read-only MCP tools at /mcp, alongside the web view and the REST API
-# under /v1 (described by /v1/openapi.json).
-mcp = true
+# Read-only MCP tools (Streamable HTTP) at /mcp, alongside the web view
+# and the REST API under /v1 (described by /v1/openapi.json). mcp_path is
+# what the gateway routes the portal's /mcp/soft-serve to; mcp = true is
+# informational.
+mcp      = true
+mcp_path = "/mcp"
 
 # /livez answers without touching the database. Soft Serve runs its
 # migrations before it binds any port, so it only answers once it is ready.

@@ -401,6 +401,7 @@ right:
 ```toml
 tailscale_name = "soft-serve"
 tcp = { 22 = 23231 }   # tailnet port 22 -> SSH on 127.0.0.1:23231
+mcp_path = "/mcp"     # the portal routes /mcp/soft-serve here
 
 [env]
 SOFT_SERVE_INITIAL_ADMIN_KEYS = "ssh-ed25519 AAAA..."
@@ -435,7 +436,8 @@ Things to know:
   your Outpost user. If the names differ, rename one, for example
   `ssh soft-serve.<tailnet>.ts.net user set-username admin <outpost-name>`;
   until then you see public repositories only, and the page says so. MCP is
-  at `/mcp`, so Outpost's portal serves it at `/mcp/soft-serve` too.
+  at `/mcp`; add `mcp_path = "/mcp"` to the manifest and Outpost's portal
+  serves it at `/mcp/soft-serve` too.
 
 ## Server Access
 
