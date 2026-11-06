@@ -449,14 +449,17 @@ var webhookSite = sync.OnceValues(func() (string, error) {
 			}
 			time.Sleep(wait)
 		}
-		req, err := http.NewRequest(http.MethodPost, site+"/token", nil) //nolint:noctx
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, site+"/token", nil)
 		if err != nil {
+			cancel()
 			return "", err
 		}
 		// Without this, webhook.site answers with its web page.
 		req.Header.Set("Accept", "application/json")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
+			cancel()
 			last = err
 			continue
 		}
@@ -468,6 +471,7 @@ var webhookSite = sync.OnceValues(func() (string, error) {
 			err = json.NewDecoder(resp.Body).Decode(&tok)
 		}
 		resp.Body.Close() //nolint:errcheck
+		cancel()
 		switch {
 		case !ok:
 			secs, _ := strconv.Atoi(resp.Header.Get("Retry-After"))
