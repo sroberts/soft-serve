@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -91,6 +92,17 @@ func TestScript(t *testing.T) {
 		Dir:                 "./testdata/",
 		UpdateScripts:       *update,
 		RequireExplicitExec: true,
+		Condition: func(cond string) (bool, error) {
+			switch cond {
+			case "webhooksite":
+				_, err := webhookSite()
+				if err != nil {
+					t.Logf("webhook.site is unavailable: %v", err)
+				}
+				return err == nil, nil
+			}
+			return false, fmt.Errorf("unknown condition %q", cond)
+		},
 		Cmds: map[string]func(ts *testscript.TestScript, neg bool, args []string){
 			"soft":                   cmdSoft("admin", admin1.Signer()),
 			"usoft":                  cmdSoft("user1", user1.Signer()),
@@ -422,32 +434,67 @@ func cmdEnvfile(ts *testscript.TestScript, neg bool, args []string) {
 	}
 }
 
-func cmdNewWebhook(ts *testscript.TestScript, neg bool, args []string) {
-	type webhookSite struct {
-		UUID string `json:"uuid"`
+// webhook.site gives the one script that needs a real inbox somewhere to
+// deliver to. It is an outside service that rate-limits, and CI runs several
+// jobs at once, so one token is fetched per test binary, with retries, and
+// the script skips itself (the webhooksite condition) when none comes.
+var webhookSite = sync.OnceValues(func() (string, error) {
+	const site = "https://webhook.site"
+	var last error
+	for attempt := range 5 {
+		if attempt > 0 {
+			wait := time.Duration(1<<attempt) * time.Second
+			if ra, ok := last.(retryAfter); ok && ra.d > 0 && ra.d < 30*time.Second {
+				wait = ra.d
+			}
+			time.Sleep(wait)
+		}
+		req, err := http.NewRequest(http.MethodPost, site+"/token", nil) //nolint:noctx
+		if err != nil {
+			return "", err
+		}
+		// Without this, webhook.site answers with its web page.
+		req.Header.Set("Accept", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			last = err
+			continue
+		}
+		var tok struct {
+			UUID string `json:"uuid"`
+		}
+		ok := resp.StatusCode/100 == 2 && strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json")
+		if ok {
+			err = json.NewDecoder(resp.Body).Decode(&tok)
+		}
+		resp.Body.Close() //nolint:errcheck
+		switch {
+		case !ok:
+			secs, _ := strconv.Atoi(resp.Header.Get("Retry-After"))
+			last = retryAfter{status: resp.Status, d: time.Duration(secs) * time.Second}
+		case err != nil || tok.UUID == "":
+			last = fmt.Errorf("token response: %v", err)
+		default:
+			return site + "/" + tok.UUID, nil
+		}
 	}
+	return "", last
+})
 
+type retryAfter struct {
+	status string
+	d      time.Duration
+}
+
+func (r retryAfter) Error() string { return "webhook.site token: " + r.status }
+
+func cmdNewWebhook(ts *testscript.TestScript, neg bool, args []string) {
 	if len(args) != 1 {
 		ts.Fatalf("usage: new-webhook <env-name>")
 	}
-
-	const whSite = "https://webhook.site"
-	req, err := http.NewRequest(http.MethodPost, whSite+"/token", nil) //nolint:noctx
+	u, err := webhookSite()
 	check(ts, err, neg)
-	// Without this, webhook.site answers with its web page.
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	check(ts, err, neg)
-
-	defer resp.Body.Close()
-	if resp.StatusCode/100 != 2 || !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
-		ts.Fatalf("webhook.site token: %s, %s", resp.Status, resp.Header.Get("Content-Type"))
-	}
-	var site webhookSite
-	check(ts, json.NewDecoder(resp.Body).Decode(&site), neg)
-
-	ts.Setenv(args[0], whSite+"/"+site.UUID)
+	ts.Setenv(args[0], u)
 }
 
 func cmdCurl(ts *testscript.TestScript, neg bool, args []string) {

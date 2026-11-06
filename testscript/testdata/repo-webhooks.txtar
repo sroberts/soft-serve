@@ -1,5 +1,8 @@
 # vi: set ft=conf
 
+# deliveries need a real inbox; webhook.site is outside our control
+[!webhooksite] skip 'webhook.site is unavailable'
+
 # start soft serve
 exec soft serve &
 # wait for SSH server to start
