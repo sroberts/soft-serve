@@ -1,0 +1,441 @@
+{{define "index"}}{{template "head" .}}
+<section class="intro">
+  <h1>Repositories</h1>
+  {{if and .SignedIn (not .SoftServe)}}<p class="note">You're signed in as <strong>{{.SignedIn}}</strong>, but no Soft Serve user has that name, so you see public repositories only.</p>{{end}}
+  {{if gt .Data.Total 0}}<form class="search" method="get" action="/" role="search">
+    <input type="search" name="q" value="{{.Data.Query}}" placeholder="Filter by name or description" aria-label="Filter repositories">
+    <button type="submit">Filter</button>
+  </form>{{end}}
+</section>
+{{if .Data.Repos}}
+<ul class="repos">
+  {{range .Data.Repos}}
+  <li>
+    <a class="repo" href="{{repoURL .Name "" "" ""}}">{{.Name}}</a>
+    {{if .Private}}<span class="badge">private</span>{{end}}{{if .Mirror}}<span class="badge">mirror</span>{{end}}{{if .Empty}}<span class="badge">empty</span>{{end}}
+    {{if .Description}}<p class="desc">{{.Description}}</p>{{end}}
+    <p class="meta">Updated {{ago .UpdatedAt}}</p>
+  </li>
+  {{end}}
+</ul>
+{{else if .Data.Query}}
+<p class="empty">No repositories match “{{.Data.Query}}”. <a href="/">Show all</a></p>
+{{else}}
+<p class="empty">No repositories yet.</p>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "summary"}}{{template "head" .}}
+{{template "repohead" .}}
+{{if .Repo.Empty}}
+<section class="card">
+  <h2>This repository is empty</h2>
+  <p>Push to it to get started:</p>
+  {{if .Repo.Clone.SSH}}<pre class="plain">git remote add origin {{.Repo.Clone.SSH}}
+git push -u origin main</pre>{{end}}
+</section>
+{{else}}
+<div class="pathrow"><span class="grow"></span>{{template "findform" .}}</div>
+{{template "entries" .}}
+{{if .Data.Readme}}
+<article class="readme">
+  <header>{{.Data.ReadmePath}}</header>
+  <div class="markdown">{{.Data.Readme}}</div>
+</article>
+{{end}}
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "tree"}}{{template "head" .}}
+{{template "repohead" .}}
+<div class="pathrow">
+  {{template "pathbar" .}}
+  {{template "findform" .}}
+  <a class="action" href="{{repoURL .Repo.Name "commits" .Ref (dataPath .Data)}}">History</a>
+</div>
+{{template "entries" .}}
+{{template "foot" .}}{{end}}
+
+{{define "blob"}}{{template "head" .}}
+{{template "repohead" .}}
+{{template "pathbar" .}}
+{{with .Data}}
+<article class="file">
+  <header>
+    <span>{{bytes .Blob.Size}}{{if .Blob.LFS}} · stored with Git LFS{{end}}{{if .Blob.Truncated}} · showing the first 1 MiB{{end}}{{if .Sel.Start}} · {{if eq .Sel.Start .Sel.End}}line {{.Sel.Start}}{{else}}lines {{.Sel.Start}}–{{.Sel.End}}{{end}} selected (<a href="{{.ClearURL}}">clear</a>){{else if .Lines}} · click a line number, then another, to select lines{{end}}</span>
+    <span class="grow"></span>
+    {{if .Markdown}}{{if .Source}}<a href="{{.RenderedURL}}">Rendered</a>{{else}}<a href="{{.SourceURL}}">Source</a>{{end}}{{end}}
+    {{if .Permalink}}<a href="{{.Permalink}}" title="This file at commit {{short .Blob.Commit}}, so the link keeps pointing at the same code">Permalink</a>{{end}}
+    <a href="{{repoURL $.Repo.Name "raw" $.Ref .Blob.Path}}">Raw</a>
+    {{if not (or .Blob.Binary .Blob.LFS)}}<a href="{{repoURL $.Repo.Name "blame" $.Ref .Blob.Path}}">Blame</a>{{end}}
+    <a href="{{repoURL $.Repo.Name "commits" $.Ref .Blob.Path}}">History</a>
+  </header>
+  {{if .Blob.LFSMissing}}<p class="empty">This file is tracked by Git LFS, but its content was never pushed to this server. This is its pointer:</p><pre class="plain">{{.Blob.Content}}</pre>
+  {{else if .Image}}<div class="image"><img src="{{repoURL $.Repo.Name "raw" $.Ref .Blob.Path}}" alt="{{.Blob.Path}}"></div>
+  {{else if .Blob.Binary}}<p class="empty">Binary file. <a href="{{repoURL $.Repo.Name "raw" $.Ref .Blob.Path}}">Download it</a>.</p>
+  {{else if .Lines}}<div class="code">
+  <table class="lines chroma">
+    <tbody>
+    {{range .Lines}}<tr id="L{{.N}}"{{if .Selected}} class="hl"{{end}}><td class="ln"><a href="{{.Href}}">{{.N}}</a></td><td class="src">{{.Code}}</td></tr>
+    {{end}}</tbody>
+  </table>
+  </div>
+  {{else if .Code}}<div class="markdown">{{.Code}}</div>
+  {{else}}<p class="empty">This file is empty.</p>{{end}}
+</article>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "commits"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}
+<form class="search history" method="get" action="{{repoURL $.Repo.Name "commits" "" ""}}" role="search">
+  <input type="search" name="q" value="{{.Page.Query}}" placeholder="Search commit messages" aria-label="Search commit messages" maxlength="200">
+  <input type="search" name="author" value="{{.Page.Author}}" placeholder="Author" aria-label="Author's name or email" maxlength="100" class="author">
+  {{if $.Ref}}<input type="hidden" name="ref" value="{{$.Ref}}">{{end}}
+  {{if .Page.Path}}<input type="hidden" name="path" value="{{.Page.Path}}">{{end}}
+  <button type="submit">Search</button>
+</form>
+{{if .Err}}<p class="formerror" role="alert">{{.Err}}</p>{{end}}
+{{if .Searched}}<p class="summaryline">{{.Page.Total}} commit{{if ne .Page.Total 1}}s{{end}}{{with .Page.Query}} mentioning “{{.}}”{{end}}{{with .Page.Author}} by authors matching “{{.}}”{{end}} on <code>{{.Page.Ref}}</code>. <a href="{{repoURL $.Repo.Name "commits" $.Ref .Page.Path}}">Clear</a></p>{{end}}
+<p class="scope">{{if .Page.Path}}History of <a href="{{repoURL $.Repo.Name "blob" $.Ref .Page.Path}}"><code>{{.Page.Path}}</code></a>{{end}}<span class="grow"></span>{{if .Page.Path}}<a href="{{repoURL $.Repo.Name "commits" $.Ref ""}}">All commits</a> · {{end}}<a href="{{$.Feed}}">Atom feed</a></p>
+<ol class="commits">
+  {{range .Page.Commits}}
+  <li>
+    <a class="summary" href="{{repoURL $.Repo.Name (printf "commit/%s" .SHA) "" ""}}">{{.Summary}}</a>
+    <p class="meta"><a class="author" href="{{authorURL $.Repo.Name $.Ref .Author.Name}}" title="Commits by {{.Author.Name}}">{{.Author.Name}}</a> · <time datetime="{{.Author.When.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .Author.When}}</time></p>
+    <a class="sha" href="{{repoURL $.Repo.Name (printf "commit/%s" .SHA) "" ""}}">{{.ShortSHA}}</a>
+  </li>
+  {{else}}{{if not .Err}}<li class="muted">No commits match.</li>{{end}}
+  {{end}}
+</ol>
+<nav class="pager">
+  {{if .Prev}}<a href="{{commitsURL $.Repo.Name .Page .Prev}}">← Newer</a>{{end}}
+  <span class="muted">{{.Page.Total}} commit{{if ne .Page.Total 1}}s{{end}}</span>
+  {{if .Next}}<a href="{{commitsURL $.Repo.Name .Page .Next}}">Older →</a>{{end}}
+</nav>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "commit"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}
+<article class="commit">
+  <h2>{{.Summary}}</h2>
+  {{with body .Message}}<pre class="message">{{.}}</pre>{{end}}
+  <dl class="meta">
+    <dt>Author</dt><dd>{{.Author.Name}} &lt;{{.Author.Email}}&gt; · <time datetime="{{.Author.When.Format "2006-01-02T15:04:05Z07:00"}}">{{.Author.When.Format "2 Jan 2006 15:04"}}</time></dd>
+    <dt>Commit</dt><dd><code>{{.SHA}}</code></dd>
+    {{with .Signature}}<dt>Signature</dt><dd>{{template "signature" .}}</dd>{{end}}
+    {{if .Parents}}<dt>Parent{{if gt (len .Parents) 1}}s{{end}}</dt><dd>{{range .Parents}}<a href="{{repoURL $.Repo.Name (printf "commit/%s" .) "" ""}}"><code>{{short .}}</code></a> {{end}}</dd>{{end}}
+    <dt>Browse</dt><dd><a href="{{repoURL $.Repo.Name "tree" .SHA ""}}">Files at this commit</a> · Download <a href="{{archiveURL $.Repo.Name .SHA "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .SHA "zip"}}" download>.zip</a></dd>
+  </dl>
+  {{template "diffview" .Diff}}
+</article>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "refs"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}
+<section class="refs">
+  <h2>Branches</h2>
+  <ul>
+    {{range .Branches}}<li>
+      <div class="refmain">
+        <a class="refname" href="{{repoURL $.Repo.Name "tree" .Name ""}}">{{.Name}}</a>{{if eq .Name $.Data.DefaultBranch}} <span class="badge">default</span>{{end}}
+        <p class="meta"><a href="{{repoURL $.Repo.Name (printf "commit/%s" .Commit) "" ""}}">{{.Summary}}</a> · <time datetime="{{.Date.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .Date}}</time>{{with distance . $.Data.DefaultBranch}} · <span class="distance">{{.}}</span>{{end}}</p>
+      </div>
+      <span class="refactions">{{if ne .Name $.Data.DefaultBranch}}<a href="{{compareURL $.Repo.Name "" .Name}}">Compare</a> · {{end}}<a href="{{archiveURL $.Repo.Name .Name "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .Name "zip"}}" download>.zip</a></span>
+    </li>
+    {{else}}<li class="muted">No branches</li>{{end}}
+  </ul>
+  <h2>Tags</h2>
+  <ul>
+    {{range .Tags}}<li>
+      <div class="refmain">
+        <a class="refname" href="{{repoURL $.Repo.Name "tree" .Name ""}}">{{.Name}}</a>
+        <p class="meta">{{if .Tagger}}Tagged by {{.Tagger.Name}} · {{end}}<time datetime="{{.Date.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .Date}}</time> · <a class="sha" href="{{repoURL $.Repo.Name (printf "commit/%s" .Commit) "" ""}}">{{short .Commit}}</a></p>
+        {{if .Message}}<details class="notes"><summary>Release notes</summary><pre class="message">{{.Message}}</pre></details>{{end}}
+      </div>
+      <span class="refactions"><a href="{{archiveURL $.Repo.Name .Name "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .Name "zip"}}" download>.zip</a></span>
+    </li>
+    {{else}}<li class="muted">No tags</li>{{end}}
+  </ul>
+</section>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "diffview"}}{{/* . is a diffView */}}
+<nav class="difftools" aria-label="Diff options">
+  <span class="seg"><a href="{{.UnifiedURL}}"{{if not .Split}} aria-current="true"{{end}}>Unified</a><a href="{{.SplitURL}}"{{if .Split}} aria-current="true"{{end}}>Split</a></span>
+  <a href="{{.WhitespaceURL}}" class="toggle"{{if .IgnoreWhitespace}} aria-current="true"{{end}}>{{if .IgnoreWhitespace}}Showing{{else}}Show{{end}} without whitespace changes</a>
+  {{if .Path}}<span class="grow"></span><span class="muted">Only <code>{{.Path}}</code> · <a href="{{.AllFilesURL}}">All files</a></span>{{end}}
+</nav>
+{{if .Files}}
+<table class="changes">
+  <tbody>
+  {{range .Files}}
+  <tr>
+    <td class="status {{.Status}}">{{.Status}}</td>
+    <td class="name"><a href="#{{.ID}}">{{if .OldPath}}{{.OldPath}} → {{end}}{{.Path}}</a></td>
+    <td class="stat">{{if .Binary}}binary{{else}}<span class="add">+{{.Additions}}</span> <span class="del">−{{.Deletions}}</span>{{end}}</td>
+  </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}<p class="empty">No changes{{if .IgnoreWhitespace}} other than whitespace{{end}}.</p>{{end}}
+{{if .PatchTruncated}}<p class="note">The diff is longer than 1 MiB, so it's cut short. Each file left out links to its own diff.</p>{{end}}
+{{$split := .Split}}
+{{range .Files}}
+<details class="filediff" id="{{.ID}}" open>
+  <summary><span class="fname">{{if .OldPath}}{{.OldPath}} → {{end}}{{.Path}}</span><span class="grow"></span>{{if not .Binary}}<span class="stat"><span class="add">+{{.Additions}}</span> <span class="del">−{{.Deletions}}</span></span>{{end}}</summary>
+  {{if .Binary}}<p class="empty">Binary file, not shown.</p>
+  {{else if not .Shown}}<p class="empty">Not shown, to keep the page under 1 MiB. <a href="{{.FullURL}}">Show this file's diff</a></p>
+  {{else if not .Lines}}<p class="empty">{{if eq .Status "renamed"}}Renamed without changes.{{else}}No changes to the content.{{end}}</p>
+  {{else if $split}}
+  <div class="diffscroll"><table class="difftable split">
+    <tbody>
+    {{range .Split}}{{if .Hunk}}<tr class="hunk"><td colspan="4">{{.Hunk}}</td></tr>
+    {{else}}<tr>{{with .Left}}<td class="ln">{{if .Old}}{{.Old}}{{end}}</td><td class="dl {{.Kind}}">{{.Text}}</td>{{else}}<td class="ln"></td><td class="dl none"></td>{{end}}{{with .Right}}<td class="ln">{{if .New}}{{.New}}{{end}}</td><td class="dl {{.Kind}}">{{.Text}}</td>{{else}}<td class="ln"></td><td class="dl none"></td>{{end}}</tr>
+    {{end}}{{end}}</tbody>
+  </table></div>
+  {{else}}
+  <div class="diffscroll"><table class="difftable">
+    <tbody>
+    {{range .Lines}}{{if eq .Kind "hunk"}}<tr class="hunk"><td colspan="3">{{.Text}}</td></tr>
+    {{else}}<tr class="{{.Kind}}"><td class="ln">{{if .Old}}{{.Old}}{{end}}</td><td class="ln">{{if .New}}{{.New}}{{end}}</td><td class="dl">{{if eq .Kind "add"}}+{{else if eq .Kind "del"}}-{{else if eq .Kind "ctx"}} {{end}}{{.Text}}</td></tr>
+    {{end}}{{end}}</tbody>
+  </table></div>
+  {{end}}
+  {{if and .Shown .Cut}}<p class="note cut">This file's diff is cut short. <a href="{{.FullURL}}">Show all of it</a></p>{{end}}
+</details>
+{{end}}
+{{end}}
+
+{{define "signature"}}{{/* . is a CommitSignature */}}
+{{if eq .Status "verified"}}<span class="sig verified">✓ Verified</span> Signed with <strong>{{.Signer}}</strong>’s SSH key{{with .Key}} <code title="Key fingerprint">{{.}}</code>{{end}}
+{{else if eq .Status "bad"}}<span class="sig bad">✗ Bad signature</span> {{.Reason}}{{with .Key}} <code title="Key fingerprint">{{.}}</code>{{end}}
+{{else}}<span class="sig">Signed</span>, not verified: {{.Reason}}{{with .Key}} <code title="Key fingerprint">{{.}}</code>{{end}}{{end}}
+{{end}}
+
+{{define "blame"}}{{template "head" .}}
+{{template "repohead" .}}
+{{template "pathbar" .}}
+{{with .Data}}
+<article class="file">
+  <header>
+    <span>Blame · {{len .Rows}} line{{if ne (len .Rows) 1}}s{{end}}</span>
+    <span class="grow"></span>
+    {{if .Permalink}}<a href="{{.Permalink}}" title="This blame at commit {{short .Blame.Commit}}">Permalink</a>{{end}}
+    <a href="{{repoURL $.Repo.Name "blob" $.Ref .Blame.Path}}">View file</a>
+    <a href="{{repoURL $.Repo.Name "commits" $.Ref .Blame.Path}}">History</a>
+  </header>
+  <div class="code">
+  <table class="blame chroma">
+    <tbody>
+    {{range .Rows}}{{$row := .}}<tr{{if .Commit}} class="start"{{end}}>
+      {{with .Commit}}<td class="who" rowspan="{{$row.Span}}"><div class="row"><a href="{{repoURL $.Repo.Name (printf "commit/%s" .SHA) "" ""}}" title="{{.Summary}} — {{.Author}}">{{.Summary}}</a><time datetime="{{.When.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.Author}}, {{.When.Format "2 Jan 2006 15:04 MST"}}">{{ago .When}}</time></div></td>{{end}}
+      <td class="ln" id="L{{.Line}}"><a href="#L{{.Line}}">{{.Line}}</a></td>
+      <td class="src">{{.Code}}</td>
+    </tr>{{end}}
+    </tbody>
+  </table>
+  </div>
+</article>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "compare"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}
+<form class="compareform" method="get" action="{{repoURL $.Repo.Name "compare" "" ""}}">
+  <label>Base <input name="base" value="{{.Base}}" list="refnames" required autocomplete="off" spellcheck="false"></label>
+  <span class="dots" aria-hidden="true">…</span>
+  <label>Head <input name="head" value="{{.Head}}" list="refnames" required autocomplete="off" spellcheck="false"></label>
+  <button type="submit">Compare</button>
+  <datalist id="refnames">{{range .Refs.Branches}}<option value="{{.Name}}">{{end}}{{range .Refs.Tags}}<option value="{{.Name}}">{{end}}</datalist>
+</form>
+{{if .Err}}<p class="formerror" role="alert">{{.Err}}</p>{{end}}
+{{with .Result}}
+{{if eq .MergeBase .HeadCommit}}
+<p class="empty"><code>{{.Head}}</code> has nothing that <code>{{.Base}}</code> doesn't.</p>
+{{else}}
+<p class="summaryline">{{.TotalCommits}} commit{{if ne .TotalCommits 1}}s{{end}} and {{len .Files}} changed file{{if ne (len .Files) 1}}s{{end}} since <code>{{.Head}}</code> branched from <code>{{.Base}}</code> at <a href="{{repoURL $.Repo.Name (printf "commit/%s" .MergeBase) "" ""}}" class="sha">{{short .MergeBase}}</a>.</p>
+<ol class="commits">
+  {{range .Commits}}
+  <li>
+    <a class="summary" href="{{repoURL $.Repo.Name (printf "commit/%s" .SHA) "" ""}}">{{.Summary}}</a>
+    <p class="meta">{{.Author.Name}} · <time datetime="{{.Author.When.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .Author.When}}</time></p>
+    <a class="sha" href="{{repoURL $.Repo.Name (printf "commit/%s" .SHA) "" ""}}">{{.ShortSHA}}</a>
+  </li>
+  {{end}}
+</ol>
+{{if .CommitsTruncated}}<p class="note">Showing the newest {{len .Commits}} commits.</p>{{end}}
+<div class="commit compared">
+{{template "diffview" $.Data.Diff}}
+</div>
+{{end}}
+{{else}}{{if not .Err}}
+<p class="note">Pick two branches, tags or commits. You'll see the commits in head that base doesn't have, and the changes since head branched off: what merging head into base would bring in.</p>
+{{end}}{{end}}
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "search"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}
+<form class="search" method="get" action="{{repoURL $.Repo.Name "search" "" ""}}" role="search">
+  <input type="search" name="q" value="{{.Query}}" placeholder="Find text in the files" aria-label="Search the files" minlength="2" maxlength="200" required>
+  {{if $.Ref}}<input type="hidden" name="ref" value="{{$.Ref}}">{{end}}
+  <button type="submit">Search</button>
+</form>
+{{if .Err}}<p class="formerror" role="alert">{{.Err}}</p>{{end}}
+{{with .Result}}
+{{if .Files}}
+<p class="summaryline">Matches for “{{.Query}}” in {{len .Files}} file{{if ne (len .Files) 1}}s{{end}} on <code>{{.Ref}}</code>{{if .Truncated}}, showing the first {{len .Files}}{{end}}.</p>
+{{range .Files}}{{$path := .Path}}
+<article class="file hit">
+  <header><a href="{{repoURL $.Repo.Name "blob" $.Ref .Path}}">{{.Path}}</a>{{if .More}}<span class="grow"></span><span>{{.More}} more match{{if ne .More 1}}es{{end}}</span>{{end}}</header>
+  <table class="matches"><tbody>
+  {{range .Matches}}<tr><td class="ln"><a href="{{lineURL $.Repo.Name $.Ref $path .Line}}">{{.Line}}</a></td><td class="text">{{mark .Text $.Data.Query}}</td></tr>{{end}}
+  </tbody></table>
+</article>
+{{end}}
+{{else}}
+<p class="empty">Nothing on <code>{{.Ref}}</code> contains “{{.Query}}”.</p>
+{{end}}
+{{end}}
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "access"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}
+<section class="refs">
+  <h2>Collaborators</h2>
+  <ul>
+    {{range .Collaborators}}<li><span class="refname">{{.Username}}</span><span class="badge">{{.Access}}</span></li>
+    {{else}}<li class="muted">No collaborators. Add one over SSH: <code>repo collab add {{$.Repo.Name}} &lt;user&gt; read-only</code></li>{{end}}
+  </ul>
+  <p class="note">Server admins can always read and change every repository. {{if $.Repo.Private}}This repository is private: only collaborators and admins can see it.{{else}}This repository is public: anyone with the server's anonymous access can read it.{{end}}</p>
+</section>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "find"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}
+<form class="search" method="get" action="{{repoURL $.Repo.Name "find" "" ""}}" role="search">
+  <input type="search" name="q" value="{{.Query}}" placeholder="Part of a file's path, or its letters in order" aria-label="Go to file" maxlength="200" required autofocus>
+  {{if $.Ref}}<input type="hidden" name="ref" value="{{$.Ref}}">{{end}}
+  <button type="submit">Go to file</button>
+</form>
+{{if .Err}}<p class="formerror" role="alert">{{.Err}}</p>{{end}}
+{{with .Result}}
+{{if .Files}}
+<p class="summaryline">{{.Total}} file{{if ne .Total 1}}s{{end}} on <code>{{.Ref}}</code> match “{{.Query}}”{{if .Truncated}}; the closest {{len .Files}} are shown{{end}}.</p>
+<ul class="found">
+  {{range $.Data.Rows}}<li><a href="{{repoURL $.Repo.Name "blob" $.Ref .Path}}">{{.Marked}}</a></li>
+  {{end}}
+</ul>
+{{else}}
+<p class="empty">No file on <code>{{.Ref}}</code> matches “{{.Query}}”.</p>
+{{end}}
+{{else}}{{if not .Err}}<p class="note">Type part of a file's path, or its letters in order: <code>brgo</code> finds <code>browse.go</code>.</p>{{end}}{{end}}
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "insights"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}
+<section class="insights">
+  <dl class="figures">
+    <div><dt>Commits</dt><dd>{{.Stats.TotalCommits}}</dd></div>
+    <div><dt>Contributors</dt><dd>{{.Stats.TotalContributors}}</dd></div>
+    <div><dt>Files</dt><dd>{{.Stats.Files}}</dd></div>
+    <div><dt>Size</dt><dd>{{bytes .Stats.Bytes}}</dd></div>
+  </dl>
+
+  <h2>Activity</h2>
+  <p class="note">{{.YearTotal}} commit{{if ne .YearTotal 1}}s{{end}} on <code>{{.Stats.Ref}}</code> in the last year{{if .BusiestN}}; the busiest week, of {{.BusiestWk}}, had {{.BusiestN}}{{end}}.</p>
+  <figure class="activity">
+    <svg viewBox="0 0 {{.ChartW}} {{.ChartH}}" preserveAspectRatio="none" role="img" aria-label="Commits per week for the last year: {{.YearTotal}} in all">
+      <line class="base" x1="0" y1="{{.ChartH}}" x2="{{.ChartW}}" y2="{{.ChartH}}"></line>
+      {{range .Bars}}<g><rect class="hit" x="{{.X}}" y="0" width="{{$.Data.BarW}}" height="{{$.Data.ChartH}}"></rect>{{if .H}}<rect class="bar" x="{{.X}}" y="{{.Y}}" width="{{$.Data.BarW}}" height="{{.H}}" rx="2"></rect>{{end}}<title>{{.Label}}</title></g>
+      {{end}}
+    </svg>
+    <figcaption><span>A year ago</span><span>This week</span></figcaption>
+  </figure>
+
+  <div class="cols">
+    <section>
+      <h2>Languages</h2>
+      {{if .Languages}}
+      <table class="langs">
+        <tbody>
+        {{range .Languages}}<tr><th scope="row">{{.Name}}</th><td class="barcell"><svg viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true"><rect x="0" y="0" width="{{.Width}}" height="8" rx="2"></rect></svg></td><td class="pct">{{.Percent}}</td></tr>
+        {{end}}
+        {{with .OtherShare}}<tr class="other"><th scope="row">Other</th><td></td><td class="pct">{{.}}</td></tr>{{end}}
+        </tbody>
+      </table>
+      <p class="note small">By size, leaving out vendored code, prose and data files.</p>
+      {{else}}<p class="empty">No code that could be recognised.</p>{{end}}
+    </section>
+    <section>
+      <h2>Top contributors</h2>
+      {{if .Stats.Contributors}}
+      <ol class="people">
+        {{range .Stats.Contributors}}<li><a href="{{authorURL $.Repo.Name $.Ref .Name}}">{{.Name}}</a><span class="muted">{{.Commits}} commit{{if ne .Commits 1}}s{{end}}</span></li>
+        {{end}}
+      </ol>
+      <p class="note small">By commits authored, leaving out merges.</p>
+      {{else}}<p class="empty">No commits other than merges.</p>{{end}}
+    </section>
+  </div>
+  {{if .Stats.Partial}}<p class="note">This repository is large, so some counts stopped early and are incomplete.</p>{{end}}
+</section>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "account"}}{{template "head" .}}
+{{with .Data}}
+<section class="intro">
+  <h1>Your account</h1>
+  {{if not .SignedIn}}
+  {{if .OutpostUser}}<p class="note">You're signed in as <strong>{{.OutpostUser}}</strong>, but no Soft Serve user has that name, so you see public repositories only. An admin can add one over SSH: <code>user create {{.OutpostUser}}</code>.</p>
+  {{else}}<p class="note">You aren't signed in, so you see public repositories only. Use an access token (<code>ssh … token create</code>) to sign in to the API and these pages.</p>{{end}}
+  {{else}}
+  <p>You're <strong>{{.Username}}</strong> on this server{{if .Admin}}, and an admin: you can read and change every repository{{end}}.{{if and .OutpostUser (ne .OutpostUser .Username)}} Outpost signed you in as {{.OutpostUser}}.{{end}}</p>
+  {{end}}
+</section>
+{{if .SignedIn}}
+<section class="refs">
+  <h2>SSH keys</h2>
+  <ul>
+    {{range .Keys}}<li><code class="refname">{{.Fingerprint}}</code><span class="badge">{{.Type}}</span></li>
+    {{else}}<li class="muted">No SSH keys. Add one over SSH: <code>user add-pubkey {{.Username}} "&lt;key&gt;"</code></li>{{end}}
+  </ul>
+  <h2>Access tokens</h2>
+  <ul>
+    {{range .Tokens}}<li><div class="refmain"><span class="refname">{{.Name}}</span><p class="meta">Made {{ago .CreatedAt}} · {{if .ExpiresAt}}{{if .Expired}}expired{{else}}expires{{end}} <time datetime="{{.ExpiresAt.Format "2006-01-02T15:04:05Z07:00"}}">{{agoPtr .ExpiresAt}}</time>{{else}}never expires{{end}} · ID {{.ID}}</p></div>{{if .Expired}}<span class="badge">expired</span>{{end}}</li>
+    {{else}}<li class="muted">No access tokens. Make one over SSH: <code>token create &lt;name&gt;</code></li>{{end}}
+  </ul>
+  <p class="note small">Tokens are shown only once, when they're made. Revoke one over SSH: <code>token delete &lt;id&gt;</code>.</p>
+  <h2>Repositories you can push to</h2>
+  <ul>
+    {{range .Repos}}<li><a class="refname" href="{{repoURL .Name "" "" ""}}">{{.Name}}</a>{{if .Private}} <span class="badge">private</span>{{end}}{{if .Hidden}} <span class="badge">hidden</span>{{end}}<span class="badge">{{.Access}}</span></li>
+    {{else}}<li class="muted">None yet.</li>{{end}}
+  </ul>
+</section>
+{{end}}
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "error"}}{{template "head" .}}
+<section class="card error">
+  <h1>{{.Title}}</h1>
+  <p>{{.Data}}</p>
+  <p><a href="/">All repositories</a></p>
+</section>
+{{template "foot" .}}{{end}}

@@ -3,6 +3,14 @@ on:
   push:
   pull_request:
 
+# The shared workflow annotates the PR, so it needs checks: write. The
+# repository default token is read-only, and a called workflow can't raise
+# its own permissions above what the caller grants.
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
+
 jobs:
   lint:
     uses: charmbracelet/meta/.github/workflows/lint.yml@main

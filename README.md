@@ -401,6 +401,7 @@ right:
 ```toml
 tailscale_name = "soft-serve"
 tcp = { 22 = 23231 }   # tailnet port 22 -> SSH on 127.0.0.1:23231
+mcp_path = "/mcp"     # the portal routes /mcp/soft-serve here
 
 [env]
 SOFT_SERVE_INITIAL_ADMIN_KEYS = "ssh-ed25519 AAAA..."
@@ -427,10 +428,16 @@ Things to know:
   all.
 - **The public URLs are configured, not derived.** Soft Serve uses them in
   places that have no request to read a hostname from, such as webhooks and
-  access tokens, so set them in `env` as above.
-- **Soft Serve ignores Outpost's identity headers.** It has no browser login
-  for them to replace; SSH keys and Soft Serve tokens decide what each user
-  may do.
+  access tokens, so set them in `env` as above. The [web view](#the-web-view-rest-api-and-mcp)
+  builds its own links from the request instead.
+- **The web view, REST API and MCP use your Outpost login.** Behind the
+  gateway, Soft Serve verifies each request's signed `X-Outpost-Identity`
+  token and gives you the access of the Soft Serve user with the same name as
+  your Outpost user. If the names differ, rename one, for example
+  `ssh soft-serve.<tailnet>.ts.net user set-username admin <outpost-name>`;
+  until then you see public repositories only, and the page says so. MCP is
+  at `/mcp`; add `mcp_path = "/mcp"` to the manifest and Outpost's portal
+  serves it at `/mcp/soft-serve` too.
 
 ## Server Access
 
@@ -852,6 +859,78 @@ Available Commands:
 Flags:
   -h, --help   help for webhook
 ```
+
+## The Web View, REST API and MCP
+
+Soft Serve's HTTP port also serves a read-only view of its repositories, three
+ways, all showing exactly what the caller may read:
+
+- **Web pages** at `/`: repositories (with a filter), files with syntax
+  highlighting and each one's latest commit, rendered READMEs, history of
+  the repository or of one file or folder, commits with their diffs, blame,
+  branches and tags with their dates and release notes, comparing two
+  branches, tags or commits, searching the files, and `.tar.gz` and `.zip`
+  downloads of any of them. Each history has an Atom feed
+  (`/<repo>/-/commits.atom`). A repository's admins also see its
+  collaborators. Pages are plain HTML with no script. Also:
+  - **Lines and permalinks.** Click a line number to select it, then another
+    to select the lines between (`?lines=10-25`). *Permalink* pins the link to
+    the commit, so it keeps pointing at the same code.
+  - **Go to file** (`/<repo>/-/find?q=brgo`) finds files by part of their path
+    or its letters in order.
+  - **History search**: commits by message (`?q=`) or author (`?author=`).
+  - **Diffs** one collapsible section per file, unified or side by side
+    (`?view=split`), with or without whitespace changes (`?w=1`). A file cut
+    short, or left out of a diff over 1 MiB, links to its own diff in full.
+  - **Branches** say how far ahead of and behind the default branch they are.
+  - **Signed commits**: an SSH signature is checked against the SSH keys of
+    this server's users. *Verified* names the user whose key signed it.
+    Nothing checks it against the author or committer fields. GPG and X.509
+    signatures are shown as signed, unverified.
+  - **Mirrors** say where they're copied from (credentials taken out) and when
+    they last synced.
+  - **Insights** (`/<repo>/-/insights`): languages, contributors and commits
+    per week for the last year.
+  - **Your account** (`/-/me`): your user, SSH keys, access tokens (never
+    the tokens themselves) and the repositories you can push to.
+- **A REST API** under `/v1`, described by `/v1/openapi.json`. Repository
+  names can contain slashes, so the name and the action are separated by
+  `/-/`:
+
+  ```sh
+  curl http://localhost:23232/v1/repos
+  curl "http://localhost:23232/v1/repos/icecream/-/tree?ref=main&path=docs"
+  curl http://localhost:23232/v1/repos/icecream/-/blob?path=README.md
+  curl http://localhost:23232/v1/repos/icecream/-/commits?per_page=10
+  curl "http://localhost:23232/v1/repos/icecream/-/commits?path=docs/guide.md"
+  curl "http://localhost:23232/v1/repos/icecream/-/compare?base=main&head=feature"
+  curl "http://localhost:23232/v1/repos/icecream/-/search?q=scoop"
+  curl "http://localhost:23232/v1/repos/icecream/-/commits?q=fix&author=ana"
+  curl "http://localhost:23232/v1/repos/icecream/-/files?q=guide"
+  curl "http://localhost:23232/v1/repos/icecream/-/commits/abc1234?ignore_whitespace=true"
+  curl http://localhost:23232/v1/repos/icecream/-/stats
+  curl -H "Authorization: Token $TOKEN" http://localhost:23232/v1/me
+  curl -OJ "http://localhost:23232/v1/repos/icecream/-/archive?ref=v1.0&format=zip"
+  ```
+
+- **MCP** at `/mcp` (Streamable HTTP), with read-only tools to list
+  repositories, branches, tags and commits (or search them by message or
+  author), read a README, list a directory, find files by name, read and
+  blame a file, get a commit's diff and signature, compare two refs, search
+  the files, get a repository's stats, say who you are (`whoami`), and (for
+  admins) list collaborators.
+
+Anonymous callers get the server's `anon-access` level. To read as a user,
+send a Soft Serve access token (`ssh localhost -p 23231 token create`) as
+`Authorization: Token <token>`. Behind Outpost's login gateway, your Outpost
+login is used instead (see [Running under Outpost](#running-under-outpost)).
+
+Nothing in a repository is ever served as a page: raw files go out as plain
+text, images or downloads, with `nosniff` and a sandbox policy. Files tracked
+by Git LFS are shown and served from Soft Serve's LFS store, not as pointers.
+
+Behind Outpost's gateway, pages and the API offer only the SSH clone URL:
+git over HTTPS would need a login the gateway doesn't pass through.
 
 ## The Soft Serve TUI
 

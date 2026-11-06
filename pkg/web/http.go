@@ -22,12 +22,16 @@ type HTTPServer struct {
 func NewHTTPServer(ctx context.Context) (*HTTPServer, error) {
 	cfg := config.FromContext(ctx)
 	logger := log.FromContext(ctx)
+	v, err := newOutpostVerifier()
+	if err != nil {
+		return nil, err
+	}
 	s := &HTTPServer{
 		ctx: ctx,
 		cfg: cfg,
 		Server: &http.Server{
 			Addr:              cfg.HTTP.ListenAddr,
-			Handler:           NewRouter(ctx),
+			Handler:           newRouter(ctx, v),
 			ReadHeaderTimeout: time.Second * 10,
 			IdleTimeout:       time.Second * 10,
 			MaxHeaderBytes:    http.DefaultMaxHeaderBytes,

@@ -34,7 +34,14 @@ git -c init.defaultBranch=master -C repo2 init
 mkfile ./repo2/README.md '# Project\nfoo'
 mkfile ./repo2/foo.png 'foo'
 mkfile ./repo2/bar.png 'bar'
-git -C repo2 remote add origin http://$TOKEN@localhost:$HTTP_PORT/repo2
+# Send the token in a header rather than in the remote's URL. With the token
+# in the URL, git first asks without it and retries after the 401, and after
+# that retry some libcurl builds (Homebrew's, on GitHub's macOS runners from
+# November 2026) report the URL with the username in it: git takes that for
+# a redirect, drops the credentials, and the push fails asking for a
+# username. Git LFS reads the same setting.
+git -C repo2 remote add origin http://localhost:$HTTP_PORT/repo2
+git -C repo2 config http.extraHeader 'Authorization: Token '$TOKEN
 git -C repo2 lfs install --local
 git -C repo2 lfs track '*.png'
 git -C repo2 add -A
