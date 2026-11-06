@@ -58,6 +58,8 @@ func statusFor(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, errBadRequest), errors.Is(err, errIsDir), errors.Is(err, errNotDir):
 		return http.StatusBadRequest
+	case errors.Is(err, errForbidden):
+		return http.StatusForbidden
 	}
 	return http.StatusInternalServerError
 }
@@ -102,6 +104,12 @@ type RepoInfo struct {
 	DefaultBranch string    `json:"default_branch,omitempty"`
 	UpdatedAt     time.Time `json:"updated_at"`
 	Clone         CloneURLs `json:"clone"`
+	// Access is the caller's: read-only, read-write or admin-access.
+	Access string `json:"access"`
+	// MirrorOf is where a mirror is copied from, without any credentials,
+	// and MirrorSyncedAt when it last fetched from there.
+	MirrorOf       string     `json:"mirror_of,omitempty"`
+	MirrorSyncedAt *time.Time `json:"mirror_synced_at,omitempty"`
 }
 
 // CloneURLs are the ways to clone a repository.
@@ -114,6 +122,18 @@ type CloneURLs struct {
 type RefInfo struct {
 	Name   string `json:"name"`
 	Commit string `json:"commit"`
+	// Date is when a branch's tip was committed, or a tag made.
+	Date    time.Time `json:"date"`
+	Summary string    `json:"summary"` // of the commit
+	// Annotated tags have a tagger and a message: release notes, often.
+	Annotated bool       `json:"annotated,omitempty"`
+	Tagger    *Signature `json:"tagger,omitempty"`
+	Message   string     `json:"message,omitempty"`
+	// Ahead and Behind count a branch's commits that the default branch
+	// doesn't have, and the other way round. Left out for the default
+	// branch, for tags, and when there wasn't time to count.
+	Ahead  *int64 `json:"ahead,omitempty"`
+	Behind *int64 `json:"behind,omitempty"`
 }
 
 // Refs are a repository's branches and tags.
@@ -139,6 +159,9 @@ type CommitInfo struct {
 	Author    Signature `json:"author"`
 	Committer Signature `json:"committer"`
 	Parents   []string  `json:"parents"`
+	// Signature is how the commit was signed, if it was. Only a single
+	// commit has it, never a list.
+	Signature *CommitSignature `json:"signature,omitempty"`
 }
 
 // FileChange is one file a commit touched.
@@ -149,6 +172,9 @@ type FileChange struct {
 	Additions int    `json:"additions"`
 	Deletions int    `json:"deletions"`
 	Binary    bool   `json:"binary"`
+	// Truncated is set when the file's diff was cut short: past 1,000
+	// lines, unless the diff was asked for that file alone.
+	Truncated bool `json:"truncated,omitempty"`
 }
 
 // CommitDetail is a commit with what it changed.
@@ -157,13 +183,21 @@ type CommitDetail struct {
 	Files          []FileChange `json:"files"`
 	Patch          string       `json:"patch"`
 	PatchTruncated bool         `json:"patch_truncated"`
+	// Path and IgnoreWhitespace say how the diff was asked for: one file's
+	// alone, and without changes in whitespace.
+	Path             string `json:"path,omitempty"`
+	IgnoreWhitespace bool   `json:"ignore_whitespace,omitempty"`
 }
 
 // CommitPage is one page of a history.
 type CommitPage struct {
 	Ref string `json:"ref"`
-	// Path, when set, limits the history to commits that touched it.
+	// Path, when set, limits the history to commits that touched it;
+	// Query to those whose message contains it, and Author to those whose
+	// author's name or email does, both ignoring case.
 	Path    string       `json:"path,omitempty"`
+	Query   string       `json:"query,omitempty"`
+	Author  string       `json:"author,omitempty"`
 	Page    int          `json:"page"`
 	PerPage int          `json:"per_page"`
 	Total   int64        `json:"total"`
@@ -177,6 +211,8 @@ type TreeEntry struct {
 	Type string `json:"type"` // dir, file, symlink or submodule
 	Size int64  `json:"size"`
 	Mode string `json:"mode"`
+	// LastCommit is the latest commit to touch the entry, when asked for.
+	LastCommit *CommitBrief `json:"last_commit,omitempty"`
 }
 
 // Tree is a directory at a revision.
@@ -185,6 +221,8 @@ type Tree struct {
 	Commit  string      `json:"commit"`
 	Path    string      `json:"path"`
 	Entries []TreeEntry `json:"entries"`
+	// LastCommit is the latest commit to touch the directory, when asked for.
+	LastCommit *CommitBrief `json:"last_commit,omitempty"`
 }
 
 // Blob is a file at a revision.
@@ -212,19 +250,25 @@ type Readme struct {
 
 // open returns a repository the caller may read, or errNotFound.
 func (b *browser) open(ctx context.Context, name string) (proto.Repository, *git.Repository, error) {
+	r, gr, _, err := b.openLevel(ctx, name)
+	return r, gr, err
+}
+
+// openLevel is open, with the caller's access level.
+func (b *browser) openLevel(ctx context.Context, name string) (proto.Repository, *git.Repository, access.AccessLevel, error) {
 	name = utils.SanitizeRepo(name)
 	if name == "" {
-		return nil, nil, errNotFound
+		return nil, nil, access.NoAccess, errNotFound
 	}
-	r, _ := b.be.Readable(ctx, name, b.user)
+	r, level := b.be.Readable(ctx, name, b.user)
 	if r == nil {
-		return nil, nil, errNotFound
+		return nil, nil, access.NoAccess, errNotFound
 	}
 	gr, err := r.Open()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, access.NoAccess, err
 	}
-	return r, gr, nil
+	return r, gr, level, nil
 }
 
 // repos lists the repositories the caller may read, by name. Hidden
@@ -237,12 +281,13 @@ func (b *browser) repos(ctx context.Context) ([]RepoInfo, error) {
 	}
 	out := make([]RepoInfo, 0, len(all))
 	for _, r := range all {
-		if r.IsHidden() || b.be.AccessLevelForUser(ctx, r.Name(), b.user) < access.ReadOnlyAccess {
+		level := b.be.AccessLevelForUser(ctx, r.Name(), b.user)
+		if r.IsHidden() || level < access.ReadOnlyAccess {
 			continue
 		}
-		info := b.info(r, nil)
+		info := b.info(r, nil, level)
 		if gr, err := r.Open(); err == nil {
-			info = b.info(r, gr)
+			info = b.info(r, gr, level)
 		}
 		out = append(out, info)
 	}
@@ -252,14 +297,18 @@ func (b *browser) repos(ctx context.Context) ([]RepoInfo, error) {
 
 // repo describes one repository.
 func (b *browser) repo(ctx context.Context, name string) (RepoInfo, error) {
-	r, gr, err := b.open(ctx, name)
+	r, gr, level, err := b.openLevel(ctx, name)
 	if err != nil {
 		return RepoInfo{}, err
 	}
-	return b.info(r, gr), nil
+	info := b.info(r, gr, level)
+	if info.Mirror {
+		info.MirrorOf, info.MirrorSyncedAt = mirrorDetails(ctx, gr)
+	}
+	return info, nil
 }
 
-func (b *browser) info(r proto.Repository, gr *git.Repository) RepoInfo {
+func (b *browser) info(r proto.Repository, gr *git.Repository, level access.AccessLevel) RepoInfo {
 	info := RepoInfo{
 		Name:        r.Name(),
 		ProjectName: r.ProjectName(),
@@ -270,6 +319,7 @@ func (b *browser) info(r proto.Repository, gr *git.Repository) RepoInfo {
 		UpdatedAt:   r.UpdatedAt(),
 		Clone:       b.cloneURLs(r.Name()),
 		Empty:       true,
+		Access:      level.String(),
 	}
 	if gr != nil {
 		if head, err := gr.HEAD(); err == nil {
@@ -334,41 +384,6 @@ func cleanPath(p string) (string, error) {
 	return p, nil
 }
 
-func (b *browser) refs(ctx context.Context, name string) (Refs, error) {
-	_, gr, err := b.open(ctx, name)
-	if err != nil {
-		return Refs{}, err
-	}
-	refs, err := gr.References()
-	if err != nil {
-		return Refs{}, err
-	}
-	out := Refs{Branches: []RefInfo{}, Tags: []RefInfo{}}
-	if head, err := gr.HEAD(); err == nil {
-		out.DefaultBranch = head.Name().Short()
-	}
-	for _, r := range refs {
-		ri := RefInfo{Name: r.Name().Short(), Commit: r.ID}
-		switch {
-		case r.IsBranch():
-			out.Branches = append(out.Branches, ri)
-		case r.IsTag():
-			out.Tags = append(out.Tags, ri)
-		}
-	}
-	slices.SortFunc(out.Branches, func(a, c RefInfo) int {
-		switch {
-		case a.Name == out.DefaultBranch:
-			return -1
-		case c.Name == out.DefaultBranch:
-			return 1
-		}
-		return strings.Compare(a.Name, c.Name)
-	})
-	slices.SortFunc(out.Tags, func(a, c RefInfo) int { return strings.Compare(c.Name, a.Name) })
-	return out, nil
-}
-
 func commitInfo(c *git.Commit) CommitInfo {
 	sha := c.ID.String()
 	info := CommitInfo{
@@ -392,7 +407,14 @@ func commitInfo(c *git.Commit) CommitInfo {
 	return info
 }
 
-func (b *browser) commits(ctx context.Context, name, rev, p string, page, perPage int) (CommitPage, error) {
+// commitFilter narrows a history.
+type commitFilter struct {
+	Path   string // commits that touched it
+	Query  string // in the message
+	Author string // in the author's name or email
+}
+
+func (b *browser) commits(ctx context.Context, name, rev string, f commitFilter, page, perPage int) (CommitPage, error) {
 	_, gr, err := b.open(ctx, name)
 	if err != nil {
 		return CommitPage{}, err
@@ -401,10 +423,11 @@ func (b *browser) commits(ctx context.Context, name, rev, p string, page, perPag
 	if err != nil {
 		return CommitPage{}, err
 	}
-	p, err = cleanPath(p)
+	p, err := cleanPath(f.Path)
 	if err != nil {
 		return CommitPage{}, err
 	}
+	f.Path = p
 	if page < 1 {
 		page = 1
 	}
@@ -412,6 +435,9 @@ func (b *browser) commits(ctx context.Context, name, rev, p string, page, perPag
 		perPage = defaultPerPage
 	}
 	perPage = min(perPage, maxPerPage)
+	if f.Query != "" || f.Author != "" {
+		return b.searchCommits(ctx, gr, rev, c.ID.String(), f, page, perPage)
+	}
 	sha := c.ID.String()
 	cs, err := gr.Repository.CommitsByPage(sha, page, perPage, gitmodule.CommitsByPageOptions{Path: p})
 	if err != nil {
@@ -430,7 +456,14 @@ func (b *browser) commits(ctx context.Context, name, rev, p string, page, perPag
 
 var shaPattern = regexp.MustCompile(`^[0-9a-fA-F]{4,64}$`)
 
-func (b *browser) commit(ctx context.Context, name, sha string) (CommitDetail, error) {
+// diffOpts say how to show a diff.
+type diffOpts struct {
+	IgnoreWhitespace bool
+	// Path shows only the file at it (its old or new name), and in full.
+	Path string
+}
+
+func (b *browser) commit(ctx context.Context, name, sha string, o diffOpts) (CommitDetail, error) {
 	_, gr, err := b.open(ctx, name)
 	if err != nil {
 		return CommitDetail{}, err
@@ -442,35 +475,16 @@ func (b *browser) commit(ctx context.Context, name, sha string) (CommitDetail, e
 	if err != nil {
 		return CommitDetail{}, fmt.Errorf("%w: commit %q", errNotFound, sha)
 	}
-	out := CommitDetail{CommitInfo: commitInfo(c), Files: []FileChange{}}
-	diff, err := gr.Diff(c)
+	out := CommitDetail{CommitInfo: commitInfo(c), Files: []FileChange{}, IgnoreWhitespace: o.IgnoreWhitespace}
+	if out.Path, err = cleanPath(o.Path); err != nil {
+		return CommitDetail{}, err
+	}
+	diff, err := gr.DiffWithOptions("", out.SHA, gitDiffOptions(o, out.Path))
 	if err != nil {
 		return CommitDetail{}, err
 	}
-	for _, f := range diff.Files {
-		fc := FileChange{
-			Path:      f.Name,
-			Status:    "modified",
-			Additions: f.NumAdditions(),
-			Deletions: f.NumDeletions(),
-			Binary:    f.IsBinary(),
-		}
-		switch {
-		case f.IsCreated():
-			fc.Status = "added"
-		case f.IsDeleted():
-			fc.Status = "deleted"
-		case f.IsRenamed():
-			fc.Status = "renamed"
-			fc.OldPath = f.OldName()
-		}
-		out.Files = append(out.Files, fc)
-	}
-	out.Patch = diff.Patch()
-	if len(out.Patch) > maxPatchBytes {
-		out.Patch = truncateUTF8(out.Patch, maxPatchBytes)
-		out.PatchTruncated = true
-	}
+	out.Files, out.Patch, out.PatchTruncated = changes(diff, out.Path)
+	out.Signature = b.commitSignature(ctx, gr, out.SHA)
 	return out, nil
 }
 
@@ -520,7 +534,8 @@ func lookup(gr *git.Repository, rev, p string) (string, *git.Commit, *git.Tree, 
 	return rev, c, nil, te, nil
 }
 
-func (b *browser) tree(ctx context.Context, name, rev, p string) (Tree, error) {
+// tree lists a directory; withLast adds each entry's latest commit.
+func (b *browser) tree(ctx context.Context, name, rev, p string, withLast bool) (Tree, error) {
 	_, gr, err := b.open(ctx, name)
 	if err != nil {
 		return Tree{}, err
@@ -546,6 +561,11 @@ func (b *browser) tree(ctx context.Context, name, rev, p string) (Tree, error) {
 			Size: e.Size(),
 			Mode: e.Mode().String(),
 		})
+	}
+	if withLast {
+		if err := lastCommits(ctx, gr, out.Commit, &out); err != nil {
+			return Tree{}, err
+		}
 	}
 	return out, nil
 }

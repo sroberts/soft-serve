@@ -2,7 +2,9 @@ package web
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"html/template"
@@ -11,9 +13,11 @@ import (
 	gopath "path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/log/v2"
+	"github.com/charmbracelet/soft-serve/pkg/access"
 	"github.com/charmbracelet/soft-serve/pkg/config"
 	"github.com/dustin/go-humanize"
 )
@@ -26,28 +30,47 @@ import (
 //	/                              repositories
 //	/{repo}                        summary: files at the default branch, README
 //	/{repo}/-/tree?ref=&path=      a directory
-//	/{repo}/-/blob?ref=&path=      a file
+//	/{repo}/-/blob?ref=&path=      a file; &lines=10-25 selects lines
 //	/{repo}/-/raw?ref=&path=       a file's bytes
-//	/{repo}/-/commits?ref=&page=   history
-//	/{repo}/-/commit/{sha}         one commit and its diff
+//	/{repo}/-/find?ref=&q=         files by name
+//	/{repo}/-/commits?ref=&page=   history; &q= and &author= search it
+//	/{repo}/-/commit/{sha}         one commit and its diff (&view=split,
+//	                               &w=1 without whitespace, &path= one file)
 //	/{repo}/-/refs                 branches and tags
+//	/{repo}/-/blame?ref=&path=     who last changed each line of a file
+//	/{repo}/-/compare?base=&head=  what head has that base doesn't
+//	/{repo}/-/search?ref=&q=       text in the files
+//	/{repo}/-/archive?ref=&format= a snapshot as .tar.gz or .zip
+//	/{repo}/-/commits.atom?ref=    an Atom feed of the history
+//	/{repo}/-/access               your access, and collaborators (admins)
+//	/{repo}/-/insights?ref=        languages, contributors and activity
+//	/-/me                          your account
 //	/-/static/...                  stylesheets
 
 //go:embed ui_templates/*.html ui_static/*
 var uiFS embed.FS
 
 var uiTemplates = template.Must(template.New("").Funcs(template.FuncMap{
-	"ago":       ago,
-	"bytes":     func(n int64) string { return humanize.Bytes(uint64(max(n, 0))) }, //nolint:gosec
-	"short":     func(s string) string { return s[:min(len(s), 7)] },
-	"repoURL":   repoURL,
-	"pathParts": pathParts,
-	"diffClass": diffClass,
-	"lines":     func(s string) []string { return strings.Split(strings.TrimSuffix(s, "\n"), "\n") },
-	"parentDir": parentDir,
-	"pageURL":   pageURL,
-	"body":      messageBody,
-	"dataPath":  dataPath,
+	"ago":        ago,
+	"bytes":      func(n int64) string { return humanize.Bytes(uint64(max(n, 0))) }, //nolint:gosec
+	"short":      func(s string) string { return s[:min(len(s), 7)] },
+	"repoURL":    repoURL,
+	"pathParts":  pathParts,
+	"parentDir":  parentDir,
+	"commitsURL": commitsURL,
+	"authorURL":  authorURL,
+	"lineURL":    lineURL,
+	"linesURL":   linesURL,
+	"distance":   distanceText,
+	"agoPtr":     agoPtr,
+	"static":     staticURL,
+	"body":       messageBody,
+	"dataPath":   dataPath,
+	"archiveURL": archiveURL,
+	"compareURL": compareURL,
+	"accessText": accessText,
+	"mark":       markMatches,
+	"isAdmin":    func(level string) bool { return level == access.AdminAccess.String() },
 }).ParseFS(uiFS, "ui_templates/*.html"))
 
 // uiHandler serves the web pages.
@@ -66,7 +89,9 @@ type page struct {
 	Repo      *RepoInfo
 	Ref       string
 	Tab       string
-	Data      any
+	// Feed is an Atom feed for the page, if it has one.
+	Feed string
+	Data any
 }
 
 func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -94,8 +119,12 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rest := strings.Trim(r.URL.Path, "/")
-	if rest == "" {
+	switch rest {
+	case "":
 		h.index(w, r, b, p)
+		return
+	case "-/me":
+		h.account(w, r, b, p)
 		return
 	}
 	name, action, _ := strings.Cut(rest, "/-/")
@@ -123,16 +152,38 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.blob(w, r, b, p, q.Get("path"))
 	case action == "raw":
 		serveRaw(w, r, b, info.Name)
+	case action == "find":
+		h.find(w, r, b, p, q.Get("q"))
 	case action == "commits":
 		pg, _ := strconv.Atoi(q.Get("page"))
-		h.commits(w, r, b, p, q.Get("path"), pg)
+		h.commits(w, r, b, p, commitFilter{Path: q.Get("path"), Query: q.Get("q"), Author: q.Get("author")}, pg)
 	case strings.HasPrefix(action, "commit/"):
 		h.commit(w, r, b, p, strings.TrimPrefix(action, "commit/"))
+	case action == "insights":
+		h.insights(w, r, b, p)
 	case action == "refs":
 		h.refs(w, r, b, p)
+	case action == "blame":
+		h.blame(w, r, b, p, q.Get("path"))
+	case action == "compare":
+		h.compare(w, r, b, p, q.Get("base"), q.Get("head"))
+	case action == "search":
+		h.search(w, r, b, p, q.Get("q"))
+	case action == "archive":
+		serveArchive(w, r, b, info.Name)
+	case action == "commits.atom":
+		h.feed(w, r, b, p, q.Get("path"))
+	case action == "access":
+		h.access(w, r, b, p)
 	default:
 		h.fail(w, r, p, errNotFound)
 	}
+}
+
+type indexData struct {
+	Repos []RepoInfo
+	Query string
+	Total int
 }
 
 func (h uiHandler) index(w http.ResponseWriter, r *http.Request, b *browser, p page) {
@@ -141,8 +192,9 @@ func (h uiHandler) index(w http.ResponseWriter, r *http.Request, b *browser, p p
 		h.fail(w, r, p, err)
 		return
 	}
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	p.Title = p.SiteName
-	p.Data = repos
+	p.Data = indexData{Repos: filterRepos(repos, q), Query: q, Total: len(repos)}
 	h.render(w, r, "index", p)
 }
 
@@ -156,7 +208,7 @@ func (h uiHandler) summary(w http.ResponseWriter, r *http.Request, b *browser, p
 	p.Tab = "files"
 	d := summaryData{}
 	if !p.Repo.Empty {
-		t, err := b.tree(r.Context(), p.Repo.Name, p.Ref, "")
+		t, err := b.tree(r.Context(), p.Repo.Name, p.Ref, "", true)
 		if err != nil {
 			h.fail(w, r, p, err)
 			return
@@ -189,7 +241,7 @@ func (h uiHandler) readme(r *http.Request, b *browser, p page) (template.HTML, s
 
 func (h uiHandler) tree(w http.ResponseWriter, r *http.Request, b *browser, p page, path string) {
 	p.Tab = "files"
-	t, err := b.tree(r.Context(), p.Repo.Name, p.Ref, path)
+	t, err := b.tree(r.Context(), p.Repo.Name, p.Ref, path, true)
 	if errors.Is(err, errNotDir) {
 		http.Redirect(w, r, repoURL(p.Repo.Name, "blob", p.Ref, path), http.StatusFound)
 		return
@@ -207,8 +259,17 @@ func (h uiHandler) tree(w http.ResponseWriter, r *http.Request, b *browser, p pa
 type blobData struct {
 	Blob     Blob
 	Code     template.HTML
+	Lines    []codeLine
 	Image    bool
 	Markdown bool
+	// Source shows a Markdown file's text rather than rendering it.
+	Source    bool
+	Sel       lineSel
+	Permalink string
+	// SourceURL and RenderedURL switch how a Markdown file is shown.
+	SourceURL   string
+	RenderedURL string
+	ClearURL    string
 }
 
 func (h uiHandler) blob(w http.ResponseWriter, r *http.Request, b *browser, p page, path string) {
@@ -224,12 +285,24 @@ func (h uiHandler) blob(w http.ResponseWriter, r *http.Request, b *browser, p pa
 	}
 	p.Ref = bl.Ref
 	p.Title = bl.Path + " · " + p.Repo.Name
-	d := blobData{Blob: bl}
+	q := r.URL.Query()
+	d := blobData{Blob: bl, Sel: parseLines(q.Get("lines"))}
+	ref := q.Get("ref") // as asked for: a permalink keeps its hash
+	if ref != bl.Commit {
+		d.Permalink = linesURL(p.Repo.Name, "blob", bl.Commit, bl.Path, d.Sel)
+	}
+	d.ClearURL = repoURL(p.Repo.Name, "blob", ref, bl.Path)
+	if isMarkdown(bl.Path) && !bl.LFSMissing && !bl.Binary {
+		d.Markdown = true
+		d.Source = q.Get("plain") == "1" || d.Sel.Start > 0
+		d.RenderedURL = repoURL(p.Repo.Name, "blob", ref, bl.Path)
+		d.SourceURL = d.RenderedURL + "&plain=1"
+	}
 	switch {
 	case bl.LFSMissing:
 	case bl.Binary:
 		d.Image = strings.HasPrefix(rawContentType(bl.Path, true), "image/")
-	case isMarkdown(bl.Path):
+	case d.Markdown && !d.Source:
 		target := func(fp string, image bool) string {
 			if image {
 				return repoURL(p.Repo.Name, "raw", p.Ref, fp)
@@ -237,33 +310,44 @@ func (h uiHandler) blob(w http.ResponseWriter, r *http.Request, b *browser, p pa
 			return repoURL(p.Repo.Name, "blob", p.Ref, fp)
 		}
 		d.Code = renderMarkdown(bl.Content, gopath.Dir(bl.Path), target)
-		d.Markdown = true
+	case bl.Content == "":
+		// Left for the page to say the file is empty.
 	default:
-		d.Code = highlight(gopath.Base(bl.Path), bl.Content)
+		d.Lines = codeLines(p.Repo.Name, ref, bl.Path, bl.Content, d.Sel)
 	}
 	p.Data = d
 	h.render(w, r, "blob", p)
 }
 
 type commitsData struct {
-	Page CommitPage
-	Prev int
-	Next int
+	Page     CommitPage
+	Prev     int
+	Next     int
+	Searched bool
+	Err      string
 }
 
-func (h uiHandler) commits(w http.ResponseWriter, r *http.Request, b *browser, p page, path string, pg int) {
+func (h uiHandler) commits(w http.ResponseWriter, r *http.Request, b *browser, p page, f commitFilter, pg int) {
 	p.Tab = "commits"
-	cp, err := b.commits(r.Context(), p.Repo.Name, p.Ref, path, pg, defaultPerPage)
+	cp, err := b.commits(r.Context(), p.Repo.Name, p.Ref, f, pg, defaultPerPage)
+	if err != nil && statusFor(err) == http.StatusBadRequest && (f.Query != "" || f.Author != "") {
+		// A search that can't run: say why beside the form.
+		p.Title = "Commits · " + p.Repo.Name
+		p.Data = commitsData{Page: CommitPage{Ref: p.Ref, Path: f.Path, Query: f.Query, Author: f.Author}, Err: publicMessage(err)}
+		h.renderStatus(w, r, http.StatusBadRequest, "commits", p)
+		return
+	}
 	if err != nil {
 		h.fail(w, r, p, err)
 		return
 	}
 	p.Ref = cp.Ref
+	p.Feed = feedURL(p.Repo.Name, p.Ref, cp.Path)
 	p.Title = "Commits · " + p.Repo.Name
 	if cp.Path != "" {
 		p.Title = "History of " + cp.Path + " · " + p.Repo.Name
 	}
-	d := commitsData{Page: cp}
+	d := commitsData{Page: cp, Searched: cp.Query != "" || cp.Author != ""}
 	if cp.Page > 1 {
 		d.Prev = cp.Page - 1
 	}
@@ -276,14 +360,34 @@ func (h uiHandler) commits(w http.ResponseWriter, r *http.Request, b *browser, p
 
 func (h uiHandler) commit(w http.ResponseWriter, r *http.Request, b *browser, p page, sha string) {
 	p.Tab = "commits"
-	c, err := b.commit(r.Context(), p.Repo.Name, sha)
+	q := r.URL.Query()
+	c, err := b.commit(r.Context(), p.Repo.Name, sha, diffOpts{IgnoreWhitespace: q.Get("w") == "1", Path: q.Get("path")})
 	if err != nil {
 		h.fail(w, r, p, err)
 		return
 	}
 	p.Title = c.Summary + " · " + p.Repo.Name
-	p.Data = c
+	p.Data = commitData{
+		CommitDetail: c,
+		Diff:         newDiffView(r.URL.Path, keep(q, "view", "w", "path"), c.Files, c.Patch, c.PatchTruncated),
+	}
 	h.render(w, r, "commit", p)
+}
+
+type commitData struct {
+	CommitDetail
+	Diff diffView
+}
+
+// keep is the parts of q named.
+func keep(q url.Values, keys ...string) url.Values {
+	out := url.Values{}
+	for _, k := range keys {
+		if v := q.Get(k); v != "" {
+			out.Set(k, v)
+		}
+	}
+	return out
 }
 
 func (h uiHandler) refs(w http.ResponseWriter, r *http.Request, b *browser, p page) {
@@ -308,6 +412,8 @@ func (h uiHandler) fail(w http.ResponseWriter, r *http.Request, p page, err erro
 		msg = "There's nothing here, or you don't have access to it."
 	case status == http.StatusBadRequest:
 		msg = publicMessage(err)
+	case status == http.StatusForbidden:
+		msg = "Only this repository's admins can see this."
 	default:
 		log.FromContext(r.Context()).Error("web", "path", r.URL.Path, "err", err)
 	}
@@ -326,6 +432,19 @@ func (h uiHandler) renderError(w http.ResponseWriter, r *http.Request, p *page, 
 
 func (h uiHandler) render(w http.ResponseWriter, r *http.Request, name string, p page) {
 	h.write(w, r, name, p)
+}
+
+// renderStatus renders a page with a status other than 200.
+func (h uiHandler) renderStatus(w http.ResponseWriter, r *http.Request, status int, name string, p page) {
+	var buf bytes.Buffer
+	if err := uiTemplates.ExecuteTemplate(&buf, name, p); err != nil {
+		log.FromContext(r.Context()).Error("web: render", "template", name, "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	setPageHeaders(w)
+	w.WriteHeader(status)
+	w.Write(buf.Bytes()) //nolint:errcheck
 }
 
 func (h uiHandler) write(w http.ResponseWriter, r *http.Request, name string, p page) {
@@ -350,24 +469,44 @@ func setPageHeaders(w http.ResponseWriter) {
 	h.Set("Cache-Control", "no-cache")
 }
 
-func serveStatic(w http.ResponseWriter, r *http.Request) {
-	var body []byte
-	switch strings.TrimPrefix(r.URL.Path, "/-/static/") {
+// staticBody is a stylesheet's content, by name.
+func staticBody(name string) []byte {
+	switch name {
 	case "style.css":
-		b, err := uiFS.ReadFile("ui_static/style.css")
-		if err != nil {
-			http.NotFound(w, r)
-			return
-		}
-		body = b
+		b, _ := uiFS.ReadFile("ui_static/style.css")
+		return b
 	case "code.css":
-		body = highlightCSS()
-	default:
+		return highlightCSS()
+	}
+	return nil
+}
+
+var staticVersions sync.Map // name -> short content hash
+
+// staticURL is a stylesheet's address, with a hash of its content, so a
+// browser holding an older copy from its cache fetches the new one.
+func staticURL(name string) string {
+	v, ok := staticVersions.Load(name)
+	if !ok {
+		sum := sha256.Sum256(staticBody(name))
+		v, _ = staticVersions.LoadOrStore(name, hex.EncodeToString(sum[:6]))
+	}
+	return "/-/static/" + name + "?v=" + v.(string)
+}
+
+func serveStatic(w http.ResponseWriter, r *http.Request) {
+	body := staticBody(strings.TrimPrefix(r.URL.Path, "/-/static/"))
+	if body == nil {
 		http.NotFound(w, r)
 		return
 	}
 	w.Header().Set("Content-Type", "text/css; charset=utf-8")
-	w.Header().Set("Cache-Control", "public, max-age=3600")
+	if name := strings.TrimPrefix(r.URL.Path, "/-/static/"); r.URL.RawQuery != "" && staticURL(name) == r.URL.Path+"?"+r.URL.RawQuery {
+		// Pages ask for it by a hash of its content, so it never changes.
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	} else {
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Write(body) //nolint:errcheck
 }
@@ -390,18 +529,6 @@ func repoURL(name, action, ref, p string) string {
 		u += "?" + q.Encode()
 	}
 	return u
-}
-
-// pageURL is a page of a repository's history, or of one path's.
-func pageURL(name, ref, p string, n int) string {
-	q := url.Values{"page": {strconv.Itoa(n)}}
-	if ref != "" {
-		q.Set("ref", ref)
-	}
-	if p != "" {
-		q.Set("path", p)
-	}
-	return "/" + name + "/-/commits?" + q.Encode()
 }
 
 // messageBody is a commit message without its summary line.
@@ -428,6 +555,8 @@ func dataPath(d any) string {
 		}
 	case blobData:
 		return v.Blob.Path
+	case blameData:
+		return v.Blame.Path
 	}
 	return ""
 }
@@ -449,21 +578,6 @@ func pathParts(p string) []pathPart {
 		parts = append(parts, pathPart{Name: seg, Path: acc})
 	}
 	return parts
-}
-
-// diffClass colours a line of a unified diff.
-func diffClass(line string) string {
-	switch {
-	case strings.HasPrefix(line, "+++"), strings.HasPrefix(line, "---"), strings.HasPrefix(line, "diff "), strings.HasPrefix(line, "index "):
-		return "meta"
-	case strings.HasPrefix(line, "@@"):
-		return "hunk"
-	case strings.HasPrefix(line, "+"):
-		return "add"
-	case strings.HasPrefix(line, "-"):
-		return "del"
-	}
-	return ""
 }
 
 func ago(t time.Time) string {

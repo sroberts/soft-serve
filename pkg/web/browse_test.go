@@ -452,6 +452,9 @@ func TestPages(t *testing.T) {
 	// Static assets.
 	is.Equal(f.do(req{path: "/-/static/style.css"}).Code, http.StatusOK)
 	is.Equal(f.do(req{path: "/-/static/code.css"}).Code, http.StatusOK)
+	// Pages ask for the stylesheets by content, so a cached copy can't
+	// outlive an upgrade.
+	is.True(strings.Contains(f.do(req{path: "/"}).Body.String(), `href="/-/static/style.css?v=`))
 }
 
 // The pages take over GETs of repository paths without breaking git or
@@ -503,7 +506,7 @@ func TestMCP(t *testing.T) {
 
 	_, out := call(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, nil)
 	tools, _ := out["result"].(map[string]any)["tools"].([]any)
-	is.Equal(len(tools), 8)
+	is.Equal(len(tools), 15)
 	for _, tl := range tools {
 		ann := tl.(map[string]any)["annotations"].(map[string]any)
 		is.Equal(ann["readOnlyHint"], true)
