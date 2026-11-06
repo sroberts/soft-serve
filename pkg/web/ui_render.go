@@ -102,34 +102,8 @@ func (f linkRewriter) Transform(doc *ast.Document, _ text.Reader, _ parser.Conte
 	})
 }
 
-var codeFormatter = chromahtml.New(
-	chromahtml.WithClasses(true),
-	chromahtml.WithLineNumbers(true),
-	chromahtml.WithLinkableLineNumbers(true, "L"),
-	chromahtml.TabWidth(4),
-)
-
-// highlight renders a file's text with syntax colouring, by its name or,
-// failing that, its content.
-func highlight(name, src string) template.HTML {
-	if len(src) <= maxHighlightBytes {
-		lexer := lexers.Match(name)
-		if lexer == nil {
-			lexer = lexers.Analyse(src)
-		}
-		if lexer == nil {
-			lexer = lexers.Fallback
-		}
-		lexer = chroma.Coalesce(lexer)
-		if it, err := lexer.Tokenise(nil, src); err == nil {
-			var buf bytes.Buffer
-			if err := codeFormatter.Format(&buf, styles.Get("github"), it); err == nil {
-				return template.HTML(buf.String()) //nolint:gosec // chroma escapes tokens
-			}
-		}
-	}
-	return template.HTML("<pre class=\"plain\">" + template.HTMLEscapeString(src) + "</pre>") //nolint:gosec // escaped
-}
+// codeFormatter writes the stylesheet for the classes highlightLines uses.
+var codeFormatter = chromahtml.New(chromahtml.WithClasses(true))
 
 // highlightLines colours a file's text and returns it a line at a time, for
 // pages that interleave code with other columns (blame). The classes are

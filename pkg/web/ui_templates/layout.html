@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>{{.Title}}</title>
-<link rel="stylesheet" href="/-/static/style.css">
-<link rel="stylesheet" href="/-/static/code.css">
+<link rel="stylesheet" href="{{static "style.css"}}">
+<link rel="stylesheet" href="{{static "code.css"}}">
 {{if .Feed}}<link rel="alternate" type="application/atom+xml" title="{{.Title}}" href="{{.Feed}}">{{end}}
 </head>
 <body>
@@ -15,9 +15,9 @@
   {{if .Repo}}<span class="sep" aria-hidden="true">/</span><a class="crumb" href="{{repoURL .Repo.Name "" "" ""}}">{{.Repo.Name}}</a>{{end}}
   <span class="grow"></span>
   {{if .SignedIn}}
-  <span class="who" title="{{if .SoftServe}}Your access is Soft Serve user {{.SoftServe}}'s{{else}}No Soft Serve user is named {{.SignedIn}}, so you see public repositories only{{end}}">{{.SignedIn}}{{if not .SoftServe}} <span class="badge">public only</span>{{end}}</span>
+  <a class="who" href="/-/me" title="{{if .SoftServe}}Your access is Soft Serve user {{.SoftServe}}'s{{else}}No Soft Serve user is named {{.SignedIn}}, so you see public repositories only{{end}}">{{.SignedIn}}{{if not .SoftServe}} <span class="badge">public only</span>{{end}}</a>
   <form method="post" action="/.outpost/logout"><button type="submit" class="link">Sign out</button></form>
-  {{else if .SoftServe}}<span class="who">{{.SoftServe}}</span>{{end}}
+  {{else if .SoftServe}}<a class="who" href="/-/me">{{.SoftServe}}</a>{{end}}
 </header>
 <main>
 {{end}}
@@ -36,6 +36,7 @@
     {{if .Repo.Hidden}}<span class="badge">hidden</span>{{end}}
   </h1>
   {{if .Repo.Description}}<p class="desc">{{.Repo.Description}}</p>{{end}}
+  {{if .Repo.MirrorOf}}<p class="access">Mirror of <code>{{.Repo.MirrorOf}}</code>{{with .Repo.MirrorSyncedAt}} · last synced <time datetime="{{.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.Format "2 Jan 2006 15:04 MST"}}">{{agoPtr .}}</time>{{end}}</p>{{end}}
   {{if and .SoftServe (accessText .Repo.Access)}}<p class="access">{{accessText .Repo.Access}}</p>{{end}}
   <details class="clone">
     <summary>Clone or download</summary>
@@ -49,6 +50,7 @@
     <a href="{{repoURL .Repo.Name "refs" "" ""}}"{{if eq .Tab "refs"}} aria-current="page"{{end}}>Branches &amp; tags</a>
     <a href="{{repoURL .Repo.Name "compare" "" ""}}"{{if eq .Tab "compare"}} aria-current="page"{{end}}>Compare</a>
     <a href="{{repoURL .Repo.Name "search" .Ref ""}}"{{if eq .Tab "search"}} aria-current="page"{{end}}>Search</a>
+    {{if not .Repo.Empty}}<a href="{{repoURL .Repo.Name "insights" .Ref ""}}"{{if eq .Tab "insights"}} aria-current="page"{{end}}>Insights</a>{{end}}
     {{if isAdmin .Repo.Access}}<a href="{{repoURL .Repo.Name "access" "" ""}}"{{if eq .Tab "access"}} aria-current="page"{{end}}>Access</a>{{end}}
     {{if and .Ref (not .Repo.Empty)}}<span class="grow"></span><a class="ref" href="{{repoURL .Repo.Name "refs" "" ""}}" title="Switch branch or tag">{{.Ref}}</a>{{end}}
   </nav>
@@ -82,6 +84,14 @@
   </tbody>
   {{end}}
 </table>
+{{end}}
+
+{{define "findform"}}{{/* . is a page */}}
+<form class="find" method="get" action="{{repoURL .Repo.Name "find" "" ""}}" role="search">
+  <input type="search" name="q" placeholder="Go to file" aria-label="Go to file" maxlength="200" required>
+  {{if .Ref}}<input type="hidden" name="ref" value="{{.Ref}}">{{end}}
+  <button type="submit">Go</button>
+</form>
 {{end}}
 
 {{define "pathbar"}}{{/* . is a page; the path comes from $.Data */}}

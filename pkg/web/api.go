@@ -6,6 +6,7 @@ import (
 	"errors"
 	"mime"
 	"net/http"
+	"net/url"
 	gopath "path"
 	"strconv"
 	"strings"
@@ -45,6 +46,10 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	b := newBrowser(r.Context(), c.user, cloneBase(r, h.verifier))
 
+	if r.URL.Path == "/v1/me" {
+		h.respond(w, r)(b.account(r.Context(), c.outpostUser))
+		return
+	}
 	rest, ok := strings.CutPrefix(r.URL.Path, "/v1/repos")
 	if !ok {
 		writeAPIError(w, http.StatusNotFound, "not found")
@@ -67,17 +72,22 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case action == "commits":
 		page, _ := strconv.Atoi(q.Get("page"))
 		perPage, _ := strconv.Atoi(q.Get("per_page"))
-		h.respond(w, r)(b.commits(ctx, name, q.Get("ref"), q.Get("path"), page, perPage))
+		f := commitFilter{Path: q.Get("path"), Query: q.Get("q"), Author: q.Get("author")}
+		h.respond(w, r)(b.commits(ctx, name, q.Get("ref"), f, page, perPage))
 	case strings.HasPrefix(action, "commits/"):
-		h.respond(w, r)(b.commit(ctx, name, strings.TrimPrefix(action, "commits/")))
+		h.respond(w, r)(b.commit(ctx, name, strings.TrimPrefix(action, "commits/"), apiDiffOpts(q)))
 	case action == "tree":
 		h.respond(w, r)(b.tree(ctx, name, q.Get("ref"), q.Get("path"), q.Get("last_commits") == "true"))
 	case action == "blame":
 		h.respond(w, r)(b.blame(ctx, name, q.Get("ref"), q.Get("path")))
 	case action == "compare":
-		h.respond(w, r)(b.compare(ctx, name, q.Get("base"), q.Get("head")))
+		h.respond(w, r)(b.compare(ctx, name, q.Get("base"), q.Get("head"), apiDiffOpts(q)))
 	case action == "search":
 		h.respond(w, r)(b.search(ctx, name, q.Get("ref"), q.Get("q")))
+	case action == "files":
+		h.respond(w, r)(b.findFiles(ctx, name, q.Get("ref"), q.Get("q")))
+	case action == "stats":
+		h.respond(w, r)(b.stats(ctx, name, q.Get("ref")))
 	case action == "collaborators":
 		h.respond(w, r)(b.collaborators(ctx, name))
 	case action == "archive":
@@ -91,6 +101,12 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeAPIError(w, http.StatusNotFound, "not found")
 	}
+}
+
+// apiDiffOpts reads how a diff is asked for: ignore_whitespace=true, and
+// path for one file's alone.
+func apiDiffOpts(q url.Values) diffOpts {
+	return diffOpts{IgnoreWhitespace: q.Get("ignore_whitespace") == "true", Path: q.Get("path")}
 }
 
 // respond writes v as JSON, or the error.

@@ -106,6 +106,10 @@ type RepoInfo struct {
 	Clone         CloneURLs `json:"clone"`
 	// Access is the caller's: read-only, read-write or admin-access.
 	Access string `json:"access"`
+	// MirrorOf is where a mirror is copied from, without any credentials,
+	// and MirrorSyncedAt when it last fetched from there.
+	MirrorOf       string     `json:"mirror_of,omitempty"`
+	MirrorSyncedAt *time.Time `json:"mirror_synced_at,omitempty"`
 }
 
 // CloneURLs are the ways to clone a repository.
@@ -125,6 +129,11 @@ type RefInfo struct {
 	Annotated bool       `json:"annotated,omitempty"`
 	Tagger    *Signature `json:"tagger,omitempty"`
 	Message   string     `json:"message,omitempty"`
+	// Ahead and Behind count a branch's commits that the default branch
+	// doesn't have, and the other way round. Left out for the default
+	// branch, for tags, and when there wasn't time to count.
+	Ahead  *int64 `json:"ahead,omitempty"`
+	Behind *int64 `json:"behind,omitempty"`
 }
 
 // Refs are a repository's branches and tags.
@@ -150,6 +159,9 @@ type CommitInfo struct {
 	Author    Signature `json:"author"`
 	Committer Signature `json:"committer"`
 	Parents   []string  `json:"parents"`
+	// Signature is how the commit was signed, if it was. Only a single
+	// commit has it, never a list.
+	Signature *CommitSignature `json:"signature,omitempty"`
 }
 
 // FileChange is one file a commit touched.
@@ -160,6 +172,9 @@ type FileChange struct {
 	Additions int    `json:"additions"`
 	Deletions int    `json:"deletions"`
 	Binary    bool   `json:"binary"`
+	// Truncated is set when the file's diff was cut short: past 1,000
+	// lines, unless the diff was asked for that file alone.
+	Truncated bool `json:"truncated,omitempty"`
 }
 
 // CommitDetail is a commit with what it changed.
@@ -168,13 +183,21 @@ type CommitDetail struct {
 	Files          []FileChange `json:"files"`
 	Patch          string       `json:"patch"`
 	PatchTruncated bool         `json:"patch_truncated"`
+	// Path and IgnoreWhitespace say how the diff was asked for: one file's
+	// alone, and without changes in whitespace.
+	Path             string `json:"path,omitempty"`
+	IgnoreWhitespace bool   `json:"ignore_whitespace,omitempty"`
 }
 
 // CommitPage is one page of a history.
 type CommitPage struct {
 	Ref string `json:"ref"`
-	// Path, when set, limits the history to commits that touched it.
+	// Path, when set, limits the history to commits that touched it;
+	// Query to those whose message contains it, and Author to those whose
+	// author's name or email does, both ignoring case.
 	Path    string       `json:"path,omitempty"`
+	Query   string       `json:"query,omitempty"`
+	Author  string       `json:"author,omitempty"`
 	Page    int          `json:"page"`
 	PerPage int          `json:"per_page"`
 	Total   int64        `json:"total"`
@@ -278,7 +301,11 @@ func (b *browser) repo(ctx context.Context, name string) (RepoInfo, error) {
 	if err != nil {
 		return RepoInfo{}, err
 	}
-	return b.info(r, gr, level), nil
+	info := b.info(r, gr, level)
+	if info.Mirror {
+		info.MirrorOf, info.MirrorSyncedAt = mirrorDetails(ctx, gr)
+	}
+	return info, nil
 }
 
 func (b *browser) info(r proto.Repository, gr *git.Repository, level access.AccessLevel) RepoInfo {
@@ -380,7 +407,14 @@ func commitInfo(c *git.Commit) CommitInfo {
 	return info
 }
 
-func (b *browser) commits(ctx context.Context, name, rev, p string, page, perPage int) (CommitPage, error) {
+// commitFilter narrows a history.
+type commitFilter struct {
+	Path   string // commits that touched it
+	Query  string // in the message
+	Author string // in the author's name or email
+}
+
+func (b *browser) commits(ctx context.Context, name, rev string, f commitFilter, page, perPage int) (CommitPage, error) {
 	_, gr, err := b.open(ctx, name)
 	if err != nil {
 		return CommitPage{}, err
@@ -389,10 +423,11 @@ func (b *browser) commits(ctx context.Context, name, rev, p string, page, perPag
 	if err != nil {
 		return CommitPage{}, err
 	}
-	p, err = cleanPath(p)
+	p, err := cleanPath(f.Path)
 	if err != nil {
 		return CommitPage{}, err
 	}
+	f.Path = p
 	if page < 1 {
 		page = 1
 	}
@@ -400,6 +435,9 @@ func (b *browser) commits(ctx context.Context, name, rev, p string, page, perPag
 		perPage = defaultPerPage
 	}
 	perPage = min(perPage, maxPerPage)
+	if f.Query != "" || f.Author != "" {
+		return b.searchCommits(ctx, gr, rev, c.ID.String(), f, page, perPage)
+	}
 	sha := c.ID.String()
 	cs, err := gr.Repository.CommitsByPage(sha, page, perPage, gitmodule.CommitsByPageOptions{Path: p})
 	if err != nil {
@@ -418,7 +456,14 @@ func (b *browser) commits(ctx context.Context, name, rev, p string, page, perPag
 
 var shaPattern = regexp.MustCompile(`^[0-9a-fA-F]{4,64}$`)
 
-func (b *browser) commit(ctx context.Context, name, sha string) (CommitDetail, error) {
+// diffOpts say how to show a diff.
+type diffOpts struct {
+	IgnoreWhitespace bool
+	// Path shows only the file at it (its old or new name), and in full.
+	Path string
+}
+
+func (b *browser) commit(ctx context.Context, name, sha string, o diffOpts) (CommitDetail, error) {
 	_, gr, err := b.open(ctx, name)
 	if err != nil {
 		return CommitDetail{}, err
@@ -430,12 +475,16 @@ func (b *browser) commit(ctx context.Context, name, sha string) (CommitDetail, e
 	if err != nil {
 		return CommitDetail{}, fmt.Errorf("%w: commit %q", errNotFound, sha)
 	}
-	out := CommitDetail{CommitInfo: commitInfo(c), Files: []FileChange{}}
-	diff, err := gr.Diff(c)
+	out := CommitDetail{CommitInfo: commitInfo(c), Files: []FileChange{}, IgnoreWhitespace: o.IgnoreWhitespace}
+	if out.Path, err = cleanPath(o.Path); err != nil {
+		return CommitDetail{}, err
+	}
+	diff, err := gr.DiffWithOptions("", out.SHA, gitDiffOptions(o, out.Path))
 	if err != nil {
 		return CommitDetail{}, err
 	}
-	out.Files, out.Patch, out.PatchTruncated = changes(diff)
+	out.Files, out.Patch, out.PatchTruncated = changes(diff, out.Path)
+	out.Signature = b.commitSignature(ctx, gr, out.SHA)
 	return out, nil
 }
 

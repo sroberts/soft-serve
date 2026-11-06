@@ -1,6 +1,9 @@
 package git
 
 import (
+	"bytes"
+	"fmt"
+	"io"
 	gopath "path"
 	"path/filepath"
 	"strings"
@@ -153,18 +156,116 @@ func (r *Repository) Diff(commit *Commit) (*Diff, error) {
 	return toDiff(diff), nil
 }
 
-// DiffRange returns the changes from base to head.
-func (r *Repository) DiffRange(base, head string) (*Diff, error) {
-	diff, err := r.Repository.Diff(head, DiffMaxFiles, DiffMaxFileLines, DiffMaxLineChars, git.DiffOptions{
+// DiffOptions change how DiffWithOptions computes a diff.
+type DiffOptions struct {
+	// IgnoreWhitespace leaves out changes in whitespace, as git diff -w.
+	IgnoreWhitespace bool
+	// MaxFileLines caps the lines parsed for each file; DiffMaxFileLines
+	// when 0.
+	MaxFileLines int
+	// Path limits the diff to one file, as it's named at head. A file
+	// renamed to Path keeps its old name, so the rename still shows. Git
+	// only reads the files it needs, however large the rest of the diff.
+	Path string
+}
+
+// literalPaths makes git read a pathspec as a plain path, never as magic
+// such as :(exclude).
+const literalPaths = "GIT_LITERAL_PATHSPECS=1"
+
+// DiffWithOptions returns the changes from base to head, or, with base
+// empty, the changes the commit head made.
+func (r *Repository) DiffWithOptions(base, head string, opts DiffOptions) (*Diff, error) {
+	maxLines := opts.MaxFileLines
+	if maxLines <= 0 {
+		maxLines = DiffMaxFileLines
+	}
+	o := git.DiffOptions{
 		Base: base,
 		CommandOptions: git.CommandOptions{
 			Envs: []string{"GIT_CONFIG_GLOBAL=/dev/null"},
 		},
-	})
+	}
+	if opts.IgnoreWhitespace {
+		o.Args = []string{"--ignore-all-space"}
+	}
+	if opts.Path != "" {
+		return r.pathDiff(head, opts.Path, maxLines, o)
+	}
+	diff, err := r.Repository.Diff(head, DiffMaxFiles, maxLines, DiffMaxLineChars, o)
 	if err != nil {
 		return nil, err
 	}
 	return toDiff(diff), nil
+}
+
+// pathDiff is Repository.Diff for one path: the same git commands, with
+// the path, and its old name when it was renamed, as pathspecs.
+func (r *Repository) pathDiff(head, path string, maxLines int, o git.DiffOptions) (*Diff, error) {
+	o.Envs = append(o.Envs, literalPaths)
+	base := o.Base
+	if base == "" {
+		c, err := r.CatFileCommit(head, git.CatFileCommitOptions{Timeout: o.Timeout})
+		if err != nil {
+			return nil, err
+		}
+		if c.ParentsCount() > 0 {
+			p, err := c.ParentID(0)
+			if err != nil {
+				return nil, err
+			}
+			base = p.String()
+		}
+	}
+
+	var cmd *git.Command
+	if base == "" {
+		// The first commit: nothing was renamed.
+		cmd = git.NewCommand("show").AddOptions(o.CommandOptions).
+			AddArgs("--full-index", "--end-of-options", head, "--", path)
+	} else {
+		paths, err := r.renamedFrom(base, head, path, o)
+		if err != nil {
+			return nil, err
+		}
+		cmd = git.NewCommand("diff").AddOptions(o.CommandOptions).
+			AddArgs(append([]string{"--full-index", "-M", base, "--end-of-options", head, "--"}, paths...)...)
+	}
+
+	stdout, w := io.Pipe()
+	done := make(chan git.SteamParseDiffResult)
+	go git.StreamParseDiff(stdout, done, DiffMaxFiles, maxLines, DiffMaxLineChars)
+	stderr := new(bytes.Buffer)
+	err := cmd.RunInDirPipelineWithTimeout(o.Timeout, w, stderr, r.Path)
+	_ = w.Close()
+	result := <-done
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	if result.Err != nil {
+		return nil, result.Err
+	}
+	return toDiff(result.Diff), nil
+}
+
+// renamedFrom is path, and the name it had at base if it was renamed to
+// path between base and head. Finding a rename reads only the names that
+// changed, not their content.
+func (r *Repository) renamedFrom(base, head, path string, o git.DiffOptions) ([]string, error) {
+	out, err := git.NewCommand("diff").AddOptions(git.CommandOptions{Envs: o.Envs}).
+		AddArgs("--name-status", "-z", "-M", "--diff-filter=R", base, "--end-of-options", head).
+		RunInDirWithTimeout(o.Timeout, r.Path)
+	if err != nil {
+		return nil, err
+	}
+	// Each rename is "R<score>\0old\0new\0".
+	f := strings.Split(string(out), "\x00")
+	for i := 0; i+2 < len(f); i += 3 {
+		if f[i+2] == path {
+			return []string{f[i+1], path}, nil
+		}
+	}
+	return []string{path}, nil
 }
 
 // Patch returns the patch for the given reference.

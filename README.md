@@ -872,7 +872,27 @@ ways, all showing exactly what the caller may read:
   branches, tags or commits, searching the files, and `.tar.gz` and `.zip`
   downloads of any of them. Each history has an Atom feed
   (`/<repo>/-/commits.atom`). A repository's admins also see its
-  collaborators. Pages are plain HTML with no script.
+  collaborators. Pages are plain HTML with no script. Also:
+  - **Lines and permalinks.** Click a line number to select it, then another
+    to select the lines between (`?lines=10-25`). *Permalink* pins the link to
+    the commit, so it keeps pointing at the same code.
+  - **Go to file** (`/<repo>/-/find?q=brgo`) finds files by part of their path
+    or its letters in order.
+  - **History search**: commits by message (`?q=`) or author (`?author=`).
+  - **Diffs** one collapsible section per file, unified or side by side
+    (`?view=split`), with or without whitespace changes (`?w=1`). A file cut
+    short, or left out of a diff over 1 MiB, links to its own diff in full.
+  - **Branches** say how far ahead of and behind the default branch they are.
+  - **Signed commits**: an SSH signature is checked against the SSH keys of
+    this server's users. *Verified* names the user whose key signed it.
+    Nothing checks it against the author or committer fields. GPG and X.509
+    signatures are shown as signed, unverified.
+  - **Mirrors** say where they're copied from (credentials taken out) and when
+    they last synced.
+  - **Insights** (`/<repo>/-/insights`): languages, contributors and commits
+    per week for the last year.
+  - **Your account** (`/-/me`): your user, SSH keys, access tokens (never
+    the tokens themselves) and the repositories you can push to.
 - **A REST API** under `/v1`, described by `/v1/openapi.json`. Repository
   names can contain slashes, so the name and the action are separated by
   `/-/`:
@@ -885,13 +905,20 @@ ways, all showing exactly what the caller may read:
   curl "http://localhost:23232/v1/repos/icecream/-/commits?path=docs/guide.md"
   curl "http://localhost:23232/v1/repos/icecream/-/compare?base=main&head=feature"
   curl "http://localhost:23232/v1/repos/icecream/-/search?q=scoop"
+  curl "http://localhost:23232/v1/repos/icecream/-/commits?q=fix&author=ana"
+  curl "http://localhost:23232/v1/repos/icecream/-/files?q=guide"
+  curl "http://localhost:23232/v1/repos/icecream/-/commits/abc1234?ignore_whitespace=true"
+  curl http://localhost:23232/v1/repos/icecream/-/stats
+  curl -H "Authorization: Token $TOKEN" http://localhost:23232/v1/me
   curl -OJ "http://localhost:23232/v1/repos/icecream/-/archive?ref=v1.0&format=zip"
   ```
 
 - **MCP** at `/mcp` (Streamable HTTP), with read-only tools to list
-  repositories, branches, tags and commits, read a README, list a directory,
-  read and blame a file, get a commit's diff, compare two refs, search the
-  files, and (for admins) list collaborators.
+  repositories, branches, tags and commits (or search them by message or
+  author), read a README, list a directory, find files by name, read and
+  blame a file, get a commit's diff and signature, compare two refs, search
+  the files, get a repository's stats, say who you are (`whoami`), and (for
+  admins) list collaborators.
 
 Anonymous callers get the server's `anon-access` level. To read as a user,
 send a Soft Serve access token (`ssh localhost -p 23231 token create`) as
