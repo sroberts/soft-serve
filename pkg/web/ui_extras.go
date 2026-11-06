@@ -90,9 +90,12 @@ type codeLine struct {
 func codeLines(name, ref, p, src string, sel lineSel) []codeLine {
 	hl := highlightLines(gopath.Base(p), src)
 	out := make([]codeLine, len(hl))
+	base := repoURL(name, "blob", ref, p) // a blob URL always has ?path=
 	for i, h := range hl {
 		n := i + 1
-		out[i] = codeLine{N: n, Code: h, Selected: sel.Has(n), Href: linesURL(name, "blob", ref, p, sel.next(n))}
+		next := sel.next(n)
+		href := base + "&lines=" + next.String() + "#L" + strconv.Itoa(next.Start)
+		out[i] = codeLine{N: n, Code: h, Selected: sel.Has(n), Href: href}
 	}
 	return out
 }
@@ -236,6 +239,7 @@ type insightsData struct {
 	Bars       []weekBar
 	ChartW     float64
 	ChartH     float64
+	BarW       float64
 	YearTotal  int
 	BusiestWk  string
 	BusiestN   int
@@ -264,7 +268,7 @@ func (h uiHandler) insights(w http.ResponseWriter, r *http.Request, b *browser, 
 		return
 	}
 	p.Ref = st.Ref
-	d := insightsData{Stats: st, ChartH: chartH, ChartW: float64(len(st.Weekly))*(chartBarW+chartGap) - chartGap}
+	d := insightsData{Stats: st, ChartH: chartH, BarW: chartBarW, ChartW: float64(len(st.Weekly))*(chartBarW+chartGap) - chartGap}
 
 	peak := 0
 	for _, wk := range st.Weekly {

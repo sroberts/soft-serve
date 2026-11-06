@@ -428,9 +428,6 @@ func (b *browser) commits(ctx context.Context, name, rev string, f commitFilter,
 		return CommitPage{}, err
 	}
 	f.Path = p
-	if f.Query != "" || f.Author != "" {
-		return b.searchCommits(ctx, gr, rev, c.ID.String(), f, page, perPage)
-	}
 	if page < 1 {
 		page = 1
 	}
@@ -438,6 +435,9 @@ func (b *browser) commits(ctx context.Context, name, rev string, f commitFilter,
 		perPage = defaultPerPage
 	}
 	perPage = min(perPage, maxPerPage)
+	if f.Query != "" || f.Author != "" {
+		return b.searchCommits(ctx, gr, rev, c.ID.String(), f, page, perPage)
+	}
 	sha := c.ID.String()
 	cs, err := gr.Repository.CommitsByPage(sha, page, perPage, gitmodule.CommitsByPageOptions{Path: p})
 	if err != nil {

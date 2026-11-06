@@ -292,7 +292,7 @@ func (h uiHandler) blob(w http.ResponseWriter, r *http.Request, b *browser, p pa
 		d.Permalink = linesURL(p.Repo.Name, "blob", bl.Commit, bl.Path, d.Sel)
 	}
 	d.ClearURL = repoURL(p.Repo.Name, "blob", ref, bl.Path)
-	if isMarkdown(bl.Path) {
+	if isMarkdown(bl.Path) && !bl.LFSMissing && !bl.Binary {
 		d.Markdown = true
 		d.Source = q.Get("plain") == "1" || d.Sel.Start > 0
 		d.RenderedURL = repoURL(p.Repo.Name, "blob", ref, bl.Path)
@@ -310,6 +310,8 @@ func (h uiHandler) blob(w http.ResponseWriter, r *http.Request, b *browser, p pa
 			return repoURL(p.Repo.Name, "blob", p.Ref, fp)
 		}
 		d.Code = renderMarkdown(bl.Content, gopath.Dir(bl.Path), target)
+	case bl.Content == "":
+		// Left for the page to say the file is empty.
 	default:
 		d.Lines = codeLines(p.Repo.Name, ref, bl.Path, bl.Content, d.Sel)
 	}
@@ -499,7 +501,12 @@ func serveStatic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/css; charset=utf-8")
-	w.Header().Set("Cache-Control", "public, max-age=3600")
+	if name := strings.TrimPrefix(r.URL.Path, "/-/static/"); r.URL.RawQuery != "" && staticURL(name) == r.URL.Path+"?"+r.URL.RawQuery {
+		// Pages ask for it by a hash of its content, so it never changes.
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	} else {
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Write(body) //nolint:errcheck
 }

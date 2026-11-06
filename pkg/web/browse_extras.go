@@ -49,7 +49,9 @@ func checkAuthor(a string) (string, error) {
 
 // searchCommits is a page of the commits at sha whose message contains
 // f.Query and whose author contains f.Author, ignoring case and matched as
-// written. Both are handed to git as fixed strings, never patterns.
+// written. Both are handed to git as fixed strings, never patterns, and
+// the path as a literal path, never pathspec magic such as :(exclude). page
+// and perPage are already in range.
 func (b *browser) searchCommits(ctx context.Context, gr *git.Repository, rev, sha string, f commitFilter, page, perPage int) (CommitPage, error) {
 	var err error
 	if f.Query != "" {
@@ -60,13 +62,6 @@ func (b *browser) searchCommits(ctx context.Context, gr *git.Repository, rev, sh
 	if f.Author, err = checkAuthor(f.Author); err != nil {
 		return CommitPage{}, err
 	}
-	if page < 1 {
-		page = 1
-	}
-	if perPage < 1 {
-		perPage = defaultPerPage
-	}
-	perPage = min(perPage, maxPerPage)
 
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
@@ -82,7 +77,7 @@ func (b *browser) searchCommits(ctx context.Context, gr *git.Repository, rev, sh
 		tail = append(tail, f.Path)
 	}
 
-	count, err := gitOutput(ctx, gr.Path, slices.Concat([]string{"rev-list", "--count"}, filters, tail)...)
+	count, err := gitOutput(ctx, gr.Path, slices.Concat([]string{"--literal-pathspecs", "rev-list", "--count"}, filters, tail)...)
 	if err != nil {
 		return CommitPage{}, err
 	}
@@ -90,7 +85,7 @@ func (b *browser) searchCommits(ctx context.Context, gr *git.Repository, rev, sh
 	out := CommitPage{Ref: rev, Path: f.Path, Query: f.Query, Author: f.Author, Page: page, PerPage: perPage, Total: total, Commits: []CommitInfo{}}
 
 	list, err := gitOutput(ctx, gr.Path, slices.Concat([]string{
-		"log", "--format=%H",
+		"--literal-pathspecs", "log", "--format=%H",
 		"--skip=" + strconv.Itoa((page-1)*perPage), "--max-count=" + strconv.Itoa(perPage),
 	}, filters, tail)...)
 	if err != nil {

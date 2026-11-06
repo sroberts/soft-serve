@@ -214,7 +214,7 @@ git push -u origin main</pre>{{end}}
 {{end}}
 
 {{define "signature"}}{{/* . is a CommitSignature */}}
-{{if eq .Status "verified"}}<span class="sig verified">✓ Verified</span> Signed with <a href="/-/me">{{.Signer}}</a>’s SSH key{{with .Key}} <code title="Key fingerprint">{{.}}</code>{{end}}
+{{if eq .Status "verified"}}<span class="sig verified">✓ Verified</span> Signed with <strong>{{.Signer}}</strong>’s SSH key{{with .Key}} <code title="Key fingerprint">{{.}}</code>{{end}}
 {{else if eq .Status "bad"}}<span class="sig bad">✗ Bad signature</span> {{.Reason}}{{with .Key}} <code title="Key fingerprint">{{.}}</code>{{end}}
 {{else}}<span class="sig">Signed</span>, not verified: {{.Reason}}{{with .Key}} <code title="Key fingerprint">{{.}}</code>{{end}}{{end}}
 {{end}}
@@ -362,7 +362,7 @@ git push -u origin main</pre>{{end}}
   <figure class="activity">
     <svg viewBox="0 0 {{.ChartW}} {{.ChartH}}" preserveAspectRatio="none" role="img" aria-label="Commits per week for the last year: {{.YearTotal}} in all">
       <line class="base" x1="0" y1="{{.ChartH}}" x2="{{.ChartW}}" y2="{{.ChartH}}"></line>
-      {{range .Bars}}<g><rect class="hit" x="{{.X}}" y="0" width="12" height="{{$.Data.ChartH}}"></rect>{{if .H}}<rect class="bar" x="{{.X}}" y="{{.Y}}" width="12" height="{{.H}}" rx="2"></rect>{{end}}<title>{{.Label}}</title></g>
+      {{range .Bars}}<g><rect class="hit" x="{{.X}}" y="0" width="{{$.Data.BarW}}" height="{{$.Data.ChartH}}"></rect>{{if .H}}<rect class="bar" x="{{.X}}" y="{{.Y}}" width="{{$.Data.BarW}}" height="{{.H}}" rx="2"></rect>{{end}}<title>{{.Label}}</title></g>
       {{end}}
     </svg>
     <figcaption><span>A year ago</span><span>This week</span></figcaption>
