@@ -28,8 +28,9 @@ type blameRow struct {
 }
 
 type blameData struct {
-	Blame Blame
-	Rows  []blameRow
+	Blame     Blame
+	Rows      []blameRow
+	Permalink string
 }
 
 func (h uiHandler) blame(w http.ResponseWriter, r *http.Request, b *browser, p page, path string) {
@@ -53,6 +54,9 @@ func (h uiHandler) blame(w http.ResponseWriter, r *http.Request, b *browser, p p
 	}
 	code := highlightLines(gopath.Base(bl.Path), strings.Join(src, "\n"))
 	d := blameData{Blame: bl}
+	if r.URL.Query().Get("ref") != bl.Commit {
+		d.Permalink = repoURL(p.Repo.Name, "blame", bl.Commit, bl.Path)
+	}
 	i := 0
 	for _, hk := range bl.Hunks {
 		c := bl.Commits[hk.Commit]
@@ -77,6 +81,7 @@ type compareData struct {
 	Base, Head string
 	Refs       Refs
 	Result     *Compare
+	Diff       diffView
 	Err        string
 }
 
@@ -97,10 +102,12 @@ func (h uiHandler) compare(w http.ResponseWriter, r *http.Request, b *browser, p
 		h.render(w, r, "compare", p)
 		return
 	}
-	c, err := b.compare(r.Context(), p.Repo.Name, base, head)
+	q := r.URL.Query()
+	c, err := b.compare(r.Context(), p.Repo.Name, base, head, diffOpts{IgnoreWhitespace: q.Get("w") == "1", Path: q.Get("path")})
 	switch {
 	case err == nil:
 		d.Result = &c
+		d.Diff = newDiffView(r.URL.Path, keep(q, "base", "head", "view", "w", "path"), c.Files, c.Patch, c.PatchTruncated)
 		p.Title = c.Base + "..." + c.Head + " · " + p.Repo.Name
 	case statusFor(err) == http.StatusInternalServerError:
 		h.fail(w, r, p, err)
@@ -240,7 +247,7 @@ type atomContent struct {
 }
 
 func (h uiHandler) feed(w http.ResponseWriter, r *http.Request, b *browser, p page, path string) {
-	cp, err := b.commits(r.Context(), p.Repo.Name, p.Ref, path, 1, defaultPerPage)
+	cp, err := b.commits(r.Context(), p.Repo.Name, p.Ref, commitFilter{Path: path}, 1, defaultPerPage)
 	if err != nil {
 		hdr := w.Header()
 		hdr.Set("Content-Type", "text/plain; charset=utf-8")

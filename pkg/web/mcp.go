@@ -20,7 +20,7 @@ func mcpHandler(v *outpostVerifier) http.Handler {
 	cache := mcp.NewSchemaCache()
 	stream := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		c, _ := r.Context().Value(callerKey{}).(caller)
-		return newMCPServer(newBrowser(r.Context(), c.user, cloneBase(r, v)), cache)
+		return newMCPServer(newBrowser(r.Context(), c.user, cloneBase(r, v)), c.outpostUser, cache)
 	}, &mcp.StreamableHTTPOptions{
 		// Each request stands alone, so a restart loses nothing, and there
 		// is no session state for a portal that drops cookies to break.
@@ -75,13 +75,17 @@ type commitsArgs struct {
 	Repo    string `json:"repo" jsonschema:"repository name, as list_repositories gives it"`
 	Ref     string `json:"ref,omitempty" jsonschema:"branch, tag or commit hash; the default branch when omitted"`
 	Path    string `json:"path,omitempty" jsonschema:"only commits that touched this file or directory"`
+	Query   string `json:"query,omitempty" jsonschema:"only commits whose message contains this, 2 to 200 characters, ignoring case"`
+	Author  string `json:"author,omitempty" jsonschema:"only commits whose author's name or email contains this, ignoring case"`
 	Page    int    `json:"page,omitempty" jsonschema:"page number, from 1"`
 	PerPage int    `json:"per_page,omitempty" jsonschema:"commits per page, up to 100; 30 when omitted"`
 }
 
 type commitArgs struct {
-	Repo string `json:"repo" jsonschema:"repository name, as list_repositories gives it"`
-	SHA  string `json:"sha" jsonschema:"full or abbreviated commit hash"`
+	Repo             string `json:"repo" jsonschema:"repository name, as list_repositories gives it"`
+	SHA              string `json:"sha" jsonschema:"full or abbreviated commit hash"`
+	Path             string `json:"path,omitempty" jsonschema:"only this file's diff, in full rather than cut at 1000 lines"`
+	IgnoreWhitespace bool   `json:"ignore_whitespace,omitempty" jsonschema:"leave out changes in whitespace"`
 }
 
 type listArgs struct {
@@ -96,9 +100,17 @@ type dirArgs struct {
 }
 
 type compareArgs struct {
-	Repo string `json:"repo" jsonschema:"repository name, as list_repositories gives it"`
-	Base string `json:"base,omitempty" jsonschema:"branch, tag or commit to compare against; the default branch when omitted"`
-	Head string `json:"head" jsonschema:"branch, tag or commit whose changes to show"`
+	Repo             string `json:"repo" jsonschema:"repository name, as list_repositories gives it"`
+	Base             string `json:"base,omitempty" jsonschema:"branch, tag or commit to compare against; the default branch when omitted"`
+	Head             string `json:"head" jsonschema:"branch, tag or commit whose changes to show"`
+	Path             string `json:"path,omitempty" jsonschema:"only this file's diff, in full rather than cut at 1000 lines"`
+	IgnoreWhitespace bool   `json:"ignore_whitespace,omitempty" jsonschema:"leave out changes in whitespace"`
+}
+
+type findArgs struct {
+	Repo  string `json:"repo" jsonschema:"repository name, as list_repositories gives it"`
+	Ref   string `json:"ref,omitempty" jsonschema:"branch, tag or commit hash; the default branch when omitted"`
+	Query string `json:"query" jsonschema:"part of a file's path, or its letters in order: brgo finds browse.go"`
 }
 
 type searchArgs struct {
@@ -136,7 +148,7 @@ type mcpError string
 
 func (e mcpError) Error() string { return string(e) }
 
-func newMCPServer(b *browser, cache *mcp.SchemaCache) *mcp.Server {
+func newMCPServer(b *browser, outpostUser string, cache *mcp.SchemaCache) *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{Name: "soft-serve", Title: b.cfg.Name, Version: version.Version}, &mcp.ServerOptions{
 		Instructions: mcpInstructions,
 		SchemaCache:  cache,
@@ -152,8 +164,16 @@ func newMCPServer(b *browser, cache *mcp.SchemaCache) *mcp.Server {
 	}))
 
 	mcp.AddTool(s, &mcp.Tool{
+		Name:        "whoami",
+		Description: "Say who you are on this server: your Soft Serve user, if any, whether you're an admin, your SSH keys and access tokens (never the tokens themselves), and the repositories you can push to.",
+		Annotations: readOnly("Who am I"),
+	}, tool(func(ctx context.Context, _ struct{}) (Account, error) {
+		return b.account(ctx, outpostUser)
+	}))
+
+	mcp.AddTool(s, &mcp.Tool{
 		Name:        "get_repository",
-		Description: "Describe one repository: description, privacy, default branch, clone URLs and your access (read-only, read-write or admin-access).",
+		Description: "Describe one repository: description, privacy, default branch, clone URLs and your access (read-only, read-write or admin-access). A mirror also says where it is copied from and when it last synced.",
 		Annotations: readOnly("Get repository"),
 	}, tool(func(ctx context.Context, in repoArg) (RepoInfo, error) {
 		return b.repo(ctx, in.Repo)
@@ -169,7 +189,7 @@ func newMCPServer(b *browser, cache *mcp.SchemaCache) *mcp.Server {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "list_refs",
-		Description: "List a repository's branches and tags, newest first, each with its commit, date and summary. Annotated tags also have their tagger and message (often release notes).",
+		Description: "List a repository's branches and tags, newest first, each with its commit, date and summary. Branches say how many commits they are ahead of and behind the default branch. Annotated tags also have their tagger and message (often release notes).",
 		Annotations: readOnly("List branches and tags"),
 	}, tool(func(ctx context.Context, in repoArg) (Refs, error) {
 		return b.refs(ctx, in.Repo)
@@ -177,18 +197,18 @@ func newMCPServer(b *browser, cache *mcp.SchemaCache) *mcp.Server {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "list_commits",
-		Description: "List the commits reachable from a ref, newest first, one page at a time. Give a path for the history of one file or directory.",
+		Description: "List the commits reachable from a ref, newest first, one page at a time. Give a path for the history of one file or directory, a query to search commit messages, or an author to find someone's commits.",
 		Annotations: readOnly("List commits"),
 	}, tool(func(ctx context.Context, in commitsArgs) (CommitPage, error) {
-		return b.commits(ctx, in.Repo, in.Ref, in.Path, in.Page, in.PerPage)
+		return b.commits(ctx, in.Repo, in.Ref, commitFilter{Path: in.Path, Query: in.Query, Author: in.Author}, in.Page, in.PerPage)
 	}))
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "get_commit",
-		Description: "Get one commit: its message, the files it changed and its unified diff.",
+		Description: "Get one commit: its message, the files it changed, its unified diff and its signature, if signed. A signature is verified when it was made with the SSH key of a user on this server. Give a path for one file's diff in full.",
 		Annotations: readOnly("Get commit"),
 	}, tool(func(ctx context.Context, in commitArgs) (CommitDetail, error) {
-		return b.commit(ctx, in.Repo, in.SHA)
+		return b.commit(ctx, in.Repo, in.SHA, diffOpts{IgnoreWhitespace: in.IgnoreWhitespace, Path: in.Path})
 	}))
 
 	mcp.AddTool(s, &mcp.Tool{
@@ -220,7 +240,23 @@ func newMCPServer(b *browser, cache *mcp.SchemaCache) *mcp.Server {
 		Description: "Compare two branches, tags or commits: the commits head has that base doesn't, and the diff from where they diverged to head (what merging head into base would bring in).",
 		Annotations: readOnly("Compare refs"),
 	}, tool(func(ctx context.Context, in compareArgs) (Compare, error) {
-		return b.compare(ctx, in.Repo, in.Base, in.Head)
+		return b.compare(ctx, in.Repo, in.Base, in.Head, diffOpts{IgnoreWhitespace: in.IgnoreWhitespace, Path: in.Path})
+	}))
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "find_files",
+		Description: "Find files in a repository at a ref by path: part of the path, or its letters in order. The closest matches come first, up to 100.",
+		Annotations: readOnly("Find files"),
+	}, tool(func(ctx context.Context, in findArgs) (FileList, error) {
+		return b.findFiles(ctx, in.Repo, in.Ref, in.Query)
+	}))
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "get_repository_stats",
+		Description: "Describe a repository at a ref: its languages by size, its number of files and commits, its most frequent authors, and its commits in each of the last 52 weeks.",
+		Annotations: readOnly("Get repository stats"),
+	}, tool(func(ctx context.Context, in refArgs) (Stats, error) {
+		return b.stats(ctx, in.Repo, in.Ref)
 	}))
 
 	mcp.AddTool(s, &mcp.Tool{

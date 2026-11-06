@@ -153,14 +153,32 @@ func (r *Repository) Diff(commit *Commit) (*Diff, error) {
 	return toDiff(diff), nil
 }
 
-// DiffRange returns the changes from base to head.
-func (r *Repository) DiffRange(base, head string) (*Diff, error) {
-	diff, err := r.Repository.Diff(head, DiffMaxFiles, DiffMaxFileLines, DiffMaxLineChars, git.DiffOptions{
+// DiffOptions change how DiffWithOptions computes a diff.
+type DiffOptions struct {
+	// IgnoreWhitespace leaves out changes in whitespace, as git diff -w.
+	IgnoreWhitespace bool
+	// MaxFileLines caps the lines parsed for each file; DiffMaxFileLines
+	// when 0.
+	MaxFileLines int
+}
+
+// DiffWithOptions returns the changes from base to head, or, with base
+// empty, the changes the commit head made.
+func (r *Repository) DiffWithOptions(base, head string, opts DiffOptions) (*Diff, error) {
+	maxLines := opts.MaxFileLines
+	if maxLines <= 0 {
+		maxLines = DiffMaxFileLines
+	}
+	o := git.DiffOptions{
 		Base: base,
 		CommandOptions: git.CommandOptions{
 			Envs: []string{"GIT_CONFIG_GLOBAL=/dev/null"},
 		},
-	})
+	}
+	if opts.IgnoreWhitespace {
+		o.Args = []string{"--ignore-all-space"}
+	}
+	diff, err := r.Repository.Diff(head, DiffMaxFiles, maxLines, DiffMaxLineChars, o)
 	if err != nil {
 		return nil, err
 	}

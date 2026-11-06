@@ -149,6 +149,7 @@ func (b *browser) refs(ctx context.Context, name string) (Refs, error) {
 			out.Tags = append(out.Tags, ri)
 		}
 	}
+	aheadBehind(ctx, gr, &out)
 	// The default branch first, then the most recently updated.
 	slices.SortStableFunc(out.Branches, func(a, c RefInfo) int {
 		switch {
@@ -266,9 +267,13 @@ type Compare struct {
 	Files            []FileChange `json:"files"`
 	Patch            string       `json:"patch"`
 	PatchTruncated   bool         `json:"patch_truncated"`
+	// Path and IgnoreWhitespace say how the diff was asked for, as for a
+	// commit.
+	Path             string `json:"path,omitempty"`
+	IgnoreWhitespace bool   `json:"ignore_whitespace,omitempty"`
 }
 
-func (b *browser) compare(ctx context.Context, name, base, head string) (Compare, error) {
+func (b *browser) compare(ctx context.Context, name, base, head string, o diffOpts) (Compare, error) {
 	_, gr, err := b.open(ctx, name)
 	if err != nil {
 		return Compare{}, err
@@ -284,7 +289,10 @@ func (b *browser) compare(ctx context.Context, name, base, head string) (Compare
 	if err != nil {
 		return Compare{}, err
 	}
-	out := Compare{Base: base, Head: head, BaseCommit: bc.ID.String(), HeadCommit: hc.ID.String(), Commits: []CommitInfo{}, Files: []FileChange{}}
+	out := Compare{Base: base, Head: head, BaseCommit: bc.ID.String(), HeadCommit: hc.ID.String(), Commits: []CommitInfo{}, Files: []FileChange{}, IgnoreWhitespace: o.IgnoreWhitespace}
+	if out.Path, err = cleanPath(o.Path); err != nil {
+		return Compare{}, err
+	}
 	mb, err := gitOutput(ctx, gr.Path, "merge-base", out.BaseCommit, out.HeadCommit)
 	if exitCode(err) == 1 {
 		return Compare{}, badRequest("%s and %s have no history in common", base, head)
@@ -310,16 +318,34 @@ func (b *browser) compare(ctx context.Context, name, base, head string) (Compare
 	}
 	out.CommitsTruncated = out.TotalCommits > int64(len(out.Commits))
 
-	diff, err := gr.DiffRange(out.MergeBase, out.HeadCommit)
+	diff, err := gr.DiffWithOptions(out.MergeBase, out.HeadCommit, gitDiffOptions(o))
 	if err != nil {
 		return Compare{}, err
 	}
-	out.Files, out.Patch, out.PatchTruncated = changes(diff)
+	out.Files, out.Patch, out.PatchTruncated = changes(diff, out.Path)
 	return out, nil
 }
 
+// fullFileLines is how many lines of a file's diff are parsed when it is
+// asked for alone; the patch is still cut at maxPatchBytes.
+const fullFileLines = 100_000
+
+func gitDiffOptions(o diffOpts) git.DiffOptions {
+	g := git.DiffOptions{IgnoreWhitespace: o.IgnoreWhitespace}
+	if o.Path != "" {
+		g.MaxFileLines = fullFileLines
+	}
+	return g
+}
+
 // changes is the files a diff touches and its patch, cut to maxPatchBytes.
-func changes(diff *git.Diff) ([]FileChange, string, bool) {
+// With only set, it is that file's alone.
+func changes(diff *git.Diff, only string) ([]FileChange, string, bool) {
+	if only != "" {
+		diff.Files = slices.DeleteFunc(diff.Files, func(f *git.DiffFile) bool {
+			return f.Name != only && f.OldName() != only
+		})
+	}
 	files := make([]FileChange, 0, len(diff.Files))
 	for _, f := range diff.Files {
 		fc := FileChange{
@@ -328,6 +354,7 @@ func changes(diff *git.Diff) ([]FileChange, string, bool) {
 			Additions: f.NumAdditions(),
 			Deletions: f.NumDeletions(),
 			Binary:    f.IsBinary(),
+			Truncated: f.IsIncomplete(),
 		}
 		switch {
 		case f.IsCreated():

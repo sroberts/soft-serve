@@ -221,7 +221,7 @@ func TestSearch(t *testing.T) {
 
 	w := f.do(req{path: "/group/open/-/search?q=func+main"})
 	is.Equal(w.Code, http.StatusOK)
-	is.True(strings.Contains(w.Body.String(), `/group/open/-/blob?path=src%2Fmain.go&amp;ref=main#L3`))
+	is.True(strings.Contains(w.Body.String(), `/group/open/-/blob?path=src%2Fmain.go&amp;ref=main&amp;lines=3#L3`))
 	is.Equal(f.do(req{path: "/group/open/-/search?q=x"}).Code, http.StatusBadRequest)
 	w = f.do(req{path: "/?q=nothing"})
 	is.True(strings.Contains(w.Body.String(), "No repositories match"))
