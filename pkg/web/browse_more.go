@@ -318,7 +318,7 @@ func (b *browser) compare(ctx context.Context, name, base, head string, o diffOp
 	}
 	out.CommitsTruncated = out.TotalCommits > int64(len(out.Commits))
 
-	diff, err := gr.DiffWithOptions(out.MergeBase, out.HeadCommit, gitDiffOptions(o))
+	diff, err := gr.DiffWithOptions(out.MergeBase, out.HeadCommit, gitDiffOptions(o, out.Path))
 	if err != nil {
 		return Compare{}, err
 	}
@@ -330,9 +330,11 @@ func (b *browser) compare(ctx context.Context, name, base, head string, o diffOp
 // asked for alone; the patch is still cut at maxPatchBytes.
 const fullFileLines = 100_000
 
-func gitDiffOptions(o diffOpts) git.DiffOptions {
-	g := git.DiffOptions{IgnoreWhitespace: o.IgnoreWhitespace}
-	if o.Path != "" {
+// gitDiffOptions are the options for a diff of path alone, or of every
+// file when path is empty. path is already clean.
+func gitDiffOptions(o diffOpts, path string) git.DiffOptions {
+	g := git.DiffOptions{IgnoreWhitespace: o.IgnoreWhitespace, Path: path}
+	if path != "" {
 		g.MaxFileLines = fullFileLines
 	}
 	return g

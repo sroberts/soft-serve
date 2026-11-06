@@ -479,7 +479,7 @@ func (b *browser) commit(ctx context.Context, name, sha string, o diffOpts) (Com
 	if out.Path, err = cleanPath(o.Path); err != nil {
 		return CommitDetail{}, err
 	}
-	diff, err := gr.DiffWithOptions("", out.SHA, gitDiffOptions(o))
+	diff, err := gr.DiffWithOptions("", out.SHA, gitDiffOptions(o, out.Path))
 	if err != nil {
 		return CommitDetail{}, err
 	}
