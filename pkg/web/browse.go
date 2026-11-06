@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	gitmodule "github.com/aymanbagabas/git-module"
 	"github.com/charmbracelet/soft-serve/git"
 	"github.com/charmbracelet/soft-serve/pkg/access"
 	"github.com/charmbracelet/soft-serve/pkg/backend"
@@ -160,7 +161,9 @@ type CommitDetail struct {
 
 // CommitPage is one page of a history.
 type CommitPage struct {
-	Ref     string       `json:"ref"`
+	Ref string `json:"ref"`
+	// Path, when set, limits the history to commits that touched it.
+	Path    string       `json:"path,omitempty"`
 	Page    int          `json:"page"`
 	PerPage int          `json:"per_page"`
 	Total   int64        `json:"total"`
@@ -192,6 +195,11 @@ type Blob struct {
 	Size      int64  `json:"size"`
 	Binary    bool   `json:"binary"`
 	Truncated bool   `json:"truncated"`
+	// LFS is set for a file tracked by Git LFS: Size and Content are the
+	// stored file's. LFSMissing means the server doesn't have the object,
+	// so Content is the pointer.
+	LFS        bool `json:"lfs"`
+	LFSMissing bool `json:"lfs_missing,omitempty"`
 	// Content is the file's text; empty for a binary file.
 	Content string `json:"content"`
 }
@@ -384,12 +392,16 @@ func commitInfo(c *git.Commit) CommitInfo {
 	return info
 }
 
-func (b *browser) commits(ctx context.Context, name, rev string, page, perPage int) (CommitPage, error) {
+func (b *browser) commits(ctx context.Context, name, rev, p string, page, perPage int) (CommitPage, error) {
 	_, gr, err := b.open(ctx, name)
 	if err != nil {
 		return CommitPage{}, err
 	}
 	rev, c, err := resolve(gr, rev)
+	if err != nil {
+		return CommitPage{}, err
+	}
+	p, err = cleanPath(p)
 	if err != nil {
 		return CommitPage{}, err
 	}
@@ -401,15 +413,15 @@ func (b *browser) commits(ctx context.Context, name, rev string, page, perPage i
 	}
 	perPage = min(perPage, maxPerPage)
 	sha := c.ID.String()
-	cs, err := gr.Repository.CommitsByPage(sha, page, perPage)
+	cs, err := gr.Repository.CommitsByPage(sha, page, perPage, gitmodule.CommitsByPageOptions{Path: p})
 	if err != nil {
 		return CommitPage{}, err
 	}
-	total, err := gr.RevListCount([]string{sha})
+	total, err := gr.RevListCount([]string{sha}, gitmodule.RevListCountOptions{Path: p})
 	if err != nil {
 		return CommitPage{}, err
 	}
-	out := CommitPage{Ref: rev, Page: page, PerPage: perPage, Total: total, Commits: make([]CommitInfo, 0, len(cs))}
+	out := CommitPage{Ref: rev, Path: p, Page: page, PerPage: perPage, Total: total, Commits: make([]CommitInfo, 0, len(cs))}
 	for _, c := range cs {
 		out.Commits = append(out.Commits, commitInfo(c))
 	}
@@ -554,7 +566,7 @@ func (w *limitWriter) Write(p []byte) (int, error) {
 }
 
 func (b *browser) blob(ctx context.Context, name, rev, p string) (Blob, error) {
-	_, gr, err := b.open(ctx, name)
+	repo, gr, err := b.open(ctx, name)
 	if err != nil {
 		return Blob{}, err
 	}
@@ -570,6 +582,27 @@ func (b *browser) blob(ctx context.Context, name, rev, p string) (Blob, error) {
 	if te.IsCommit() {
 		return Blob{}, badRequest("%q is a submodule", clean)
 	}
+	if lf := b.lfsLookup(repo, te); lf != nil {
+		out.LFS = true
+		out.Size = lf.pointer.Size
+		if lf.object == nil {
+			out.LFSMissing = true
+			out.Content = lf.pointer.String()
+			return out, nil
+		}
+		defer lf.object.Close() //nolint:errcheck
+		rd, bin := sniff(lf.object)
+		if bin {
+			out.Binary = true
+			return out, nil
+		}
+		w := &limitWriter{n: maxBlobBytes}
+		if _, err := io.Copy(w, rd); err != nil {
+			return Blob{}, err
+		}
+		out.Content, out.Truncated = finishText(w)
+		return out, nil
+	}
 	f := te.File()
 	if bin, err := f.IsBinary(); err == nil && bin {
 		out.Binary = true
@@ -579,17 +612,21 @@ func (b *browser) blob(ctx context.Context, name, rev, p string) (Blob, error) {
 	if err := f.Pipeline(w, io.Discard); err != nil {
 		return Blob{}, err
 	}
-	out.Content = string(w.buf)
-	if w.total > int64(len(w.buf)) {
-		out.Content = truncateUTF8(out.Content, len(out.Content))
-		out.Truncated = true
-	}
+	out.Content, out.Truncated = finishText(w)
 	return out, nil
+}
+
+// finishText is the text a limitWriter kept, and whether it was cut short.
+func finishText(w *limitWriter) (string, bool) {
+	if w.total > int64(len(w.buf)) {
+		return truncateUTF8(string(w.buf), len(w.buf)), true
+	}
+	return string(w.buf), false
 }
 
 // raw streams a file's bytes to w and returns its path.
 func (b *browser) raw(ctx context.Context, name, rev, p string, w io.Writer, before func(path string, size int64, binary bool)) error {
-	_, gr, err := b.open(ctx, name)
+	repo, gr, err := b.open(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -603,9 +640,16 @@ func (b *browser) raw(ctx context.Context, name, rev, p string, w io.Writer, bef
 	if te.IsCommit() {
 		return badRequest("%q is a submodule", p)
 	}
+	clean, _ := cleanPath(p)
+	if lf := b.lfsLookup(repo, te); lf != nil && lf.object != nil {
+		defer lf.object.Close() //nolint:errcheck
+		rd, bin := sniff(lf.object)
+		before(clean, lf.pointer.Size, bin)
+		_, err := io.Copy(w, rd)
+		return err
+	}
 	f := te.File()
 	bin, _ := f.IsBinary()
-	clean, _ := cleanPath(p)
 	before(clean, te.Size(), bin)
 	return f.Pipeline(w, io.Discard)
 }

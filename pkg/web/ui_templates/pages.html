@@ -41,7 +41,10 @@ git push -u origin main</pre>{{end}}
 
 {{define "tree"}}{{template "head" .}}
 {{template "repohead" .}}
-{{template "pathbar" .}}
+<div class="pathrow">
+  {{template "pathbar" .}}
+  <a class="action" href="{{repoURL .Repo.Name "commits" .Ref (dataPath .Data)}}">History</a>
+</div>
 {{template "entries" .}}
 {{template "foot" .}}{{end}}
 
@@ -51,12 +54,13 @@ git push -u origin main</pre>{{end}}
 {{with .Data}}
 <article class="file">
   <header>
-    <span>{{bytes .Blob.Size}}{{if .Blob.Truncated}} · showing the first 1 MiB{{end}}</span>
+    <span>{{bytes .Blob.Size}}{{if .Blob.LFS}} · stored with Git LFS{{end}}{{if .Blob.Truncated}} · showing the first 1 MiB{{end}}</span>
     <span class="grow"></span>
     <a href="{{repoURL $.Repo.Name "raw" $.Ref .Blob.Path}}">Raw</a>
-    <a href="{{repoURL $.Repo.Name "commits" $.Ref ""}}">History</a>
+    <a href="{{repoURL $.Repo.Name "commits" $.Ref .Blob.Path}}">History</a>
   </header>
-  {{if .Image}}<div class="image"><img src="{{repoURL $.Repo.Name "raw" $.Ref .Blob.Path}}" alt="{{.Blob.Path}}"></div>
+  {{if .Blob.LFSMissing}}<p class="empty">This file is tracked by Git LFS, but its content was never pushed to this server. This is its pointer:</p><pre class="plain">{{.Blob.Content}}</pre>
+  {{else if .Image}}<div class="image"><img src="{{repoURL $.Repo.Name "raw" $.Ref .Blob.Path}}" alt="{{.Blob.Path}}"></div>
   {{else if .Blob.Binary}}<p class="empty">Binary file. <a href="{{repoURL $.Repo.Name "raw" $.Ref .Blob.Path}}">Download it</a>.</p>
   {{else if .Markdown}}<div class="markdown">{{.Code}}</div>
   {{else}}<div class="code">{{.Code}}</div>{{end}}
@@ -67,6 +71,7 @@ git push -u origin main</pre>{{end}}
 {{define "commits"}}{{template "head" .}}
 {{template "repohead" .}}
 {{with .Data}}
+{{if .Page.Path}}<p class="scope">History of <a href="{{repoURL $.Repo.Name "blob" $.Ref .Page.Path}}"><code>{{.Page.Path}}</code></a><span class="grow"></span><a href="{{repoURL $.Repo.Name "commits" $.Ref ""}}">All commits</a></p>{{end}}
 <ol class="commits">
   {{range .Page.Commits}}
   <li>
@@ -77,9 +82,9 @@ git push -u origin main</pre>{{end}}
   {{end}}
 </ol>
 <nav class="pager">
-  {{if .Prev}}<a href="{{pageURL $.Repo.Name $.Ref .Prev}}">← Newer</a>{{end}}
-  <span class="muted">{{.Page.Total}} commits</span>
-  {{if .Next}}<a href="{{pageURL $.Repo.Name $.Ref .Next}}">Older →</a>{{end}}
+  {{if .Prev}}<a href="{{pageURL $.Repo.Name $.Ref .Page.Path .Prev}}">← Newer</a>{{end}}
+  <span class="muted">{{.Page.Total}} commit{{if ne .Page.Total 1}}s{{end}}</span>
+  {{if .Next}}<a href="{{pageURL $.Repo.Name $.Ref .Page.Path .Next}}">Older →</a>{{end}}
 </nav>
 {{end}}
 {{template "foot" .}}{{end}}

@@ -43,7 +43,7 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
-	b := newBrowser(r.Context(), c.user, baseURL(r))
+	b := newBrowser(r.Context(), c.user, cloneBase(r, h.verifier))
 
 	rest, ok := strings.CutPrefix(r.URL.Path, "/v1/repos")
 	if !ok {
@@ -66,7 +66,7 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case action == "commits":
 		page, _ := strconv.Atoi(q.Get("page"))
 		perPage, _ := strconv.Atoi(q.Get("per_page"))
-		h.respond(w, r)(b.commits(ctx, name, q.Get("ref"), page, perPage))
+		h.respond(w, r)(b.commits(ctx, name, q.Get("ref"), q.Get("path"), page, perPage))
 	case strings.HasPrefix(action, "commits/"):
 		h.respond(w, r)(b.commit(ctx, name, strings.TrimPrefix(action, "commits/")))
 	case action == "tree":

@@ -20,7 +20,7 @@ func mcpHandler(v *outpostVerifier) http.Handler {
 	cache := mcp.NewSchemaCache()
 	stream := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		c, _ := r.Context().Value(callerKey{}).(caller)
-		return newMCPServer(newBrowser(r.Context(), c.user, baseURL(r)), cache)
+		return newMCPServer(newBrowser(r.Context(), c.user, cloneBase(r, v)), cache)
 	}, &mcp.StreamableHTTPOptions{
 		// Each request stands alone, so a restart loses nothing, and there
 		// is no session state for a portal that drops cookies to break.
@@ -73,6 +73,7 @@ type pathArgs struct {
 type commitsArgs struct {
 	Repo    string `json:"repo" jsonschema:"repository name, as list_repositories gives it"`
 	Ref     string `json:"ref,omitempty" jsonschema:"branch, tag or commit hash; the default branch when omitted"`
+	Path    string `json:"path,omitempty" jsonschema:"only commits that touched this file or directory"`
 	Page    int    `json:"page,omitempty" jsonschema:"page number, from 1"`
 	PerPage int    `json:"per_page,omitempty" jsonschema:"commits per page, up to 100; 30 when omitted"`
 }
@@ -148,10 +149,10 @@ func newMCPServer(b *browser, cache *mcp.SchemaCache) *mcp.Server {
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "list_commits",
-		Description: "List the commits reachable from a ref, newest first, one page at a time.",
+		Description: "List the commits reachable from a ref, newest first, one page at a time. Give a path for the history of one file or directory.",
 		Annotations: readOnly("List commits"),
 	}, tool(func(ctx context.Context, in commitsArgs) (CommitPage, error) {
-		return b.commits(ctx, in.Repo, in.Ref, in.Page, in.PerPage)
+		return b.commits(ctx, in.Repo, in.Ref, in.Path, in.Page, in.PerPage)
 	}))
 
 	mcp.AddTool(s, &mcp.Tool{

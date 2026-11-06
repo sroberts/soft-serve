@@ -43,6 +43,7 @@
       "parameters": [
         {"$ref": "#/components/parameters/Repo"},
         {"$ref": "#/components/parameters/Ref"},
+        {"name": "path", "in": "query", "description": "Only commits that touched this file or directory", "schema": {"type": "string"}},
         {"name": "page", "in": "query", "schema": {"type": "integer", "minimum": 1, "default": 1}},
         {"name": "per_page", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 30}}
       ],
@@ -101,7 +102,7 @@
       "get": {
         "operationId": "getRawFile",
         "summary": "Download a file's bytes",
-        "description": "Text is served as text/plain and binaries as attachments, so nothing in a repository renders as a page.",
+        "description": "Text is served as text/plain and binaries as attachments, so nothing in a repository renders as a page. A file tracked by Git LFS is served from the LFS store.",
         "responses": {
           "200": {"description": "The file's bytes", "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}, "text/plain": {"schema": {"type": "string"}}}},
           "400": {"$ref": "#/components/responses/Error"},
@@ -144,7 +145,7 @@
           "empty": {"type": "boolean", "description": "True when the repository has no commits yet"},
           "default_branch": {"type": "string"},
           "updated_at": {"type": "string", "format": "date-time"},
-          "clone": {"type": "object", "properties": {"ssh": {"type": "string"}, "https": {"type": "string"}}}
+          "clone": {"type": "object", "description": "How to clone. `https` is left out behind Outpost's login gateway, where git over HTTPS can't sign in; use SSH there.", "properties": {"ssh": {"type": "string"}, "https": {"type": "string"}}}
         },
         "required": ["name", "private", "mirror", "hidden", "empty", "updated_at", "clone"]
       },
@@ -176,9 +177,10 @@
         "type": "object",
         "properties": {
           "ref": {"type": "string"},
+          "path": {"type": "string", "description": "The path the history is limited to, if any"},
           "page": {"type": "integer"},
           "per_page": {"type": "integer"},
-          "total": {"type": "integer", "description": "Commits reachable from ref"},
+          "total": {"type": "integer", "description": "Commits reachable from ref (that touched path, when given)"},
           "commits": {"type": "array", "items": {"$ref": "#/components/schemas/Commit"}}
         },
         "required": ["ref", "page", "per_page", "total", "commits"]
@@ -241,6 +243,8 @@
           "size": {"type": "integer"},
           "binary": {"type": "boolean"},
           "truncated": {"type": "boolean"},
+          "lfs": {"type": "boolean", "description": "Tracked by Git LFS; size and content are the stored file's"},
+          "lfs_missing": {"type": "boolean", "description": "Tracked by Git LFS, but the object was never pushed here; content is the pointer"},
           "content": {"type": "string"}
         },
         "required": ["ref", "commit", "path", "size", "binary", "truncated", "content"]

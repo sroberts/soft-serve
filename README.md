@@ -877,6 +877,7 @@ ways, all showing exactly what the caller may read:
   curl "http://localhost:23232/v1/repos/icecream/-/tree?ref=main&path=docs"
   curl http://localhost:23232/v1/repos/icecream/-/blob?path=README.md
   curl http://localhost:23232/v1/repos/icecream/-/commits?per_page=10
+  curl "http://localhost:23232/v1/repos/icecream/-/commits?path=docs/guide.md"
   ```
 
 - **MCP** at `/mcp` (Streamable HTTP), with read-only tools to list
@@ -889,7 +890,11 @@ send a Soft Serve access token (`ssh localhost -p 23231 token create`) as
 login is used instead (see [Running under Outpost](#running-under-outpost)).
 
 Nothing in a repository is ever served as a page: raw files go out as plain
-text, images or downloads, with `nosniff` and a sandbox policy.
+text, images or downloads, with `nosniff` and a sandbox policy. Files tracked
+by Git LFS are shown and served from Soft Serve's LFS store, not as pointers.
+
+Behind Outpost's gateway, pages and the API offer only the SSH clone URL:
+git over HTTPS would need a login the gateway doesn't pass through.
 
 ## The Soft Serve TUI
 

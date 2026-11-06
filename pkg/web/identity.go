@@ -72,6 +72,17 @@ func softServeUser(ctx context.Context, name string) proto.User {
 	return u
 }
 
+// cloneBase is where HTTPS clone URLs point, or "" for none. Behind the
+// Outpost gateway, git over HTTPS can't authenticate: the gateway wants its
+// own login, and Soft Serve's git endpoints don't take Outpost's identity.
+// So no HTTPS clone URL is offered there; SSH is the way in.
+func cloneBase(r *http.Request, v *outpostVerifier) string {
+	if v != nil {
+		return ""
+	}
+	return baseURL(r)
+}
+
 // baseURL is the scheme and host the caller reached us at. Behind Outpost
 // the node terminates TLS and says so in X-Forwarded-Proto, and Host is
 // preserved, so nothing about our address is configured.

@@ -340,6 +340,12 @@ func TestViewContent(t *testing.T) {
 	get("/v1/repos/group/open", &repo)
 	is.Equal(repo.DefaultBranch, "main")
 	is.Equal(repo.Description, "An open one")
+	// Behind the gateway git over HTTPS can't authenticate, so only SSH is
+	// offered; without it, HTTPS is.
+	is.Equal(repo.Clone.HTTPS, "")
+	direct := &viewFixture{handler: newRouter(f.ctx, nil)}
+	w := direct.do(req{path: "/v1/repos/group/open"})
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &repo))
 	is.Equal(repo.Clone.HTTPS, "http://"+viewHost+"/group/open.git")
 
 	var tree Tree

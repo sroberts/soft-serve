@@ -87,7 +87,7 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.renderError(w, r, nil, http.StatusUnauthorized, "Those credentials aren't valid.")
 		return
 	}
-	b := newBrowser(r.Context(), c.user, baseURL(r))
+	b := newBrowser(r.Context(), c.user, cloneBase(r, h.verifier))
 	p := page{SiteName: config.FromContext(r.Context()).Name, SignedIn: c.outpostUser}
 	if c.user != nil {
 		p.SoftServe = c.user.Username()
@@ -125,7 +125,7 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		serveRaw(w, r, b, info.Name)
 	case action == "commits":
 		pg, _ := strconv.Atoi(q.Get("page"))
-		h.commits(w, r, b, p, pg)
+		h.commits(w, r, b, p, q.Get("path"), pg)
 	case strings.HasPrefix(action, "commit/"):
 		h.commit(w, r, b, p, strings.TrimPrefix(action, "commit/"))
 	case action == "refs":
@@ -226,6 +226,7 @@ func (h uiHandler) blob(w http.ResponseWriter, r *http.Request, b *browser, p pa
 	p.Title = bl.Path + " · " + p.Repo.Name
 	d := blobData{Blob: bl}
 	switch {
+	case bl.LFSMissing:
 	case bl.Binary:
 		d.Image = strings.HasPrefix(rawContentType(bl.Path, true), "image/")
 	case isMarkdown(bl.Path):
@@ -250,15 +251,18 @@ type commitsData struct {
 	Next int
 }
 
-func (h uiHandler) commits(w http.ResponseWriter, r *http.Request, b *browser, p page, pg int) {
+func (h uiHandler) commits(w http.ResponseWriter, r *http.Request, b *browser, p page, path string, pg int) {
 	p.Tab = "commits"
-	cp, err := b.commits(r.Context(), p.Repo.Name, p.Ref, pg, defaultPerPage)
+	cp, err := b.commits(r.Context(), p.Repo.Name, p.Ref, path, pg, defaultPerPage)
 	if err != nil {
 		h.fail(w, r, p, err)
 		return
 	}
 	p.Ref = cp.Ref
 	p.Title = "Commits · " + p.Repo.Name
+	if cp.Path != "" {
+		p.Title = "History of " + cp.Path + " · " + p.Repo.Name
+	}
 	d := commitsData{Page: cp}
 	if cp.Page > 1 {
 		d.Prev = cp.Page - 1
@@ -388,11 +392,14 @@ func repoURL(name, action, ref, p string) string {
 	return u
 }
 
-// pageURL is a page of a repository's history.
-func pageURL(name, ref string, n int) string {
+// pageURL is a page of a repository's history, or of one path's.
+func pageURL(name, ref, p string, n int) string {
 	q := url.Values{"page": {strconv.Itoa(n)}}
 	if ref != "" {
 		q.Set("ref", ref)
+	}
+	if p != "" {
+		q.Set("path", p)
 	}
 	return "/" + name + "/-/commits?" + q.Encode()
 }
