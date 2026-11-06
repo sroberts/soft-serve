@@ -434,11 +434,16 @@ func cmdNewWebhook(ts *testscript.TestScript, neg bool, args []string) {
 	const whSite = "https://webhook.site"
 	req, err := http.NewRequest(http.MethodPost, whSite+"/token", nil) //nolint:noctx
 	check(ts, err, neg)
+	// Without this, webhook.site answers with its web page.
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
 	check(ts, err, neg)
 
 	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 || !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
+		ts.Fatalf("webhook.site token: %s, %s", resp.Status, resp.Header.Get("Content-Type"))
+	}
 	var site webhookSite
 	check(ts, json.NewDecoder(resp.Body).Decode(&site), neg)
 
