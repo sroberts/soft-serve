@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"html/template"
 	"net/url"
-	"regexp"
 	gopath "path"
+	"regexp"
 	"strings"
 	"sync"
 

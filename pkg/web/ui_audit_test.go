@@ -49,7 +49,7 @@ func TestAcceptsGzip(t *testing.T) {
 		"x-gzip":                false,
 	}
 	for hdr, want := range cases {
-		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 		r.Header.Set("Accept-Encoding", hdr)
 		if got := acceptsGzip(r); got != want {
 			t.Errorf("acceptsGzip(%q) = %v, want %v", hdr, got, want)
@@ -60,7 +60,7 @@ func TestAcceptsGzip(t *testing.T) {
 func TestWriteBodyGzip(t *testing.T) {
 	big := bytes.Repeat([]byte("<tr><td>line</td></tr>\n"), 200)
 
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	r.Header.Set("Accept-Encoding", "gzip")
 	w := httptest.NewRecorder()
 	writeBody(w, r, http.StatusTeapot, big)
@@ -84,7 +84,7 @@ func TestWriteBodyGzip(t *testing.T) {
 		enc  string
 		body []byte
 	}{{"gzip", []byte("small")}, {"", big}} {
-		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 		r.Header.Set("Accept-Encoding", tc.enc)
 		w := httptest.NewRecorder()
 		writeBody(w, r, http.StatusOK, tc.body)
@@ -97,7 +97,7 @@ func TestWriteBodyGzip(t *testing.T) {
 // An error page used to write its status before its headers, so it went
 // out without its Content-Type or Content-Security-Policy.
 func TestErrorPageHeaders(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, "/nope", nil)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/nope", nil)
 	w := httptest.NewRecorder()
 	uiHandler{}.renderError(w, r, &page{SiteName: "Soft Serve"}, http.StatusNotFound, "Not here.")
 	if w.Code != http.StatusNotFound {
