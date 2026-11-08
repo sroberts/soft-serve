@@ -174,6 +174,11 @@ func redactRemote(raw string) string {
 		u.User, u.RawQuery, u.Fragment, u.ForceQuery = nil, "", "", false
 		return u.String()
 	}
+	// A URL that didn't parse (a password holding '#', '/' or '?', say) is
+	// not scp-like, and showing it as-is could show its credentials.
+	if strings.Contains(raw, "://") {
+		return ""
+	}
 	// scp-like: [user@]host:path. A Windows drive (C:\...) or a local path
 	// has no host to show.
 	host, p, ok := strings.Cut(raw, ":")

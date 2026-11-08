@@ -918,7 +918,11 @@ ways, all showing exactly what the caller may read:
   author), read a README, list a directory, find files by name, read and
   blame a file, get a commit's diff and signature, compare two refs, search
   the files, get a repository's stats, say who you are (`whoami`), and (for
-  admins) list collaborators.
+  admins) list collaborators. A request that reaches `/mcp` over loopback
+  must be addressed to `localhost`, to the host of
+  `SOFT_SERVE_HTTP_PUBLIC_URL`, or come through Outpost's login gateway;
+  anything else is refused, as a guard against DNS rebinding. Behind a
+  reverse proxy or Outpost without its gateway, set the public URL.
 
 Anonymous callers get the server's `anon-access` level. To read as a user,
 send a Soft Serve access token (`ssh localhost -p 23231 token create`) as
