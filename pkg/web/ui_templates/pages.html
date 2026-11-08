@@ -109,7 +109,7 @@ git push -u origin main</pre>{{end}}
   {{else}}{{if not .Err}}<li class="muted">No commits match.</li>{{end}}
   {{end}}
 </ol>
-<nav class="pager">
+<nav class="pager" aria-label="More commits">
   {{if .Prev}}<a href="{{commitsURL $.Repo.Name .Page .Prev}}">← Newer</a>{{end}}
   <span class="muted">{{.Page.Total}} commit{{if ne .Page.Total 1}}s{{end}}</span>
   {{if .Next}}<a href="{{commitsURL $.Repo.Name .Page .Next}}">Older →</a>{{end}}
@@ -367,6 +367,15 @@ git push -u origin main</pre>{{end}}
     </svg>
     <figcaption><span>A year ago</span><span>This week</span></figcaption>
   </figure>
+  <details class="weeks">
+    <summary>Commits in each week</summary>
+    <table>
+      <thead><tr><th scope="col">Week of</th><th scope="col">Commits</th></tr></thead>
+      <tbody>
+      {{range .Bars}}<tr{{if not .Commits}} class="none"{{end}}><td>{{.Week}}</td><td>{{.Commits}}</td></tr>
+      {{end}}</tbody>
+    </table>
+  </details>
 
   <div class="cols">
     <section>

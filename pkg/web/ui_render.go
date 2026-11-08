@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"net/url"
 	gopath "path"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -81,7 +82,29 @@ func renderMarkdown(src, dir string, target linkTarget) template.HTML {
 			}
 		}
 	})
-	return template.HTML(policy.SanitizeBytes(buf.Bytes())) //nolint:gosec // sanitized
+	return template.HTML(fitPage(policy.SanitizeBytes(buf.Bytes()))) //nolint:gosec // sanitized
+}
+
+var (
+	headingTag = regexp.MustCompile(`<(/?)h([1-6])([\s>])`)
+	imgTag     = regexp.MustCompile(`<img(\s)`)
+)
+
+// fitPage fits sanitized Markdown into a page: headings move down a level,
+// since the page's own h1 is the repository's or the file's name, and
+// images load only when scrolled to. It runs after the sanitizer, whose
+// output has lowercase tags and no loading attributes of its own.
+func fitPage(b []byte) []byte {
+	b = headingTag.ReplaceAllFunc(b, func(m []byte) []byte {
+		lvl := m[len(m)-2] // the digit, just before the space or >
+		if lvl < '6' {
+			lvl++
+		}
+		out := append([]byte{}, m...)
+		out[len(out)-2] = lvl
+		return out
+	})
+	return imgTag.ReplaceAll(b, []byte(`<img loading="lazy"$1`))
 }
 
 // linkRewriter points relative Markdown links and images into the repository.

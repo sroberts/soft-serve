@@ -224,6 +224,8 @@ func markRuns(s string, runs [][2]int) template.HTML {
 type weekBar struct {
 	X, Y, H float64
 	Label   string
+	Week    string // its first day, as 2 Jan 2006
+	Commits int
 }
 
 // langRow is one language of the breakdown.
@@ -290,10 +292,12 @@ func (h uiHandler) insights(w http.ResponseWriter, r *http.Request, b *browser, 
 			plural = ""
 		}
 		d.Bars = append(d.Bars, weekBar{
-			X:     float64(i) * (chartBarW + chartGap),
-			Y:     chartH - bh,
-			H:     bh,
-			Label: fmt.Sprintf("%d commit%s in the week of %s", wk.Commits, plural, wk.Week.Format("2 Jan 2006")),
+			X:       float64(i) * (chartBarW + chartGap),
+			Y:       chartH - bh,
+			H:       bh,
+			Label:   fmt.Sprintf("%d commit%s in the week of %s", wk.Commits, plural, wk.Week.Format("2 Jan 2006")),
+			Week:    wk.Week.Format("2 Jan 2006"),
+			Commits: wk.Commits,
 		})
 	}
 

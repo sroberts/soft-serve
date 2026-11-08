@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
@@ -426,8 +427,7 @@ func (h uiHandler) renderError(w http.ResponseWriter, r *http.Request, p *page, 
 	}
 	p.Title = fmt.Sprintf("%d %s", status, http.StatusText(status))
 	p.Data = msg
-	w.WriteHeader(status)
-	h.write(w, r, "error", *p)
+	h.renderStatus(w, r, status, "error", *p)
 }
 
 func (h uiHandler) render(w http.ResponseWriter, r *http.Request, name string, p page) {
@@ -443,8 +443,7 @@ func (h uiHandler) renderStatus(w http.ResponseWriter, r *http.Request, status i
 		return
 	}
 	setPageHeaders(w)
-	w.WriteHeader(status)
-	w.Write(buf.Bytes()) //nolint:errcheck
+	writeBody(w, r, status, buf.Bytes())
 }
 
 func (h uiHandler) write(w http.ResponseWriter, r *http.Request, name string, p page) {
@@ -455,7 +454,7 @@ func (h uiHandler) write(w http.ResponseWriter, r *http.Request, name string, p 
 		return
 	}
 	setPageHeaders(w)
-	w.Write(buf.Bytes()) //nolint:errcheck
+	writeBody(w, r, http.StatusOK, buf.Bytes())
 }
 
 // setPageHeaders locks a page down: no script at all, styles and images
@@ -508,7 +507,42 @@ func serveStatic(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Write(body) //nolint:errcheck
+	writeBody(w, r, http.StatusOK, body)
+}
+
+// minGzip is the smallest body worth compressing.
+const minGzip = 1 << 10
+
+// writeBody writes a page or stylesheet, gzipped when the client takes it.
+// Pages of long diffs or files run to a megabyte of repetitive markup, which
+// gzip shrinks about tenfold: it matters on a phone.
+func writeBody(w http.ResponseWriter, r *http.Request, status int, body []byte) {
+	hdr := w.Header()
+	hdr.Add("Vary", "Accept-Encoding")
+	if len(body) < minGzip || !acceptsGzip(r) {
+		w.WriteHeader(status)
+		w.Write(body) //nolint:errcheck
+		return
+	}
+	hdr.Set("Content-Encoding", "gzip")
+	hdr.Del("Content-Length")
+	w.WriteHeader(status)
+	zw, _ := gzip.NewWriterLevel(w, gzip.DefaultCompression)
+	zw.Write(body) //nolint:errcheck
+	zw.Close()     //nolint:errcheck
+}
+
+// acceptsGzip says whether a request's Accept-Encoding allows gzip.
+func acceptsGzip(r *http.Request) bool {
+	for _, part := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
+		name, params, _ := strings.Cut(strings.TrimSpace(part), ";")
+		if !strings.EqualFold(strings.TrimSpace(name), "gzip") {
+			continue
+		}
+		q := strings.ReplaceAll(strings.TrimSpace(params), " ", "")
+		return q != "q=0" && q != "q=0.0" && q != "q=0.00" && q != "q=0.000"
+	}
+	return false
 }
 
 // repoURL is a page of a repository. Paths are relative to our own host,
