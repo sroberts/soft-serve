@@ -10,6 +10,7 @@
 {{if .Feed}}<link rel="alternate" type="application/atom+xml" title="{{.Title}}" href="{{.Feed}}">{{end}}
 </head>
 <body>
+<a class="skip" href="#content">Skip to content</a>
 <header class="site">
   <a class="brand" href="/">{{.SiteName}}</a>
   {{if .Repo}}<span class="sep" aria-hidden="true">/</span><a class="crumb" href="{{repoURL .Repo.Name "" "" ""}}">{{.Repo.Name}}</a>{{end}}
@@ -19,7 +20,7 @@
   <form method="post" action="/.outpost/logout"><button type="submit" class="link">Sign out</button></form>
   {{else if .SoftServe}}<a class="who" href="/-/me">{{.SoftServe}}</a>{{end}}
 </header>
-<main>
+<main id="content">
 {{end}}
 
 {{define "foot"}}
@@ -40,11 +41,11 @@
   {{if and .SoftServe (accessText .Repo.Access)}}<p class="access">{{accessText .Repo.Access}}</p>{{end}}
   <details class="clone">
     <summary>Clone or download</summary>
-    {{if .Repo.Clone.SSH}}<label>SSH <code class="copy">git clone {{.Repo.Clone.SSH}}</code></label>{{end}}
-    {{if .Repo.Clone.HTTPS}}<label>HTTPS <code class="copy">git clone {{.Repo.Clone.HTTPS}}</code></label>{{end}}
+    {{if .Repo.Clone.SSH}}<div class="cloneline"><span>SSH</span> <code class="copy">git clone {{.Repo.Clone.SSH}}</code></div>{{end}}
+    {{if .Repo.Clone.HTTPS}}<div class="cloneline"><span>HTTPS</span> <code class="copy">git clone {{.Repo.Clone.HTTPS}}</code></div>{{end}}
     {{if not .Repo.Empty}}<p class="downloads">Download {{if .Ref}}<code>{{.Ref}}</code>{{else}}the default branch{{end}}: <a href="{{archiveURL .Repo.Name .Ref "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL .Repo.Name .Ref "zip"}}" download>.zip</a></p>{{end}}
   </details>
-  <nav class="tabs">
+  <nav class="tabs" aria-label="Repository">
     <a href="{{repoURL .Repo.Name "" .Ref ""}}"{{if eq .Tab "files"}} aria-current="page"{{end}}>Files</a>
     <a href="{{repoURL .Repo.Name "commits" .Ref ""}}"{{if eq .Tab "commits"}} aria-current="page"{{end}}>Commits</a>
     <a href="{{repoURL .Repo.Name "refs" "" ""}}"{{if eq .Tab "refs"}} aria-current="page"{{end}}>Branches &amp; tags</a>
