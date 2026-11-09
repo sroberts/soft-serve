@@ -34,8 +34,10 @@ var esc = strings.NewReplacer("'", "&#39;", "+", "&#43;", `"`, "&#34;").Replace
 
 func wantStatus(t *testing.T, w interface{ Result() *http.Response }, want int, what string) {
 	t.Helper()
-	if got := w.Result().StatusCode; got != want {
-		t.Errorf("%s: status %d, want %d", what, got, want)
+	res := w.Result()
+	defer res.Body.Close()
+	if res.StatusCode != want {
+		t.Errorf("%s: status %d, want %d", what, res.StatusCode, want)
 	}
 }
 
@@ -208,8 +210,10 @@ func TestUIAccountOutpost(t *testing.T) {
 	has(t, w, "You signed in through Outpost", "set-username &lt;new-name&gt;", `action="/-/me/keys"`, `action="/-/me/tokens"`)
 	hasNot(t, w, `action="/-/me/username"`)
 
-	w = f.do(req{method: http.MethodPost, path: "/-/me/username", identity: id, body: "username=boss",
-		header: map[string]string{"Content-Type": "application/x-www-form-urlencoded"}})
+	w = f.do(req{
+		method: http.MethodPost, path: "/-/me/username", identity: id, body: "username=boss",
+		header: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
+	})
 	wantStatus(t, w, http.StatusForbidden, "outpost rename")
 	has(t, w, esc("can't rename it here"))
 	if _, err := f.be.User(f.ctx, "owner"); err != nil {
@@ -244,7 +248,9 @@ func TestUIAccountAnonymous(t *testing.T) {
 	// An Outpost user with no account here is refused the same way.
 	nobody := f.outpost.token(t, "nobody", viewHost, nil)
 	hasNot(t, f.do(req{path: "/-/me", identity: nobody}), `action="/-/me`)
-	w = f.do(req{method: http.MethodPost, path: "/-/me/tokens", identity: nobody, body: "name=x&expires=never",
-		header: map[string]string{"Content-Type": "application/x-www-form-urlencoded"}})
+	w = f.do(req{
+		method: http.MethodPost, path: "/-/me/tokens", identity: nobody, body: "name=x&expires=never",
+		header: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
+	})
 	wantStatus(t, w, http.StatusUnauthorized, "outpost user without an account")
 }
