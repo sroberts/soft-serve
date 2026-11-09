@@ -156,6 +156,15 @@ func TestScript(t *testing.T) {
 			// This will disable the default lipgloss renderer colors
 			e.Setenv("SOFT_SERVE_NO_COLOR", "1")
 
+			// The scripts expect new repositories to start on master. Git
+			// 2.54 and later start them on main unless told otherwise, and
+			// HOME is not the user's here, so say it in a config of our own.
+			gitconfig := filepath.Join(t.TempDir(), "gitconfig")
+			if err := os.WriteFile(gitconfig, []byte("[init]\n\tdefaultBranch = master\n"), 0o600); err != nil {
+				return err
+			}
+			e.Setenv("GIT_CONFIG_GLOBAL", gitconfig)
+
 			// Soft Serve debug environment variables
 			for _, env := range []string{
 				"SOFT_SERVE_DEBUG",

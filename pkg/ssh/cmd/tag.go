@@ -1,11 +1,6 @@
 package cmd
 
 import (
-	"charm.land/log/v2"
-	"github.com/charmbracelet/soft-serve/git"
-	"github.com/charmbracelet/soft-serve/pkg/access"
-	"github.com/charmbracelet/soft-serve/pkg/proto"
-	"github.com/charmbracelet/soft-serve/pkg/webhook"
 	"github.com/spf13/cobra"
 )
 
@@ -24,91 +19,32 @@ func tagCommand() *cobra.Command {
 }
 
 func tagListCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:               "list REPOSITORY",
-		Aliases:           []string{"ls"},
-		Short:             "List repository tags",
-		Args:              cobra.ExactArgs(1),
-		PersistentPreRunE: requireRepo(access.ReadOnlyAccess),
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			ctx := cmd.Context()
-			rr, _, err := repoFromContext(ctx)
+	return &cobra.Command{
+		Use:     "list REPOSITORY",
+		Aliases: []string{"ls"},
+		Short:   "List repository tags",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			r, err := service(cmd.Context()).Repo(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
-
-			r, err := rr.Open()
-			if err != nil {
-				return err
-			}
-
-			tags, _ := r.Tags()
-			for _, t := range tags {
+			for _, t := range r.Tags {
 				cmd.Println(t)
 			}
-
 			return nil
 		},
 	}
-
-	return cmd
 }
 
 func tagDeleteCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:               "delete REPOSITORY TAG",
-		Aliases:           []string{"remove", "rm", "del"},
-		Short:             "Delete a tag",
-		Args:              cobra.ExactArgs(2),
-		PersistentPreRunE: requireRepo(access.ReadWriteAccess),
+	return &cobra.Command{
+		Use:     "delete REPOSITORY TAG",
+		Aliases: []string{"remove", "rm", "del"},
+		Short:   "Delete a tag",
+		Args:    cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			rr, _, err := repoFromContext(ctx)
-			if err != nil {
-				return err
-			}
-
-			r, err := rr.Open()
-			if err != nil {
-				log.Errorf("failed to open repo: %s", err)
-				return err
-			}
-
-			tag := args[1]
-			tags, _ := r.Tags()
-			var exists bool
-			for _, t := range tags {
-				if tag == t {
-					exists = true
-					break
-				}
-			}
-
-			if !exists {
-				log.Errorf("failed to get tag: tag %s does not exist", tag)
-				return git.ErrReferenceNotExist
-			}
-
-			tagCommit, err := r.TagCommit(tag)
-			if err != nil {
-				log.Errorf("failed to get tag commit: %s", err)
-				return err
-			}
-
-			if err := r.DeleteTag(tag); err != nil {
-				log.Errorf("failed to delete tag: %s", err)
-				return err
-			}
-
-			wh, err := webhook.NewBranchTagEvent(ctx, proto.UserFromContext(ctx), rr, git.RefsTags+tag, tagCommit.ID.String(), git.ZeroID)
-			if err != nil {
-				log.Error("failed to create branch_tag webhook", "err", err)
-				return err
-			}
-
-			return webhook.SendEvent(ctx, wh)
+			return service(cmd.Context()).DeleteTag(cmd.Context(), args[0], args[1])
 		},
 	}
-
-	return cmd
 }
