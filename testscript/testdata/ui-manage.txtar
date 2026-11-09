@@ -1,0 +1,66 @@
+# vi: set ft=conf
+
+# Managing repositories from the TUI: the same operations, and the same
+# permissions, as the SSH repo commands.
+
+exec soft serve &
+ensureserverrunning SSH_PORT
+
+soft user create user1 --key "$USER1_AUTHORIZED_KEY"
+
+# n on the repository list creates one, and opens it
+ui '"nrepo1\r     q"'
+cp stdout create.txt
+grep 'Settings' create.txt
+soft repo info repo1
+stdout 'Repository: repo1'
+
+# and lists it
+soft repo list
+stdout repo1
+
+# Settings: change the description (the sixth tab, third row)
+ui '"   \t\t\t\t\t  jj\r\x15via the tui\r     q"' repo1
+cp stdout settings.txt
+grep 'Description' settings.txt
+soft repo description repo1
+stdout 'via the tui'
+
+# Settings: toggle private (fourth row)
+ui '"   \t\t\t\t\t  jjj\r     q"' repo1
+soft repo private repo1
+stdout true
+
+# Collaborators: add user1 at read-only (one step left of read-write)
+ui '"   \t\t\t\t\t\t  a  user1\th\r     q"' repo1
+soft repo collab list repo1
+stdout user1
+
+# Webhooks: add one
+ui '"   \t\t\t\t\t\t\t  a  https://example.com/hook\r     q"' repo1
+soft repo webhook list repo1
+stdout 'https://example.com/hook'
+
+# A read-only collaborator sees the settings but cannot change them, and
+# is told why collaborators and webhooks are out of reach.
+uui '"   \t\t\t\t\t  jj\r     q"' repo1
+cp stdout ro-settings.txt
+grep 'You have read-only access' ro-settings.txt
+! grep 'Change description' ro-settings.txt
+soft repo description repo1
+stdout 'via the tui'
+uui '"   \t\t\t\t\t\t     q"' repo1
+cp stdout ro-collabs.txt
+grep 'needs write access' ro-collabs.txt
+uui '"   \t\t\t\t\t\t\t     q"' repo1
+cp stdout ro-hooks.txt
+grep 'Webhooks need admin' ro-hooks.txt
+
+# Settings: delete, confirmed, goes back to the list
+ui '"   \t\t\t\t\t  G\ry     q"' repo1
+! soft repo info repo1
+stderr 'repository not found'
+
+# stop the server
+[windows] stopserver
+[windows] ! stderr .

@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/soft-serve/pkg/backend"
 	"github.com/charmbracelet/soft-serve/pkg/ui/common"
 	"github.com/charmbracelet/soft-serve/pkg/ui/components/code"
+	"github.com/charmbracelet/soft-serve/pkg/ui/components/form"
 	"github.com/charmbracelet/soft-serve/pkg/ui/components/selector"
 	"github.com/charmbracelet/soft-serve/pkg/ui/components/tabs"
 )
@@ -42,6 +43,8 @@ type Selection struct {
 	selector   *selector.Selector
 	activePane pane
 	tabs       *tabs.Tabs
+	// host shows the form for a new or imported repository.
+	host form.Host
 }
 
 // New creates a new selection model.
@@ -109,6 +112,9 @@ func (s *Selection) IsFiltering() bool {
 
 // ShortHelp implements help.KeyMap.
 func (s *Selection) ShortHelp() []key.Binding {
+	if s.host.Active() {
+		return s.host.ShortHelp()
+	}
 	k := s.selector.KeyMap
 	kb := make([]key.Binding, 0)
 	kb = append(kb,
@@ -124,12 +130,18 @@ func (s *Selection) ShortHelp() []key.Binding {
 			k.ClearFilter,
 			copyKey,
 		)
+		if s.canManage() {
+			kb = append(kb, newKey, importKey)
+		}
 	}
 	return kb
 }
 
 // FullHelp implements help.KeyMap.
 func (s *Selection) FullHelp() [][]key.Binding {
+	if s.host.Active() {
+		return [][]key.Binding{s.host.ShortHelp()}
+	}
 	b := [][]key.Binding{
 		{
 			s.common.KeyMap.Section,
@@ -176,6 +188,9 @@ func (s *Selection) FullHelp() [][]key.Binding {
 			k.CancelWhileFiltering,
 			k.AcceptWhileFiltering,
 		})
+		if s.canManage() {
+			b = append(b, []key.Binding{newKey, importKey})
+		}
 	}
 	return b
 }
@@ -237,6 +252,17 @@ func (s *Selection) Init() tea.Cmd {
 
 // Update implements tea.Model.
 func (s *Selection) Update(msg tea.Msg) (common.Model, tea.Cmd) {
+	if handled, cmd := s.host.Update(msg); handled {
+		return s, cmd
+	}
+	if k, ok := msg.(tea.KeyPressMsg); ok && s.canManage() {
+		switch {
+		case key.Matches(k, newKey):
+			return s, s.newRepo()
+		case key.Matches(k, importKey):
+			return s, s.importRepo()
+		}
+	}
 	cmds := make([]tea.Cmd, 0)
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -292,7 +318,11 @@ func (s *Selection) View() string {
 		ss := lipgloss.NewStyle().
 			Width(s.common.Width - wm).
 			Height(s.common.Height - hm)
-		view = ss.Render(s.selector.View())
+		if s.host.Active() {
+			view = ss.Render(s.host.View())
+		} else {
+			view = ss.Render(s.selector.View())
+		}
 	case readmePane:
 		rs := lipgloss.NewStyle().
 			Height(s.common.Height - hm)

@@ -104,6 +104,12 @@ func (r *Repo) SetSize(width, height int) {
 	}
 }
 
+// CapturingInput implements common.InputCapturer: the active tab may be
+// showing a form.
+func (r *Repo) CapturingInput() bool {
+	return r.state == readyState && common.IsCapturingInput(r.panes[r.activeTab])
+}
+
 // Path returns the current component path.
 func (r *Repo) Path() string {
 	return r.panes[r.activeTab].Path()
@@ -122,6 +128,9 @@ func (r *Repo) commonHelp() []key.Binding {
 
 // ShortHelp implements help.KeyMap.
 func (r *Repo) ShortHelp() []key.Binding {
+	if r.CapturingInput() {
+		return r.panes[r.activeTab].(help.KeyMap).ShortHelp()
+	}
 	b := r.commonHelp()
 	b = append(b, r.panes[r.activeTab].(help.KeyMap).ShortHelp()...)
 	return b
@@ -129,6 +138,9 @@ func (r *Repo) ShortHelp() []key.Binding {
 
 // FullHelp implements help.KeyMap.
 func (r *Repo) FullHelp() [][]key.Binding {
+	if r.CapturingInput() {
+		return [][]key.Binding{r.panes[r.activeTab].(help.KeyMap).ShortHelp()}
+	}
 	b := make([][]key.Binding, 0)
 	b = append(b, r.commonHelp())
 	b = append(b, r.panes[r.activeTab].(help.KeyMap).FullHelp()...)
@@ -151,6 +163,12 @@ func (r *Repo) Update(msg tea.Msg) (common.Model, tea.Cmd) {
 	cmds := make([]tea.Cmd, 0)
 	switch msg := msg.(type) {
 	case RepoMsg:
+		// Opening the same repository again, as after changing its
+		// settings, stays on the tab it was on.
+		prev := 0
+		if r.selectedRepo != nil && msg != nil && r.selectedRepo.Name() == proto.Repository(msg).Name() {
+			prev = r.activeTab
+		}
 		// Set the state to loading when we get a new repository.
 		r.selectedRepo = msg
 		cmds = append(cmds,
@@ -158,6 +176,20 @@ func (r *Repo) Update(msg tea.Msg) (common.Model, tea.Cmd) {
 			// This will set the selected repo in each pane's model.
 			r.updateModels(msg),
 		)
+		if prev > 0 {
+			r.activeTab = prev
+			t, _ := r.tabs.Update(tabs.SelectTabMsg(prev))
+			r.tabs = t.(*tabs.Tabs)
+		}
+		if msg != nil {
+			cmds = append(cmds, loadInfoCmd(r.common, proto.Repository(msg).Name()))
+		}
+	case InfoMsg:
+		cmds = append(cmds, r.updateModels(msg))
+	case collabsMsg:
+		cmds = append(cmds, r.updateTabComponent(&Collaborators{}, msg))
+	case webhooksMsg, deliveriesMsg, deliveryMsg:
+		cmds = append(cmds, r.updateTabComponent(&Webhooks{}, msg))
 	case RefMsg:
 		r.ref = msg
 		cmds = append(cmds, r.updateModels(msg))
@@ -172,6 +204,10 @@ func (r *Repo) Update(msg tea.Msg) (common.Model, tea.Cmd) {
 	case tabs.ActiveTabMsg:
 		r.activeTab = int(msg)
 	case tea.KeyPressMsg, tea.MouseClickMsg:
+		if r.CapturingInput() {
+			// A form in the active tab takes every key.
+			break
+		}
 		t, cmd := r.tabs.Update(msg)
 		r.tabs = t.(*tabs.Tabs)
 		if cmd != nil {
@@ -274,7 +310,7 @@ func (r *Repo) Update(msg tea.Msg) (common.Model, tea.Cmd) {
 	case RepoMsg, RefMsg, tabs.ActiveTabMsg, tea.KeyPressMsg,
 		tea.MouseClickMsg, tea.MouseWheelMsg, FileItemsMsg, FileContentMsg,
 		FileBlameMsg, selector.ActiveMsg, LogItemsMsg, GoBackMsg, LogDiffMsg,
-		EmptyRepoMsg, StashListMsg, StashPatchMsg:
+		EmptyRepoMsg, StashListMsg, StashPatchMsg, InfoMsg, collabsMsg, webhooksMsg:
 		r.setStatusBarInfo()
 	}
 
