@@ -11,7 +11,7 @@ soft user create user1 --key "$USER1_AUTHORIZED_KEY"
 # n on the repository list creates one, and opens it
 ui '"   nrepo1\r     q"'
 cp stdout create.txt
-grep 'Settings' create.txt
+grep 'git clone ssh://.*/repo1.git' create.txt
 soft repo info repo1
 stdout 'Repository: repo1'
 
