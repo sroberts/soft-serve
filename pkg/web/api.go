@@ -160,7 +160,7 @@ func writeAPIError(w http.ResponseWriter, status int, msg string) {
 func serveRaw(w http.ResponseWriter, r *http.Request, b *browser, name string) {
 	q := r.URL.Query()
 	wrote := false
-	err := b.raw(r.Context(), name, q.Get("ref"), q.Get("path"), w, func(p string, size int64, binary bool) {
+	err := b.raw(r.Context(), name, q.Get("ref"), q.Get("path"), w, func(p string, size int64, binary bool) bool {
 		wrote = true
 		hdr := w.Header()
 		hdr.Set("Content-Type", rawContentType(p, binary))
@@ -171,6 +171,7 @@ func serveRaw(w http.ResponseWriter, r *http.Request, b *browser, name string) {
 		if strings.HasPrefix(hdr.Get("Content-Type"), "application/octet-stream") {
 			hdr.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": gopath.Base(p)}))
 		}
+		return r.Method != http.MethodHead
 	})
 	if err != nil && !wrote {
 		if statusFor(err) == http.StatusInternalServerError {
@@ -188,7 +189,7 @@ func serveRaw(w http.ResponseWriter, r *http.Request, b *browser, name string) {
 func serveArchive(w http.ResponseWriter, r *http.Request, b *browser, name string) {
 	q := r.URL.Query()
 	wrote := false
-	err := b.archive(r.Context(), name, q.Get("ref"), q.Get("format"), w, func(filename, contentType string) {
+	err := b.archive(r.Context(), name, q.Get("ref"), q.Get("format"), w, func(filename, contentType string) bool {
 		wrote = true
 		hdr := w.Header()
 		hdr.Set("Content-Type", contentType)
@@ -196,6 +197,8 @@ func serveArchive(w http.ResponseWriter, r *http.Request, b *browser, name strin
 		hdr.Set("X-Content-Type-Options", "nosniff")
 		hdr.Set("Content-Security-Policy", "sandbox; default-src 'none'")
 		hdr.Set("Cache-Control", "private, no-store")
+		// HEAD gets the headers without the cost of building the archive.
+		return r.Method != http.MethodHead
 	})
 	if err != nil && !wrote {
 		if statusFor(err) == http.StatusInternalServerError {

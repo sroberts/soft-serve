@@ -88,7 +88,8 @@ type compareData struct {
 func (h uiHandler) compare(w http.ResponseWriter, r *http.Request, b *browser, p page, base, head string) {
 	p.Tab = "compare"
 	p.Title = "Compare · " + p.Repo.Name
-	refs, err := b.refs(r.Context(), p.Repo.Name)
+	// The refs only fill the form's suggestions; no need to count commits.
+	refs, err := b.listRefs(r.Context(), p.Repo.Name, false)
 	if err != nil {
 		h.fail(w, r, p, err)
 		return

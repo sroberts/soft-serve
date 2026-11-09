@@ -10,9 +10,9 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
-	gitmodule "github.com/aymanbagabas/git-module"
 	"github.com/charmbracelet/soft-serve/git"
 	"github.com/charmbracelet/soft-serve/pkg/access"
 	"github.com/charmbracelet/soft-serve/pkg/backend"
@@ -81,6 +81,17 @@ type browser struct {
 	// base is the scheme and host the caller reached us at, for HTTPS clone
 	// URLs. Built from the request, never configured (no hard-coded host).
 	base string
+
+	// opened keeps the repositories this request has opened, so a page
+	// that checks access first and then reads doesn't do both twice.
+	mu     sync.Mutex
+	opened map[string]openedRepo
+}
+
+type openedRepo struct {
+	r     proto.Repository
+	gr    *git.Repository
+	level access.AccessLevel
 }
 
 func newBrowser(ctx context.Context, user proto.User, base string) *browser {
@@ -263,6 +274,12 @@ func (b *browser) openLevel(ctx context.Context, name string) (proto.Repository,
 	if name == "" {
 		return nil, nil, access.NoAccess, errNotFound
 	}
+	b.mu.Lock()
+	o, ok := b.opened[name]
+	b.mu.Unlock()
+	if ok {
+		return o.r, o.gr, o.level, nil
+	}
 	r, level := b.be.Readable(ctx, name, b.user)
 	if r == nil {
 		return nil, nil, access.NoAccess, errNotFound
@@ -271,6 +288,12 @@ func (b *browser) openLevel(ctx context.Context, name string) (proto.Repository,
 	if err != nil {
 		return nil, nil, access.NoAccess, err
 	}
+	b.mu.Lock()
+	if b.opened == nil {
+		b.opened = map[string]openedRepo{}
+	}
+	b.opened[name] = openedRepo{r: r, gr: gr, level: level}
+	b.mu.Unlock()
 	return r, gr, level, nil
 }
 
@@ -290,7 +313,7 @@ func (b *browser) listRepos(ctx context.Context, hidden bool) ([]RepoInfo, error
 	}
 	out := make([]RepoInfo, 0, len(all))
 	for _, r := range all {
-		level := b.be.AccessLevelForUser(ctx, r.Name(), b.user)
+		level := b.be.AccessLevelForRepo(ctx, r, b.user)
 		if (r.IsHidden() && !hidden) || level < access.ReadOnlyAccess {
 			continue
 		}
@@ -446,15 +469,17 @@ func (b *browser) commits(ctx context.Context, name, rev string, f commitFilter,
 		perPage = defaultPerPage
 	}
 	perPage = min(perPage, maxPerPage)
-	if f.Query != "" || f.Author != "" {
+	// searchCommits reads the path literally; git-module's log would take
+	// "*.go" or ":(exclude)docs" as a pattern.
+	if f.Query != "" || f.Author != "" || p != "" {
 		return b.searchCommits(ctx, gr, rev, c.ID.String(), f, page, perPage)
 	}
 	sha := c.ID.String()
-	cs, err := gr.Repository.CommitsByPage(sha, page, perPage, gitmodule.CommitsByPageOptions{Path: p})
+	cs, err := gr.Repository.CommitsByPage(sha, page, perPage)
 	if err != nil {
 		return CommitPage{}, err
 	}
-	total, err := gr.RevListCount([]string{sha}, gitmodule.RevListCountOptions{Path: p})
+	total, err := gr.RevListCount([]string{sha})
 	if err != nil {
 		return CommitPage{}, err
 	}
@@ -655,8 +680,10 @@ func finishText(w *limitWriter) (string, bool) {
 	return string(w.buf), false
 }
 
-// raw streams a file's bytes to w and returns its path.
-func (b *browser) raw(ctx context.Context, name, rev, p string, w io.Writer, before func(path string, size int64, binary bool)) error {
+// raw streams a file's bytes to w. before is called first, with the
+// file's path, size and kind; when it returns false nothing is streamed,
+// as for a HEAD request.
+func (b *browser) raw(ctx context.Context, name, rev, p string, w io.Writer, before func(path string, size int64, binary bool) bool) error {
 	repo, gr, err := b.open(ctx, name)
 	if err != nil {
 		return err
@@ -675,13 +702,17 @@ func (b *browser) raw(ctx context.Context, name, rev, p string, w io.Writer, bef
 	if lf := b.lfsLookup(repo, te); lf != nil && lf.object != nil {
 		defer lf.object.Close() //nolint:errcheck
 		rd, bin := sniff(lf.object)
-		before(clean, lf.pointer.Size, bin)
+		if !before(clean, lf.pointer.Size, bin) {
+			return nil
+		}
 		_, err := io.Copy(w, rd)
 		return err
 	}
 	f := te.File()
 	bin, _ := f.IsBinary()
-	before(clean, te.Size(), bin)
+	if !before(clean, te.Size(), bin) {
+		return nil
+	}
 	return f.Pipeline(w, io.Discard)
 }
 

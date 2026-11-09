@@ -20,7 +20,6 @@ grep 'Key added' session.txt
 grep 'Copy it now' session.txt
 grep -count=1 'ss_[0-9a-f]{20,}' session.txt
 grep 'Username changed' session.txt
-grep 'Username  newname' session.txt
 # The renamed session still has its access: the settings tab knows it.
 grep 'You have read-only access' session.txt
 
@@ -38,6 +37,9 @@ stdout newname
 # The new token is listed by the account screen, but never shown again.
 uui '"   a     q"'
 cp stdout again.txt
+# The renderer redraws only cells that change, so the new name is checked
+# on a fresh screen rather than in the session that changed it.
+grep 'Username  newname' again.txt
 grep 'Access tokens \(1\)' again.txt
 ! grep 'ss_[0-9a-f]{20,}' again.txt
 
