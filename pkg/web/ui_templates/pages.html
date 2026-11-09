@@ -1,6 +1,6 @@
 {{define "index"}}{{template "head" .}}
 <section class="intro">
-  <h1>Repositories</h1>
+  <div class="introhead"><h1>Repositories</h1>{{if .SoftServe}}<a class="button" href="/-/new">New repository</a>{{end}}</div>
   {{if and .SignedIn (not .SoftServe)}}<p class="note">You're signed in as <strong>{{.SignedIn}}</strong>, but no Soft Serve user has that name, so you see public repositories only.</p>{{end}}
   {{if gt .Data.Total 0}}<form class="search" method="get" action="/" role="search">
     <input type="search" name="q" value="{{.Data.Query}}" placeholder="Filter by name or description" aria-label="Filter repositories">
@@ -146,7 +146,7 @@ git push -u origin main</pre>{{end}}
         <a class="refname" href="{{repoURL $.Repo.Name "tree" .Name ""}}">{{.Name}}</a>{{if eq .Name $.Data.DefaultBranch}} <span class="badge">default</span>{{end}}
         <p class="meta"><a href="{{repoURL $.Repo.Name (printf "commit/%s" .Commit) "" ""}}">{{.Summary}}</a> · <time datetime="{{.Date.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .Date}}</time>{{with distance . $.Data.DefaultBranch}} · <span class="distance">{{.}}</span>{{end}}</p>
       </div>
-      <span class="refactions">{{if ne .Name $.Data.DefaultBranch}}<a href="{{compareURL $.Repo.Name "" .Name}}">Compare</a> · {{end}}<a href="{{archiveURL $.Repo.Name .Name "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .Name "zip"}}" download>.zip</a></span>
+      <span class="refactions">{{if ne .Name $.Data.DefaultBranch}}<a href="{{compareURL $.Repo.Name "" .Name}}">Compare</a> · {{end}}<a href="{{archiveURL $.Repo.Name .Name "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .Name "zip"}}" download>.zip</a>{{if and (canWrite $.Repo.Access) (ne .Name $.Data.DefaultBranch)}} · <a class="danger" href="{{deleteRefURL $.Repo.Name "branch" .Name}}">Delete</a>{{end}}</span>
     </li>
     {{else}}<li class="muted">No branches</li>{{end}}
   </ul>
@@ -158,7 +158,7 @@ git push -u origin main</pre>{{end}}
         <p class="meta">{{if .Tagger}}Tagged by {{.Tagger.Name}} · {{end}}<time datetime="{{.Date.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .Date}}</time> · <a class="sha" href="{{repoURL $.Repo.Name (printf "commit/%s" .Commit) "" ""}}">{{short .Commit}}</a></p>
         {{if .Message}}<details class="notes"><summary>Release notes</summary><pre class="message">{{.Message}}</pre></details>{{end}}
       </div>
-      <span class="refactions"><a href="{{archiveURL $.Repo.Name .Name "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .Name "zip"}}" download>.zip</a></span>
+      <span class="refactions"><a href="{{archiveURL $.Repo.Name .Name "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .Name "zip"}}" download>.zip</a>{{if canWrite $.Repo.Access}} · <a class="danger" href="{{deleteRefURL $.Repo.Name "tag" .Name}}">Delete</a>{{end}}</span>
     </li>
     {{else}}<li class="muted">No tags</li>{{end}}
   </ul>
@@ -315,9 +315,22 @@ git push -u origin main</pre>{{end}}
 <section class="refs">
   <h2>Collaborators</h2>
   <ul>
-    {{range .Collaborators}}<li><span class="refname">{{.Username}}</span><span class="badge">{{.Access}}</span></li>
-    {{else}}<li class="muted">No collaborators. Add one over SSH: <code>repo collab add {{$.Repo.Name}} &lt;user&gt; read-only</code></li>{{end}}
+    {{range .Collaborators}}<li><span class="refname">{{.Username}}</span><span class="badge">{{.Access}}</span>
+      <form class="rowaction" method="post" action="{{repoURL $.Repo.Name "access/remove" "" ""}}"><input type="hidden" name="username" value="{{.Username}}"><button type="submit" class="link danger" aria-label="Remove {{.Username}}">Remove</button></form></li>
+    {{else}}<li class="muted">No collaborators yet.</li>{{end}}
   </ul>
+  <h2 id="add-collaborator">Add a collaborator</h2>
+  {{template "formerror" .Err}}
+  <form class="inline" method="post" action="{{repoURL $.Repo.Name "access/add" "" ""}}" aria-labelledby="add-collaborator">
+    <label class="field">Username
+      <input type="text" name="username" value="{{.Username}}" required maxlength="100" autocomplete="off" spellcheck="false">
+    </label>
+    <label class="field">Access
+      <select name="access">{{$lvl := .Level}}{{range levels}}<option{{if eq . $lvl}} selected{{else if and (eq $lvl "") (eq . "read-write")}} selected{{end}}>{{.}}</option>{{end}}</select>
+    </label>
+    <button type="submit">Add</button>
+  </form>
+  <p class="note small">To change someone's access, remove them and add them again. Nobody but a server admin can grant more access than they have.</p>
   <p class="note">Server admins can always read and change every repository. {{if $.Repo.Private}}This repository is private: only collaborators and admins can see it.{{else}}This repository is public: anyone with the server's anonymous access can read it.{{end}}</p>
 </section>
 {{end}}

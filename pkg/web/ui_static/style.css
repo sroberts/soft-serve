@@ -1,4 +1,4 @@
-/* Soft Serve's read-only web view. No script; light and dark. */
+/* Soft Serve's web view. No script; light and dark. */
 
 :root {
   --bg: #fbfaf8;
@@ -523,6 +523,78 @@ form.history .author { flex: 0 1 12rem; }
 
 .error h1 { font-size: 1.25rem; }
 
+/* Managing repositories */
+
+.notice {
+  margin: 0 0 16px;
+  padding: 9px 14px;
+  border: 1px solid var(--add);
+  border-radius: var(--radius);
+  background: var(--add-bg);
+  font-size: 0.875rem;
+}
+.introhead { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; margin: 0 0 16px; }
+.introhead h1 { margin: 0; }
+a.button {
+  display: inline-block;
+  font-size: 0.875rem;
+  font-weight: 550;
+  padding: 7px 14px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--surface);
+  white-space: nowrap;
+}
+a.button:hover { filter: brightness(1.08); text-decoration: none; }
+a.button.danger, button[type="submit"].danger:not(.link) { background: var(--del); border-color: var(--del); color: #fff; }
+a.danger:not(.button), button.link.danger { color: var(--del); }
+
+form.manage { max-width: 40rem; margin: 0 0 24px; }
+form.manage fieldset, fieldset.events {
+  margin: 0 0 16px;
+  padding: 12px 16px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  min-width: 0;
+}
+form.manage legend { padding: 0 6px; font-weight: 600; font-size: 0.9375rem; }
+fieldset.events { padding: 8px 14px 10px; }
+fieldset.events legend { font-weight: 500; font-size: 0.8125rem; color: var(--muted); padding: 0 4px; }
+label.field { display: grid; gap: 4px; margin: 0 0 12px; font-size: 0.875rem; font-weight: 500; }
+label.field .hint { font-weight: 400; color: var(--muted); font-size: 0.8125rem; }
+label.check { display: flex; gap: 8px; align-items: baseline; margin: 6px 0; font-size: 0.875rem; }
+label.check input { flex: none; margin: 0; width: 16px; height: 16px; accent-color: var(--accent); transform: translateY(2px); }
+input[type="text"], input[type="url"], input[type="password"], select {
+  font: inherit;
+  font-size: 0.875rem;
+  padding: 7px 10px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  min-width: 0;
+  width: 100%;
+}
+select:focus-visible, input[type="checkbox"]:focus-visible, input[type="radio"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.actions { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; font-size: 0.875rem; }
+form.inline { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: end; margin: 0 0 8px; }
+form.inline label.field { flex: 1 1 12rem; margin: 0; }
+form.rowaction { margin: 0 0 0 4px; }
+.manage-section { max-width: 40rem; margin: 0 0 24px; padding-top: 16px; border-top: 1px solid var(--line); }
+.manage-section h2, .refs h2 + .formerror { margin-top: 0; }
+.manage-section h2 { font-size: 1rem; margin: 0 0 8px; }
+.manage-section .note { margin: 0 0 10px; }
+.manage-section.danger h2 { color: var(--del); }
+.confirm { max-width: 36rem; }
+.confirm h2 { font-size: 1.125rem; margin: 12px 0 8px; }
+.confirm .what { font-size: 0.875rem; overflow-wrap: anywhere; }
+.badge.ok { color: var(--add); border-color: var(--add); }
+.badge.bad { color: var(--del); border-color: var(--del); }
+.delivery h3 { font-size: 0.875rem; margin: 18px 0 6px; }
+pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.7812rem; }
+
 @media (max-width: 600px) {
   body { font-size: 0.875rem; }
   .files .last { display: none; }
@@ -549,10 +621,15 @@ form.history .author { flex: 0 1 12rem; }
   .tabs a[aria-current="page"] { background: var(--accent-soft); border-color: var(--accent); }
   .tabs .grow { display: none; }
   .tabs .ref { margin: 0; padding: 4px 11px; }
+  form.manage fieldset { padding: 10px 12px 12px; }
+  form.inline button[type="submit"] { flex: 1 1 100%; }
 }
 
 /* Touch: code lines tall enough that each line number is a 24px target. */
 @media (pointer: coarse) {
   .lines, .blame { line-height: 1.85; }
+  label.check { margin: 10px 0; }
+  label.check input { width: 20px; height: 20px; }
+  button.link { min-height: 24px; }
   .blame .who { line-height: calc(0.8125rem * 1.85); }
 }
