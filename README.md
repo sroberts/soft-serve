@@ -680,6 +680,26 @@ Use "ssh -p 23231 localhost repo [command] --help" for more information about a 
 
 To use any of the above `repo` commands, a user must be a collaborator in the repository. More on this below.
 
+### From Your Own Machine
+
+The `soft` binary runs the same `repo` commands against a server's HTTP API,
+with an access token instead of an SSH key. The commands, flags and output are
+the ones above, and the server applies the same permissions.
+
+```sh
+export SOFT_SERVE_REMOTE=http://localhost:23232
+export SOFT_SERVE_TOKEN=$(ssh -p 23231 localhost token create laptop)
+
+soft repo list
+soft repo create icecream -d 'Scoops'
+soft repo import --mirror --auto-sync=false upstream https://github.com/charmbracelet/soft-serve
+soft repo sync upstream
+soft repo collab add icecream ana read-write
+```
+
+This is handy where SSH can't reach the server, such as behind Outpost's
+gateway. `repo blob`, `repo tree` and `repo commit` are SSH-only for now.
+
 ### Creating Repositories
 
 To create a repository, first make sure you are a registered user. Use the
@@ -931,6 +951,22 @@ ways, all showing exactly what the caller may read:
   curl http://localhost:23232/v1/repos/icecream/-/stats
   curl -H "Authorization: Token $TOKEN" http://localhost:23232/v1/me
   curl -OJ "http://localhost:23232/v1/repos/icecream/-/archive?ref=v1.0&format=zip"
+  ```
+
+  The API also manages repositories, with the same operations and the same
+  permissions as the `repo` commands over SSH: create and import (fork or
+  mirror), settings, rename, delete, mirror sync, deleting branches and tags,
+  collaborators, and webhooks with their deliveries. Bodies are JSON. Changes
+  a browser says come from another site are refused.
+
+  ```sh
+  auth="Authorization: Token $TOKEN"
+  curl -H "$auth" -d '{"name":"icecream","description":"Scoops"}' http://localhost:23232/v1/repos
+  curl -H "$auth" -d '{"name":"upstream","remote":"https://github.com/charmbracelet/soft-serve","mirror":true,"auto_sync":false}' http://localhost:23232/v1/repos
+  curl -H "$auth" -X PATCH -d '{"private":true,"default_branch":"main"}' http://localhost:23232/v1/repos/icecream
+  curl -H "$auth" -X POST http://localhost:23232/v1/repos/upstream/-/sync
+  curl -H "$auth" -d '{"username":"ana","access":"read-write"}' http://localhost:23232/v1/repos/icecream/-/collaborators
+  curl -H "$auth" -X DELETE http://localhost:23232/v1/repos/icecream/-/branches/old-feature
   ```
 
 - **MCP** at `/mcp` (Streamable HTTP), with read-only tools to list
