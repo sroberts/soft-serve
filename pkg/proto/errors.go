@@ -34,6 +34,15 @@ var (
 	ErrRepoExist = errors.New("repository already exists")
 	// ErrUserNotFound is returned when a user is not found.
 	ErrUserNotFound = errors.New("user not found")
+	// ErrUserExist is returned when a username is already taken.
+	ErrUserExist = errors.New("username is already taken")
+	// ErrPublicKeyExist is returned when adding a key the account already has.
+	ErrPublicKeyExist = errors.New("you already have this public key")
+	// ErrPublicKeyInUse is returned when adding a key another account has.
+	ErrPublicKeyInUse = errors.New("public key belongs to another account")
+	// ErrPublicKeyNotFound is returned when removing a key the account
+	// doesn't have.
+	ErrPublicKeyNotFound = errors.New("public key not found")
 	// ErrUserOwnsRepos is returned when deleting a user who still owns
 	// repositories.
 	ErrUserOwnsRepos = errors.New("user still owns repositories; delete them first")

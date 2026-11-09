@@ -7,8 +7,7 @@ import (
 
 	"charm.land/lipgloss/v2/table"
 	"github.com/caarlos0/duration"
-	"github.com/charmbracelet/soft-serve/pkg/backend"
-	"github.com/charmbracelet/soft-serve/pkg/proto"
+	"github.com/charmbracelet/soft-serve/pkg/ops"
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 )
@@ -28,13 +27,7 @@ func TokenCommand() *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			name := strings.Join(args, " ")
-
-			user := proto.UserFromContext(ctx)
-			if user == nil {
-				return proto.ErrUserNotFound
-			}
+			opts := ops.CreateToken{Name: strings.Join(args, " ")}
 
 			var expiresAt time.Time
 			var expiresIn time.Duration
@@ -46,9 +39,10 @@ func TokenCommand() *cobra.Command {
 
 				expiresIn = d
 				expiresAt = time.Now().Add(d)
+				opts.ExpiresAt = &expiresAt
 			}
 
-			token, err := be.CreateAccessToken(ctx, user, name, expiresAt)
+			token, err := service(ctx).CreateAccessToken(ctx, opts)
 			if err != nil {
 				return err
 			}
@@ -59,7 +53,7 @@ func TokenCommand() *cobra.Command {
 			}
 
 			cmd.PrintErrln(notice)
-			cmd.Println(token)
+			cmd.Println(token.Token)
 
 			return nil
 		},
@@ -74,14 +68,7 @@ func TokenCommand() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-
-			user := proto.UserFromContext(ctx)
-			if user == nil {
-				return proto.ErrUserNotFound
-			}
-
-			tokens, err := be.ListAccessTokens(ctx, user)
+			tokens, err := service(ctx).AccessTokens(ctx)
 			if err != nil {
 				return err
 			}
@@ -95,11 +82,11 @@ func TokenCommand() *cobra.Command {
 			table := table.New().Headers("ID", "Name", "Created At", "Expires In")
 			for _, token := range tokens {
 				expiresAt := "-"
-				if !token.ExpiresAt.IsZero() {
-					if now.After(token.ExpiresAt) {
+				if token.ExpiresAt != nil {
+					if token.Expired(now) {
 						expiresAt = "expired"
 					} else {
-						expiresAt = humanize.Time(token.ExpiresAt)
+						expiresAt = humanize.Time(*token.ExpiresAt)
 					}
 				}
 
@@ -121,19 +108,12 @@ func TokenCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-
-			user := proto.UserFromContext(ctx)
-			if user == nil {
-				return proto.ErrUserNotFound
-			}
-
 			id, err := strconv.ParseInt(args[0], 10, 64)
 			if err != nil {
-				return err
+				return ops.Invalid("token ID must be a number: %q", args[0])
 			}
 
-			if err := be.DeleteAccessToken(ctx, user, id); err != nil {
+			if err := service(ctx).DeleteAccessToken(ctx, id); err != nil {
 				return err
 			}
 

@@ -287,12 +287,17 @@ func opsStatus(err error, anonymous bool) int {
 	case errors.Is(err, proto.ErrRepoNotFound),
 		errors.Is(err, proto.ErrUserNotFound),
 		errors.Is(err, proto.ErrCollaboratorNotFound),
+		errors.Is(err, proto.ErrPublicKeyNotFound),
+		errors.Is(err, proto.ErrTokenNotFound),
 		errors.Is(err, git.ErrReferenceNotExist),
 		errors.Is(err, db.ErrRecordNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, proto.ErrRepoExist),
 		errors.Is(err, proto.ErrCollaboratorExist),
-		errors.Is(err, proto.ErrMirrorSyncInProgress):
+		errors.Is(err, proto.ErrMirrorSyncInProgress),
+		errors.Is(err, proto.ErrUserExist),
+		errors.Is(err, proto.ErrPublicKeyExist),
+		errors.Is(err, proto.ErrPublicKeyInUse):
 		return http.StatusConflict
 	case ops.IsInvalid(err),
 		errors.Is(err, proto.ErrInvalidRemote),

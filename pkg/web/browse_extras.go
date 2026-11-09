@@ -18,7 +18,7 @@ import (
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/charmbracelet/soft-serve/git"
 	"github.com/charmbracelet/soft-serve/pkg/access"
-	gossh "golang.org/x/crypto/ssh"
+	"github.com/charmbracelet/soft-serve/pkg/ops"
 )
 
 const (
@@ -581,10 +581,7 @@ func weekStart(t time.Time) time.Time {
 // --- The caller's account ---
 
 // AccountKey is one of a user's SSH keys.
-type AccountKey struct {
-	Type        string `json:"type"`
-	Fingerprint string `json:"fingerprint"`
-}
+type AccountKey = ops.PublicKey
 
 // AccountToken is one of a user's access tokens. The token itself is never
 // shown again after it is made.
@@ -629,7 +626,7 @@ func (b *browser) account(ctx context.Context, outpostUser string) (Account, err
 	out.Username = b.user.Username()
 	out.Admin = b.user.IsAdmin()
 	for _, k := range b.user.PublicKeys() {
-		out.Keys = append(out.Keys, AccountKey{Type: k.Type(), Fingerprint: gossh.FingerprintSHA256(k)})
+		out.Keys = append(out.Keys, ops.PublicKeyOf(k))
 	}
 	toks, err := b.be.ListAccessTokens(ctx, b.user)
 	if err != nil {

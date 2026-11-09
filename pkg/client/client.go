@@ -124,6 +124,11 @@ var sentinels = []error{
 	proto.ErrNotMirror,
 	proto.ErrMirrorSyncFailed,
 	proto.ErrMirrorSyncInProgress,
+	proto.ErrUserExist,
+	proto.ErrPublicKeyExist,
+	proto.ErrPublicKeyInUse,
+	proto.ErrPublicKeyNotFound,
+	proto.ErrTokenNotFound,
 	access.ErrInvalidAccessLevel,
 	webhook.ErrInvalidEvent,
 	webhook.ErrInvalidContentType,
@@ -258,4 +263,56 @@ func (c *Client) Delivery(ctx context.Context, name string, id int64, deliveryID
 // Redeliver implements ops.Service.
 func (c *Client) Redeliver(ctx context.Context, name string, id int64, deliveryID string) error {
 	return c.do(ctx, http.MethodPost, hookPath(name, id, "deliveries", url.PathEscape(deliveryID), "redeliver"), nil, nil, nil)
+}
+
+// Account implements ops.Service.
+func (c *Client) Account(ctx context.Context) (ops.Account, error) {
+	var out struct {
+		ops.Account
+		SignedIn bool `json:"signed_in"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/v1/me", nil, nil, &out); err != nil {
+		return ops.Account{}, err
+	}
+	if !out.SignedIn {
+		// The server answers anonymous callers too, with no account.
+		return ops.Account{}, proto.ErrUnauthorized
+	}
+	return out.Account, nil
+}
+
+// AddPublicKey implements ops.Service.
+func (c *Client) AddPublicKey(ctx context.Context, key string) (ops.PublicKey, error) {
+	var out ops.PublicKey
+	err := c.do(ctx, http.MethodPost, "/v1/me/keys", nil, map[string]string{"key": key}, &out)
+	return out, err
+}
+
+// RemovePublicKey implements ops.Service.
+func (c *Client) RemovePublicKey(ctx context.Context, key string) error {
+	return c.do(ctx, http.MethodDelete, "/v1/me/keys", url.Values{"key": {key}}, nil, nil)
+}
+
+// AccessTokens implements ops.Service.
+func (c *Client) AccessTokens(ctx context.Context) ([]ops.AccessToken, error) {
+	var out []ops.AccessToken
+	err := c.do(ctx, http.MethodGet, "/v1/me/tokens", nil, nil, &out)
+	return out, err
+}
+
+// CreateAccessToken implements ops.Service.
+func (c *Client) CreateAccessToken(ctx context.Context, opts ops.CreateToken) (ops.NewToken, error) {
+	var out ops.NewToken
+	err := c.do(ctx, http.MethodPost, "/v1/me/tokens", nil, opts, &out)
+	return out, err
+}
+
+// DeleteAccessToken implements ops.Service.
+func (c *Client) DeleteAccessToken(ctx context.Context, id int64) error {
+	return c.do(ctx, http.MethodDelete, "/v1/me/tokens/"+strconv.FormatInt(id, 10), nil, nil, nil)
+}
+
+// SetUsername implements ops.Service.
+func (c *Client) SetUsername(ctx context.Context, username string) error {
+	return c.do(ctx, http.MethodPatch, "/v1/me", nil, map[string]string{"username": username}, nil)
 }

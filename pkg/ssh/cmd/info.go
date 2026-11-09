@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"github.com/charmbracelet/soft-serve/pkg/backend"
-	"github.com/charmbracelet/soft-serve/pkg/sshutils"
 	"github.com/spf13/cobra"
 )
 
@@ -14,22 +12,31 @@ func InfoCommand() *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			pk := sshutils.PublicKeyFromContext(ctx)
-			user, err := be.UserByPublicKey(ctx, pk)
+			acct, err := service(ctx).Account(ctx)
 			if err != nil {
 				return err
 			}
 
-			cmd.Printf("Username: %s\n", user.Username())
-			cmd.Printf("Admin: %t\n", user.IsAdmin())
+			cmd.Printf("Username: %s\n", acct.Username)
+			cmd.Printf("Admin: %t\n", acct.Admin)
 			cmd.Printf("Public keys:\n")
-			for _, pk := range user.PublicKeys() {
-				cmd.Printf("  %s\n", sshutils.MarshalAuthorizedKey(pk))
+			for _, pk := range acct.PublicKeys {
+				cmd.Printf("  %s\n", pk.Key)
 			}
 			return nil
 		},
 	}
 
 	return cmd
+}
+
+// AccountCommands are the commands about the caller's own account. They act
+// through the context's ops.Service, so the soft client runs them too.
+func AccountCommands() []*cobra.Command {
+	return []*cobra.Command{
+		InfoCommand(),
+		PubkeyCommand(),
+		SetUsernameCommand(),
+		TokenCommand(),
+	}
 }

@@ -126,12 +126,9 @@ func CommandMiddleware(sh ssh.Handler) ssh.Handler {
 			cmd.RepoCommand(),
 			cmd.SettingsCommand(),
 			cmd.UserCommand(),
-			cmd.InfoCommand(),
-			cmd.PubkeyCommand(),
-			cmd.SetUsernameCommand(),
 			cmd.JWTCommand(),
-			cmd.TokenCommand(),
 		)
+		rootCmd.AddCommand(cmd.AccountCommands()...)
 
 		if cfg.LFS.Enabled {
 			rootCmd.AddCommand(

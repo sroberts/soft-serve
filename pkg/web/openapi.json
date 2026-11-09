@@ -493,6 +493,85 @@
         "responses": {
           "200": {"description": "The caller's account", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Account"}}}}
         }
+      },
+      "patch": {
+        "operationId": "setUsername",
+        "summary": "Change your username",
+        "description": "Your access, keys and tokens stay with the account.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "properties": {"username": {"type": "string"}}, "required": ["username"]}}}},
+        "responses": {
+          "204": {"description": "Changed"},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "409": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/me/keys": {
+      "get": {
+        "operationId": "listPublicKeys",
+        "summary": "List your SSH keys",
+        "responses": {
+          "200": {"description": "Your keys", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/PublicKey"}}}}},
+          "401": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "post": {
+        "operationId": "addPublicKey",
+        "summary": "Add an SSH key",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "properties": {"key": {"type": "string", "description": "The key in authorized_keys form"}}, "required": ["key"]}}}},
+        "responses": {
+          "201": {"description": "Added", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PublicKey"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "409": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "delete": {
+        "operationId": "removePublicKey",
+        "summary": "Remove an SSH key",
+        "parameters": [{"name": "key", "in": "query", "required": true, "description": "The key in authorized_keys form, or its SHA256 fingerprint", "schema": {"type": "string"}}],
+        "responses": {
+          "204": {"description": "Removed"},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/me/tokens": {
+      "get": {
+        "operationId": "listAccessTokens",
+        "summary": "List your access tokens",
+        "description": "Never the tokens themselves.",
+        "responses": {
+          "200": {"description": "Your tokens", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/AccessToken"}}}}},
+          "401": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "post": {
+        "operationId": "createAccessToken",
+        "summary": "Create an access token",
+        "description": "The answer is the only place the token appears; the server keeps only its hash.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateToken"}}}},
+        "responses": {
+          "201": {"description": "Created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/NewToken"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/me/tokens/{id}": {
+      "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+      "delete": {
+        "operationId": "deleteAccessToken",
+        "summary": "Delete one of your access tokens",
+        "responses": {
+          "204": {"description": "Deleted"},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
       }
     }
   },
@@ -859,12 +938,16 @@
           "username": {"type": "string"},
           "admin": {"type": "boolean"},
           "outpost_user": {"type": "string", "description": "Who Outpost's login gateway says the caller is, when it fronts this server"},
-          "keys": {"type": "array", "items": {"type": "object", "properties": {"type": {"type": "string"}, "fingerprint": {"type": "string"}}, "required": ["type", "fingerprint"]}},
+          "keys": {"type": "array", "items": {"$ref": "#/components/schemas/PublicKey"}},
           "tokens": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "created_at": {"type": "string", "format": "date-time"}, "expires_at": {"type": "string", "format": "date-time"}, "expired": {"type": "boolean"}}, "required": ["id", "name", "created_at", "expired"]}},
           "repos": {"type": "array", "description": "Repositories the user can push to or administer", "items": {"type": "object", "properties": {"name": {"type": "string"}, "access": {"type": "string", "enum": ["read-write", "admin-access"]}, "private": {"type": "boolean"}, "hidden": {"type": "boolean"}}, "required": ["name", "access", "private", "hidden"]}}
         },
         "required": ["signed_in", "admin", "keys", "tokens", "repos"]
-      }
+      },
+      "PublicKey": {"type": "object", "properties": {"key": {"type": "string", "description": "authorized_keys form, without a comment"}, "type": {"type": "string"}, "fingerprint": {"type": "string"}}, "required": ["key", "type", "fingerprint"]},
+      "AccessToken": {"type": "object", "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "created_at": {"type": "string", "format": "date-time"}, "expires_at": {"type": "string", "format": "date-time"}}, "required": ["id", "name", "created_at"]},
+      "CreateToken": {"type": "object", "properties": {"name": {"type": "string", "maxLength": 100}, "expires_at": {"type": "string", "format": "date-time", "description": "Unset for a token that never expires"}}, "required": ["name"]},
+      "NewToken": {"allOf": [{"$ref": "#/components/schemas/AccessToken"}, {"type": "object", "properties": {"token": {"type": "string"}}, "required": ["token"]}]}
     }
   }
 }
