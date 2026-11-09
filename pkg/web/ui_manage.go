@@ -66,6 +66,12 @@ var notices = map[string]string{
 	"key-removed":      "SSH key removed.",
 	"token-deleted":    "Access token deleted.",
 	"username-changed": "Username changed.",
+
+	"user-created":  "User created.",
+	"user-renamed":  "User renamed.",
+	"user-deleted":  "User deleted.",
+	"admin-granted": "They're an admin now.",
+	"admin-revoked": "They're no longer an admin.",
 }
 
 // withDone adds a notice code to a page's URL.

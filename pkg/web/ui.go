@@ -48,9 +48,10 @@ import (
 //	/{repo}/-/insights?ref=        languages, contributors and activity
 //	/-/me                          your account
 //	/-/new                         create or import a repository
+//	/-/admin/...                   users and server settings (admins)
 //
-// The pages that change things are in ui_manage.go, and your account's
-// forms in ui_account.go.
+// The pages that change things are in ui_manage.go, your account's forms
+// in ui_account.go, and server administration in ui_admin.go.
 //	/-/static/...                  stylesheets
 
 //go:embed ui_templates/*.html ui_static/*
@@ -83,6 +84,7 @@ var uiTemplates = template.Must(template.New("").Funcs(template.FuncMap{
 	"hookForm":     hookFormArgs,
 	"deleteRefURL": deleteRefURL,
 	"keyShort":     keyShort,
+	"adminUserURL": adminUserURL,
 }).ParseFS(uiFS, "ui_templates/*.html"))
 
 // uiHandler serves the web pages.
@@ -98,9 +100,11 @@ type page struct {
 	// is the Soft Serve account their access comes from, if any.
 	SignedIn  string
 	SoftServe string
-	Repo      *RepoInfo
-	Ref       string
-	Tab       string
+	// Admin is set for a server admin, who gets a link to administration.
+	Admin bool
+	Repo  *RepoInfo
+	Ref   string
+	Tab   string
 	// Feed is an Atom feed for the page, if it has one.
 	Feed string
 	// Notice says what the change that led here did.
@@ -131,6 +135,7 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p := page{SiteName: config.FromContext(r.Context()).Name, SignedIn: c.outpostUser}
 	if c.user != nil {
 		p.SoftServe = c.user.Username()
+		p.Admin = c.user.IsAdmin()
 	}
 	if !post {
 		p.Notice = notices[r.URL.Query().Get("done")]
@@ -150,6 +155,13 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	case "-/new":
 		h.newRepo(w, r, b, p)
+		return
+	case "-/admin":
+		h.admin(w, r, b, p, "")
+		return
+	}
+	if action, ok := strings.CutPrefix(rest, "-/admin/"); ok {
+		h.admin(w, r, b, p, action)
 		return
 	}
 	if action, ok := strings.CutPrefix(rest, "-/me/"); ok {
