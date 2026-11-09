@@ -970,6 +970,9 @@ exactly what the caller may read and allowing what they may change:
     remove keys, create and delete tokens (a new token is shown once), and
     change your username. Behind Outpost, where your web sign-in is matched
     to your username, renaming is left to SSH or `soft set-username`.
+  - **Admin** (`/-/admin`, server admins only): create, rename and delete
+    users, manage their keys and admin rights, and change the server
+    settings.
 - **A REST API** under `/v1`, described by `/v1/openapi.json`. Repository
   names can contain slashes, so the name and the action are separated by
   `/-/`:
@@ -1058,7 +1061,8 @@ permissions as the `repo` commands: <kbd>n</kbd> creates a repository and
 <kbd>i</kbd> imports one (hard fork or mirror) from the list. A repository's
 *Settings*, *Collaborators* and *Webhooks* tabs change it, and <kbd>x</kbd>
 deletes a branch or tag. <kbd>a</kbd> opens your account: add and remove
-SSH keys, create and delete access tokens, and change your username. You can also use the TUI to browse local
+SSH keys, create and delete access tokens, and change your username. Server
+admins get <kbd>A</kbd> for users and server settings. You can also use the TUI to browse local
 repositories with `soft browse` or running `soft` within a Git repository;
 management isn't offered there.
 
