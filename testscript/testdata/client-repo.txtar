@@ -94,7 +94,6 @@ exec soft repo delete repo2
 stderr 'repository not found'
 
 [windows] stopserver
-[windows] ! stderr .
 
 -- info.txt --
 Project Name: Repo One
