@@ -613,6 +613,36 @@ form.rowaction { margin: 0 0 0 4px; }
 .badge.ok { color: var(--add); border-color: var(--add); }
 .badge.bad { color: var(--del); border-color: var(--del); }
 .delivery h3 { font-size: 0.875rem; margin: 18px 0 6px; }
+
+/* Your account */
+
+textarea {
+  font: 0.8125rem/1.5 var(--mono);
+  padding: 7px 10px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+}
+textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.refs .meta code.key { font-size: 0.75rem; overflow-wrap: anywhere; }
+.newtoken { max-width: 40rem; margin: 0 0 24px; border-color: var(--add); }
+.newtoken h2 { font-size: 1rem; margin: 12px 0 6px; overflow-wrap: anywhere; }
+.newtoken p { margin: 0 0 10px; }
+.newtoken code.token {
+  display: block;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  background: var(--add-bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: 0.875rem/1.5 var(--mono);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
 pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.7812rem; }
 
 @media (max-width: 600px) {

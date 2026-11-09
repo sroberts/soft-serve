@@ -637,6 +637,20 @@ ssh -p 23231 localhost set-username yolo
 ssh -p 23231 localhost info
 ```
 
+The same commands run from your own machine with `soft`, over the HTTP API
+with an access token (see [From Your Own Machine](#from-your-own-machine)):
+
+```sh
+soft info
+soft pubkey add "$(cat ~/.ssh/id_ed25519.pub)"
+soft pubkey remove SHA256:...   # a key or its fingerprint
+soft token create --expires-in 90d ci
+soft token list
+soft set-username yolo
+```
+
+You can also do all of this from the web view's account page and the TUI.
+
 ## Repositories
 
 You can manage repositories using the `repo` command.
@@ -941,7 +955,10 @@ exactly what the caller may read and allowing what they may change:
   - **Insights** (`/<repo>/-/insights`): languages, contributors and commits
     per week for the last year.
   - **Your account** (`/-/me`): your user, SSH keys, access tokens (never
-    the tokens themselves) and the repositories you can push to.
+    the tokens themselves) and the repositories you can push to. Add and
+    remove keys, create and delete tokens (a new token is shown once), and
+    change your username. Behind Outpost, where your web sign-in is matched
+    to your username, renaming is left to SSH or `soft set-username`.
 - **A REST API** under `/v1`, described by `/v1/openapi.json`. Repository
   names can contain slashes, so the name and the action are separated by
   `/-/`:
@@ -978,6 +995,16 @@ exactly what the caller may read and allowing what they may change:
   curl -H "$auth" -X DELETE http://localhost:23232/v1/repos/icecream/-/branches/old-feature
   ```
 
+  Your own account is under `/v1/me`: your SSH keys, access tokens (a new
+  token is in the answer to its creation and nowhere else) and username.
+
+  ```sh
+  curl -H "$auth" -d "{\"key\":\"$(cat ~/.ssh/id_ed25519.pub)\"}" http://localhost:23232/v1/me/keys
+  curl -H "$auth" -d '{"name":"ci","expires_at":"2027-01-01T00:00:00Z"}' http://localhost:23232/v1/me/tokens
+  curl -H "$auth" -X DELETE http://localhost:23232/v1/me/tokens/3
+  curl -H "$auth" -X PATCH -d '{"username":"yolo"}' http://localhost:23232/v1/me
+  ```
+
 - **MCP** at `/mcp` (Streamable HTTP), with read-only tools to list
   repositories, branches, tags and commits (or search them by message or
   author), read a README, list a directory, find files by name, read and
@@ -1009,7 +1036,8 @@ Soft Serve TUI browses repos over SSH, and manages them with the same
 permissions as the `repo` commands: <kbd>n</kbd> creates a repository and
 <kbd>i</kbd> imports one (hard fork or mirror) from the list. A repository's
 *Settings*, *Collaborators* and *Webhooks* tabs change it, and <kbd>x</kbd>
-deletes a branch or tag. You can also use the TUI to browse local
+deletes a branch or tag. <kbd>a</kbd> opens your account: add and remove
+SSH keys, create and delete access tokens, and change your username. You can also use the TUI to browse local
 repositories with `soft browse` or running `soft` within a Git repository;
 management isn't offered there.
 

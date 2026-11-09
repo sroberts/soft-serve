@@ -3,8 +3,6 @@ package cmd
 import (
 	"strings"
 
-	"github.com/charmbracelet/soft-serve/pkg/backend"
-	"github.com/charmbracelet/soft-serve/pkg/sshutils"
 	"github.com/spf13/cobra"
 )
 
@@ -22,41 +20,18 @@ func PubkeyCommand() *cobra.Command {
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			pk := sshutils.PublicKeyFromContext(ctx)
-			user, err := be.UserByPublicKey(ctx, pk)
-			if err != nil {
-				return err
-			}
-
-			apk, _, err := sshutils.ParseAuthorizedKey(strings.Join(args, " "))
-			if err != nil {
-				return err
-			}
-
-			return be.AddPublicKey(ctx, user.Username(), apk)
+			_, err := service(ctx).AddPublicKey(ctx, strings.Join(args, " "))
+			return err
 		},
 	}
 
 	pubkeyRemoveCommand := &cobra.Command{
-		Use:   "remove AUTHORIZED_KEY",
+		Use:   "remove AUTHORIZED_KEY|FINGERPRINT",
 		Args:  cobra.MinimumNArgs(1),
 		Short: "Remove a public key",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			pk := sshutils.PublicKeyFromContext(ctx)
-			user, err := be.UserByPublicKey(ctx, pk)
-			if err != nil {
-				return err
-			}
-
-			apk, _, err := sshutils.ParseAuthorizedKey(strings.Join(args, " "))
-			if err != nil {
-				return err
-			}
-
-			return be.RemovePublicKey(ctx, user.Username(), apk)
+			return service(ctx).RemovePublicKey(ctx, strings.Join(args, " "))
 		},
 	}
 
@@ -67,18 +42,13 @@ func PubkeyCommand() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			pk := sshutils.PublicKeyFromContext(ctx)
-			user, err := be.UserByPublicKey(ctx, pk)
+			acct, err := service(ctx).Account(ctx)
 			if err != nil {
 				return err
 			}
-
-			pks := user.PublicKeys()
-			for _, pk := range pks {
-				cmd.Println(sshutils.MarshalAuthorizedKey(pk))
+			for _, pk := range acct.PublicKeys {
+				cmd.Println(pk.Key)
 			}
-
 			return nil
 		},
 	}

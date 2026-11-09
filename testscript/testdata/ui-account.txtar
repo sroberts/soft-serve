@@ -1,0 +1,54 @@
+# vi: set ft=conf
+
+# Managing your own account from the TUI: the same operations, and the
+# same rules, as the SSH info, pubkey, token and set-username commands.
+
+exec soft serve &
+ensureserverrunning SSH_PORT
+
+soft user create user1 --key "$USER1_AUTHORIZED_KEY"
+soft repo create secret -p
+soft repo collab add secret user1 read-only
+
+# In one session: a opens the account; add a key (a), create a token (t)
+# and dismiss it, rename (r), go back and open the private repository
+# user1 collaborates on, and look at its settings (the sixth tab).
+uui '"   a     a'$ADMIN2_AUTHORIZED_KEY'\r     tci\r     \r  r\x15newname\r     \x1b  \r     \t\t\t\t\t     q"'
+cp stdout session.txt
+grep 'Username  user1' session.txt
+grep 'Key added' session.txt
+grep 'Copy it now' session.txt
+grep -count=1 'ss_[0-9a-f]{20,}' session.txt
+grep 'Username changed' session.txt
+# The renamed session still has its access: the settings tab knows it.
+grep 'You have read-only access' session.txt
+
+usoft info
+stdout 'Username: newname'
+stdout 'Public keys:'
+usoft pubkey list
+stdout 'ssh-ed25519'
+stdout -count=2 'ssh-ed25519'
+usoft token list
+stdout 'ci'
+soft repo collab list secret
+stdout newname
+
+# The new token is listed by the account screen, but never shown again.
+uui '"   a     q"'
+cp stdout again.txt
+# The renderer redraws only cells that change, so the new name is checked
+# on a fresh screen rather than in the session that changed it.
+grep 'Username  newname' again.txt
+grep 'Access tokens \(1\)' again.txt
+! grep 'ss_[0-9a-f]{20,}' again.txt
+
+# A key with no account is told why there is nothing to manage.
+aui '"   a     q"'
+cp stdout anon.txt
+grep 'No account' anon.txt
+! grep 'Add an SSH key' anon.txt
+
+# stop the server
+[windows] stopserver
+[windows] ! stderr .

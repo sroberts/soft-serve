@@ -1,5 +1,5 @@
-// Package ops is everything a caller can do to repositories, with the
-// caller's permissions applied, independent of how they asked.
+// Package ops is everything a caller can do to repositories and their own
+// account, with the caller's permissions applied, independent of how they asked.
 //
 // The SSH commands, the REST API, the web UI and the TUI all go through a
 // Service, so a rule about who may do what lives in one place and every
@@ -86,6 +86,23 @@ type Service interface {
 	Delivery(ctx context.Context, name string, id int64, deliveryID string) (DeliveryDetail, error)
 	// Redeliver sends a delivery again.
 	Redeliver(ctx context.Context, name string, id int64, deliveryID string) error
+
+	// Account is the actor's own account. Like the rest of the account
+	// methods, it needs a signed-in actor and acts only on their account.
+	Account(ctx context.Context) (Account, error)
+	// AddPublicKey adds an SSH key, given in authorized_keys form.
+	AddPublicKey(ctx context.Context, key string) (PublicKey, error)
+	// RemovePublicKey removes an SSH key, given in authorized_keys form or
+	// as its SHA256 fingerprint.
+	RemovePublicKey(ctx context.Context, key string) error
+	// AccessTokens lists the actor's access tokens.
+	AccessTokens(ctx context.Context) ([]AccessToken, error)
+	// CreateAccessToken creates an access token, which is returned once.
+	CreateAccessToken(ctx context.Context, opts CreateToken) (NewToken, error)
+	// DeleteAccessToken deletes one of the actor's access tokens.
+	DeleteAccessToken(ctx context.Context, id int64) error
+	// SetUsername renames the actor's account.
+	SetUsername(ctx context.Context, username string) error
 }
 
 // RepoSummary is a repository in a list.

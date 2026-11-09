@@ -9,6 +9,7 @@ import (
 
 	"charm.land/log/v2"
 	"github.com/charmbracelet/colorprofile"
+	"github.com/charmbracelet/soft-serve/cmd/soft/account"
 	"github.com/charmbracelet/soft-serve/cmd/soft/admin"
 	"github.com/charmbracelet/soft-serve/cmd/soft/browse"
 	"github.com/charmbracelet/soft-serve/cmd/soft/hook"
@@ -79,6 +80,7 @@ func init() {
 		browse.Command,
 		repo.Command(),
 	)
+	rootCmd.AddCommand(account.Commands()...)
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true
 
 	if len(CommitSHA) >= 7 {

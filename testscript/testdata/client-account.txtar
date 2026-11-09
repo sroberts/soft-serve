@@ -1,0 +1,77 @@
+# vi: set ft=conf
+
+# soft's info, pubkey, token and set-username run the SSH account commands
+# against the REST API, acting on the token's account.
+
+[windows] dos2unix info.txt keys1.txt keys2.txt
+
+exec soft serve &
+ensureserverrunning SSH_PORT
+ensureserverrunning HTTP_PORT
+
+soft token create 'admin'
+soft user create bar --key "$USER1_AUTHORIZED_KEY"
+usoft token create 'cli'
+cp stdout tokenfile
+envfile SOFT_SERVE_TOKEN=tokenfile
+env SOFT_SERVE_REMOTE=http://localhost:$HTTP_PORT
+
+# info matches SSH
+exec soft info
+cmpenv stdout info.txt
+
+# keys
+exec soft pubkey add $ADMIN2_AUTHORIZED_KEY
+exec soft pubkey list
+cmpenv stdout keys2.txt
+! exec soft pubkey add $ADMIN2_AUTHORIZED_KEY
+stderr 'you already have this public key'
+! exec soft pubkey add $ADMIN1_AUTHORIZED_KEY
+stderr 'public key belongs to another account'
+exec soft pubkey remove $ADMIN2_AUTHORIZED_KEY
+exec soft pubkey list
+cmpenv stdout keys1.txt
+! exec soft pubkey remove $ADMIN2_AUTHORIZED_KEY
+stderr 'public key not found'
+
+# tokens; only the account's own are listed or deleted
+exec soft token create --expires-in 1y 'spare'
+stdout 'ss_.*'
+stderr 'Access token created'
+exec soft token list
+stdout 'cli'
+stdout 'spare.*1 year from now'
+! stdout 'admin'
+! exec soft token delete 1
+stderr 'token not found'
+exec soft token delete 3
+stderr 'Access token deleted'
+exec soft token list
+! stdout 'spare'
+
+# username; the token follows the account
+! exec soft set-username admin
+stderr 'username is already taken'
+exec soft set-username baz
+exec soft info
+stdout 'Username: baz'
+usoft info
+stdout 'Username: baz'
+
+# anonymous callers have no account
+env SOFT_SERVE_TOKEN=
+! exec soft info
+stderr 'unauthorized'
+
+[windows] stopserver
+
+-- info.txt --
+Username: bar
+Admin: false
+Public keys:
+  $USER1_AUTHORIZED_KEY
+-- keys1.txt --
+$USER1_AUTHORIZED_KEY
+-- keys2.txt --
+$USER1_AUTHORIZED_KEY
+$ADMIN2_AUTHORIZED_KEY

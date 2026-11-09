@@ -50,6 +50,12 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if rest, ok := strings.CutPrefix(r.URL.Path, "/v1/me"); ok && (rest == "" || strings.HasPrefix(rest, "/")) {
+		svc := ops.NewLocal(backend.FromContext(r.Context()), ops.UserActor(c.user))
+		if serveAccount(w, r, svc, c.user == nil, strings.TrimRight(rest, "/")) {
+			return
+		}
+	}
 
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, HEAD")

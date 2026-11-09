@@ -429,40 +429,6 @@ git push -u origin main</pre>{{end}}
 {{end}}
 {{template "foot" .}}{{end}}
 
-{{define "account"}}{{template "head" .}}
-{{with .Data}}
-<section class="intro">
-  <h1>Your account</h1>
-  {{if not .SignedIn}}
-  {{if .OutpostUser}}<p class="note">You're signed in as <strong>{{.OutpostUser}}</strong>, but no Soft Serve user has that name, so you see public repositories only. An admin can add one over SSH: <code>user create {{.OutpostUser}}</code>.</p>
-  {{else}}<p class="note">You aren't signed in, so you see public repositories only. Use an access token (<code>ssh … token create</code>) to sign in to the API and these pages.</p>{{end}}
-  {{else}}
-  <p>You're <strong>{{.Username}}</strong> on this server{{if .Admin}}, and an admin: you can read and change every repository{{end}}.{{if and .OutpostUser (ne .OutpostUser .Username)}} Outpost signed you in as {{.OutpostUser}}.{{end}}</p>
-  {{end}}
-</section>
-{{if .SignedIn}}
-<section class="refs">
-  <h2>SSH keys</h2>
-  <ul>
-    {{range .Keys}}<li><code class="refname">{{.Fingerprint}}</code><span class="badge">{{.Type}}</span></li>
-    {{else}}<li class="muted">No SSH keys. Add one over SSH: <code>user add-pubkey {{.Username}} "&lt;key&gt;"</code></li>{{end}}
-  </ul>
-  <h2>Access tokens</h2>
-  <ul>
-    {{range .Tokens}}<li><div class="refmain"><span class="refname">{{.Name}}</span><p class="meta">Made {{ago .CreatedAt}} · {{if .ExpiresAt}}{{if .Expired}}expired{{else}}expires{{end}} <time datetime="{{.ExpiresAt.Format "2006-01-02T15:04:05Z07:00"}}">{{agoPtr .ExpiresAt}}</time>{{else}}never expires{{end}} · ID {{.ID}}</p></div>{{if .Expired}}<span class="badge">expired</span>{{end}}</li>
-    {{else}}<li class="muted">No access tokens. Make one over SSH: <code>token create &lt;name&gt;</code></li>{{end}}
-  </ul>
-  <p class="note small">Tokens are shown only once, when they're made. Revoke one over SSH: <code>token delete &lt;id&gt;</code>.</p>
-  <h2>Repositories you can push to</h2>
-  <ul>
-    {{range .Repos}}<li><a class="refname" href="{{repoURL .Name "" "" ""}}">{{.Name}}</a>{{if .Private}} <span class="badge">private</span>{{end}}{{if .Hidden}} <span class="badge">hidden</span>{{end}}<span class="badge">{{.Access}}</span></li>
-    {{else}}<li class="muted">None yet.</li>{{end}}
-  </ul>
-</section>
-{{end}}
-{{end}}
-{{template "foot" .}}{{end}}
-
 {{define "error"}}{{template "head" .}}
 <section class="card error">
   <h1>{{.Title}}</h1>
