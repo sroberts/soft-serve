@@ -11,6 +11,7 @@ import (
 	"github.com/charmbracelet/soft-serve/git"
 	"github.com/charmbracelet/soft-serve/pkg/proto"
 	"github.com/charmbracelet/soft-serve/pkg/ui/common"
+	"github.com/charmbracelet/soft-serve/pkg/ui/components/form"
 	"github.com/charmbracelet/soft-serve/pkg/ui/components/selector"
 )
 
@@ -33,6 +34,35 @@ type Refs struct {
 	refPrefix string
 	spinner   spinner.Model
 	isLoading bool
+
+	// access is the caller's, when there is a Service to delete with.
+	access string
+	host   form.Host
+}
+
+// canDelete reports whether the caller may delete the selected ref here.
+func (r *Refs) canDelete() bool {
+	return r.common.Service != nil && canWrite(r.access) && r.activeRef != nil
+}
+
+// CapturingInput implements common.InputCapturer.
+func (r *Refs) CapturingInput() bool { return r.host.Active() }
+
+func (r *Refs) deleteRef() tea.Cmd {
+	ref := r.activeRef
+	short := ref.Name().Short()
+	kind := "branch"
+	if r.refPrefix == git.RefsTags {
+		kind = "tag"
+	}
+	name := r.repo.Name()
+	f := form.Confirm(r.common, fmt.Sprintf("Delete %s %s?", kind, short))
+	return r.host.Open(f, func(*form.Form) error {
+		if kind == "tag" {
+			return r.common.Service.DeleteTag(r.common.Context(), name, short)
+		}
+		return r.common.Service.DeleteBranch(r.common.Context(), name, short)
+	}, func() tea.Cmd { return reopenCmd(name) })
 }
 
 // NewRefs creates a new Refs component.
@@ -81,15 +111,22 @@ func (r *Refs) SetSize(width, height int) {
 
 // ShortHelp implements help.KeyMap.
 func (r *Refs) ShortHelp() []key.Binding {
+	if r.host.Active() {
+		return r.host.ShortHelp()
+	}
 	copyKey := r.common.KeyMap.Copy
 	copyKey.SetHelp("c", "copy ref")
 	k := r.selector.KeyMap
-	return []key.Binding{
+	b := []key.Binding{
 		r.common.KeyMap.SelectItem,
 		k.CursorUp,
 		k.CursorDown,
 		copyKey,
 	}
+	if r.canDelete() {
+		b = append(b, binding("x", "delete"))
+	}
+	return b
 }
 
 // FullHelp implements help.KeyMap.
@@ -97,7 +134,7 @@ func (r *Refs) FullHelp() [][]key.Binding {
 	copyKey := r.common.KeyMap.Copy
 	copyKey.SetHelp("c", "copy ref")
 	k := r.selector.KeyMap
-	return [][]key.Binding{
+	b := [][]key.Binding{
 		{r.common.KeyMap.SelectItem},
 		{
 			k.CursorUp,
@@ -111,6 +148,10 @@ func (r *Refs) FullHelp() [][]key.Binding {
 			copyKey,
 		},
 	}
+	if r.canDelete() {
+		b = append(b, []key.Binding{binding("x", "delete")})
+	}
+	return b
 }
 
 // Init implements tea.Model.
@@ -121,11 +162,20 @@ func (r *Refs) Init() tea.Cmd {
 
 // Update implements tea.Model.
 func (r *Refs) Update(msg tea.Msg) (common.Model, tea.Cmd) {
+	if handled, cmd := r.host.Update(msg); handled {
+		return r, cmd
+	}
 	cmds := make([]tea.Cmd, 0)
 	switch msg := msg.(type) {
+	case InfoMsg:
+		if r.repo != nil && msg.Name == r.repo.Name() && msg.Err == nil {
+			r.access = msg.Info.Access
+		}
 	case RepoMsg:
 		r.selector.Select(0)
 		r.repo = msg
+		r.access = ""
+		r.host.Close()
 	case RefMsg:
 		r.ref = msg
 		cmds = append(cmds, r.Init())
@@ -157,6 +207,8 @@ func (r *Refs) Update(msg tea.Msg) (common.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, r.common.KeyMap.SelectItem):
 			cmds = append(cmds, r.selector.SelectItemCmd)
+		case msg.String() == "x" && r.canDelete():
+			return r, r.deleteRef()
 		}
 	case EmptyRepoMsg:
 		r.ref = nil
@@ -180,6 +232,9 @@ func (r *Refs) Update(msg tea.Msg) (common.Model, tea.Cmd) {
 
 // View implements tea.Model.
 func (r *Refs) View() string {
+	if r.host.Active() {
+		return r.host.View()
+	}
 	if r.isLoading {
 		return renderLoading(r.common, r.spinner)
 	}

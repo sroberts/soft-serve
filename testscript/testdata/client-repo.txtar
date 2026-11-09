@@ -1,0 +1,106 @@
+# vi: set ft=conf
+
+# `soft repo` runs the SSH repo commands against the REST API, with the
+# same output and the same permissions.
+
+[windows] dos2unix info.txt
+
+exec soft serve &
+ensureserverrunning SSH_PORT
+ensureserverrunning HTTP_PORT
+
+soft token create 'cli'
+cp stdout tokenfile
+envfile SOFT_SERVE_TOKEN=tokenfile
+soft user create bar --key "$USER1_AUTHORIZED_KEY"
+usoft token create 'cli'
+cp stdout utokenfile
+envfile UTOKEN=utokenfile
+env SOFT_SERVE_REMOTE=http://localhost:$HTTP_PORT
+
+# no server, no go
+env SOFT_SERVE_REMOTE=
+! exec soft repo list
+stderr 'set the server'
+env SOFT_SERVE_REMOTE=http://localhost:$HTTP_PORT
+
+# create, and read it back the way SSH does
+exec soft repo create repo1 -d 'from the cli' -n 'Repo One'
+stderr 'Created repository repo1'
+stdout 'ssh://localhost:'$SSH_PORT'/repo1.git'
+exec soft repo info repo1
+cmp stdout info.txt
+soft repo info repo1
+cmp stdout info.txt
+
+# settings
+exec soft repo description repo1 'changed here'
+soft repo description repo1
+stdout 'changed here'
+exec soft repo private repo1 true
+exec soft repo private repo1
+stdout true
+exec soft repo hidden repo1 true
+exec soft repo list
+! stdout repo1
+exec soft repo list --all
+stdout repo1
+exec soft repo hidden repo1 false
+
+# mirror-only settings say so on a repository that is not one
+! exec soft repo sync repo1
+stderr 'not a mirror'
+! exec soft repo auto-sync repo1
+stderr 'not a mirror'
+
+# collaborators, with the same escalation rule as SSH
+exec soft repo collab add repo1 bar read-write
+exec soft repo collab list repo1
+stdout bar
+! exec soft repo collab add repo1 bar
+stderr 'already exists'
+env ADMIN_TOKEN=$SOFT_SERVE_TOKEN
+env SOFT_SERVE_TOKEN=$UTOKEN
+exec soft repo description repo1 'a writer may'
+! exec soft repo collab add repo1 nobody admin-access
+stderr 'cannot change access above your own access level'
+! exec soft repo webhook list repo1
+stderr 'unauthorized'
+env SOFT_SERVE_TOKEN=$ADMIN_TOKEN
+
+# webhooks
+exec soft repo webhook create repo1 https://example.com/hook -e push -s s3cret
+exec soft repo webhook list repo1
+stdout 'https://example.com/hook'
+! stdout 's3cret'
+exec soft repo webhook update repo1 1 --active false
+exec soft repo webhook list repo1
+stdout 'false'
+! exec soft repo webhook create repo1 http://127.0.0.1/hook -e push
+exec soft repo webhook delete repo1 1
+
+# anonymous callers are asked to sign in
+env SOFT_SERVE_TOKEN=
+! exec soft repo collab list repo1
+stderr 'unauthorized'
+env SOFT_SERVE_TOKEN=$ADMIN_TOKEN
+
+# rename and delete
+exec soft repo rename repo1 repo2
+exec soft repo info repo2
+stdout 'Repository: repo2'
+exec soft repo delete repo2
+! exec soft repo info repo2
+stderr 'repository not found'
+
+[windows] stopserver
+
+-- info.txt --
+Project Name: Repo One
+Repository: repo1
+Description: from the cli
+Private: false
+Hidden: false
+Mirror: false
+Owner: admin
+Default Branch:

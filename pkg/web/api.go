@@ -12,9 +12,12 @@ import (
 	"strings"
 
 	"charm.land/log/v2"
+	"github.com/charmbracelet/soft-serve/pkg/backend"
+	"github.com/charmbracelet/soft-serve/pkg/ops"
 )
 
-// The REST API: read-only JSON under /v1, described by /v1/openapi.json.
+// The REST API: JSON under /v1, described by /v1/openapi.json. Reading is
+// here; managing repositories is in api_ops.go.
 //
 // Repository names may contain slashes, so the name and the action are
 // separated by "/-/": /v1/repos/group/project/-/tree?ref=main&path=docs.
@@ -28,12 +31,7 @@ type apiHandler struct {
 }
 
 func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		w.Header().Set("Allow", "GET, HEAD")
-		writeAPIError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
-	}
-	if r.URL.Path == "/v1/openapi.json" {
+	if r.URL.Path == "/v1/openapi.json" && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(openAPIDoc) //nolint:errcheck
 		return
@@ -41,7 +39,21 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	c, err := identifyCaller(r, h.verifier)
 	if err != nil {
+		w.Header().Set("WWW-Authenticate", `Basic realm="Soft Serve" charset="UTF-8", Token`)
 		writeAPIError(w, http.StatusUnauthorized, "invalid credentials")
+		return
+	}
+
+	if rest, ok := strings.CutPrefix(r.URL.Path, "/v1/repos"); ok && (rest == "" || strings.HasPrefix(rest, "/")) {
+		svc := ops.NewLocal(backend.FromContext(r.Context()), ops.UserActor(c.user))
+		if serveOps(w, r, svc, c.user == nil, strings.Trim(rest, "/")) {
+			return
+		}
+	}
+
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		w.Header().Set("Allow", "GET, HEAD")
+		writeAPIError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 	b := newBrowser(r.Context(), c.user, cloneBase(r, h.verifier))
@@ -57,7 +69,7 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	rest = strings.Trim(rest, "/")
 	if rest == "" {
-		rs, err := b.repos(r.Context())
+		rs, err := b.listRepos(r.Context(), r.URL.Query().Get("hidden") == "true")
 		h.respond(w, r)(filterRepos(rs, r.URL.Query().Get("q")), err)
 		return
 	}

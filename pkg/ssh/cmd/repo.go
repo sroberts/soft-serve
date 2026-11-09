@@ -4,112 +4,100 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/soft-serve/pkg/access"
-	"github.com/charmbracelet/soft-serve/pkg/backend"
-	"github.com/charmbracelet/soft-serve/pkg/proto"
 	"github.com/spf13/cobra"
 )
 
-// RepoCommand returns a command for managing repositories. Each leaf owns
-// its PersistentPreRunE gate because cobra runs only the nearest one.
+// RepoCommand returns the repository commands an SSH session gets.
 func RepoCommand() *cobra.Command {
-	cmd := &cobra.Command{
+	cmd := repoRoot()
+	cmd.AddCommand(serviceRepoCommands()...)
+	// These read the repository on the server directly.
+	cmd.AddCommand(
+		blobCommand(),
+		commitCommand(),
+		treeCommand(),
+	)
+	return cmd
+}
+
+// ServiceRepoCommand returns the repository commands that act only through
+// an ops.Service, which the soft client runs against a server's REST API.
+// Put the service in the command's context with WithService.
+func ServiceRepoCommand() *cobra.Command {
+	cmd := repoRoot()
+	cmd.AddCommand(serviceRepoCommands()...)
+	return cmd
+}
+
+func repoRoot() *cobra.Command {
+	return &cobra.Command{
 		Use:     "repo",
 		Aliases: []string{"repos", "repository", "repositories"},
 		Short:   "Manage repositories",
 	}
+}
 
-	cmd.AddCommand(
-		blobCommand(),
+func serviceRepoCommands() []*cobra.Command {
+	return []*cobra.Command{
+		autoSyncCommand(),
 		branchCommand(),
 		collabCommand(),
-		commitCommand(),
 		createCommand(),
 		deleteCommand(),
 		descriptionCommand(),
 		hiddenCommand(),
 		importCommand(),
+		infoRepoCommand(),
 		listCommand(),
 		mirrorCommand(),
-		syncCommand(),
-		autoSyncCommand(),
 		privateCommand(),
 		projectName(),
 		renameCommand(),
+		syncCommand(),
 		tagCommand(),
-		treeCommand(),
 		webhookCommand(),
-	)
+	}
+}
 
-	cmd.AddCommand(
-		&cobra.Command{
-			Use:               "info REPOSITORY",
-			Short:             "Get information about a repository",
-			Args:              cobra.ExactArgs(1),
-			PersistentPreRunE: requireRepo(access.ReadOnlyAccess),
-			RunE: func(cmd *cobra.Command, _ []string) error {
-				ctx := cmd.Context()
-				be := backend.FromContext(ctx)
-				rr, _, err := repoFromContext(ctx)
-				if err != nil {
-					return err
-				}
+func infoRepoCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "info REPOSITORY",
+		Short: "Get information about a repository",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			r, err := service(cmd.Context()).Repo(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
 
-				r, err := rr.Open()
-				if err != nil {
-					return err
+			// project name and description are optional, handle trailing
+			// whitespace to avoid breaking tests.
+			cmd.Println(strings.TrimSpace(fmt.Sprint("Project Name: ", r.ProjectName)))
+			cmd.Println("Repository:", r.Name)
+			cmd.Println(strings.TrimSpace(fmt.Sprint("Description: ", r.Description)))
+			cmd.Println("Private:", r.Private)
+			cmd.Println("Hidden:", r.Hidden)
+			cmd.Println("Mirror:", r.Mirror)
+			if r.AutoSync != nil {
+				cmd.Println("Auto Sync:", *r.AutoSync)
+			}
+			if r.Owner != "" {
+				cmd.Println("Owner:", r.Owner)
+			}
+			cmd.Println(strings.TrimSpace(fmt.Sprint("Default Branch: ", r.DefaultBranch)))
+			if len(r.Branches) > 0 {
+				cmd.Println("Branches:")
+				for _, b := range r.Branches {
+					cmd.Println("  -", b)
 				}
-
-				head, err := r.HEAD()
-				if err != nil {
-					return err
+			}
+			if len(r.Tags) > 0 {
+				cmd.Println("Tags:")
+				for _, t := range r.Tags {
+					cmd.Println("  -", t)
 				}
-
-				var owner proto.User
-				if rr.UserID() > 0 {
-					owner, err = be.UserByID(ctx, rr.UserID())
-					if err != nil {
-						return err
-					}
-				}
-
-				branches, _ := r.Branches()
-				tags, _ := r.Tags()
-
-				// project name and description are optional, handle trailing
-				// whitespace to avoid breaking tests.
-				cmd.Println(strings.TrimSpace(fmt.Sprint("Project Name: ", rr.ProjectName())))
-				cmd.Println("Repository:", rr.Name())
-				cmd.Println(strings.TrimSpace(fmt.Sprint("Description: ", rr.Description())))
-				cmd.Println("Private:", rr.IsPrivate())
-				cmd.Println("Hidden:", rr.IsHidden())
-				cmd.Println("Mirror:", rr.IsMirror())
-				if rr.IsMirror() {
-					if autoSync, err := be.MirrorAutoSync(ctx, rr.Name()); err == nil {
-						cmd.Println("Auto Sync:", autoSync)
-					}
-				}
-				if owner != nil {
-					cmd.Println(strings.TrimSpace(fmt.Sprint("Owner: ", owner.Username())))
-				}
-				cmd.Println("Default Branch:", head.Name().Short())
-				if len(branches) > 0 {
-					cmd.Println("Branches:")
-					for _, b := range branches {
-						cmd.Println("  -", b)
-					}
-				}
-				if len(tags) > 0 {
-					cmd.Println("Tags:")
-					for _, t := range tags {
-						cmd.Println("  -", t)
-					}
-				}
-
-				return nil
-			},
+			}
+			return nil
 		},
-	)
-
-	return cmd
+	}
 }

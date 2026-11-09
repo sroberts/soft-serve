@@ -24,8 +24,8 @@ import (
 	"github.com/dustin/go-humanize"
 )
 
-// The read-only web pages. Every page is server-rendered HTML with no
-// script, under a strict Content-Security-Policy.
+// The web pages. Every page is server-rendered HTML with no script, under a
+// strict Content-Security-Policy; changes are plain form posts.
 //
 // Routes, with repository names that may contain slashes:
 //
@@ -47,32 +47,40 @@ import (
 //	/{repo}/-/access               your access, and collaborators (admins)
 //	/{repo}/-/insights?ref=        languages, contributors and activity
 //	/-/me                          your account
+//	/-/new                         create or import a repository
+//
+// The pages that change things are in ui_manage.go.
 //	/-/static/...                  stylesheets
 
 //go:embed ui_templates/*.html ui_static/*
 var uiFS embed.FS
 
 var uiTemplates = template.Must(template.New("").Funcs(template.FuncMap{
-	"ago":        ago,
-	"bytes":      func(n int64) string { return humanize.Bytes(uint64(max(n, 0))) }, //nolint:gosec
-	"short":      func(s string) string { return s[:min(len(s), 7)] },
-	"repoURL":    repoURL,
-	"pathParts":  pathParts,
-	"parentDir":  parentDir,
-	"commitsURL": commitsURL,
-	"authorURL":  authorURL,
-	"lineURL":    lineURL,
-	"linesURL":   linesURL,
-	"distance":   distanceText,
-	"agoPtr":     agoPtr,
-	"static":     staticURL,
-	"body":       messageBody,
-	"dataPath":   dataPath,
-	"archiveURL": archiveURL,
-	"compareURL": compareURL,
-	"accessText": accessText,
-	"mark":       markMatches,
-	"isAdmin":    func(level string) bool { return level == access.AdminAccess.String() },
+	"ago":          ago,
+	"bytes":        func(n int64) string { return humanize.Bytes(uint64(max(n, 0))) }, //nolint:gosec
+	"short":        func(s string) string { return s[:min(len(s), 7)] },
+	"repoURL":      repoURL,
+	"pathParts":    pathParts,
+	"parentDir":    parentDir,
+	"commitsURL":   commitsURL,
+	"authorURL":    authorURL,
+	"lineURL":      lineURL,
+	"linesURL":     linesURL,
+	"distance":     distanceText,
+	"agoPtr":       agoPtr,
+	"static":       staticURL,
+	"body":         messageBody,
+	"dataPath":     dataPath,
+	"archiveURL":   archiveURL,
+	"compareURL":   compareURL,
+	"accessText":   accessText,
+	"mark":         markMatches,
+	"isAdmin":      func(level string) bool { return level == access.AdminAccess.String() },
+	"canWrite":     canWrite,
+	"levels":       func() []string { return accessLevels },
+	"deref":        func(b *bool) bool { return b != nil && *b },
+	"hookForm":     hookFormArgs,
+	"deleteRefURL": deleteRefURL,
 }).ParseFS(uiFS, "ui_templates/*.html"))
 
 // uiHandler serves the web pages.
@@ -97,13 +105,16 @@ type page struct {
 	RepoHome bool
 	// Feed is an Atom feed for the page, if it has one.
 	Feed string
-	Data any
+	// Notice says what the change that led here did.
+	Notice string
+	Data   any
 }
 
 func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		// Pages are only read. Anything else is a path no route has, as
-		// it was before the pages existed.
+	post := r.Method == http.MethodPost
+	if r.Method != http.MethodGet && r.Method != http.MethodHead && !post {
+		// Pages are read, and forms are posted. Anything else is a path
+		// no route has, as it was before the pages existed.
 		renderNotFound(w, r)
 		return
 	}
@@ -123,17 +134,31 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if c.user != nil {
 		p.SoftServe = c.user.Username()
 	}
+	if !post {
+		p.Notice = notices[r.URL.Query().Get("done")]
+	}
 
 	rest := strings.Trim(r.URL.Path, "/")
 	switch rest {
 	case "":
-		h.index(w, r, b, p)
-		return
+		if !post {
+			h.index(w, r, b, p)
+			return
+		}
 	case "-/me":
-		h.account(w, r, b, p)
+		if !post {
+			h.account(w, r, b, p)
+			return
+		}
+	case "-/new":
+		h.newRepo(w, r, b, p)
 		return
 	}
 	name, action, _ := strings.Cut(rest, "/-/")
+	if post && !isFormAction(action) {
+		renderNotFound(w, r)
+		return
+	}
 	// Redirect only a valid repository name: anything else (a leading "\\",
 	// say, which browsers read as "//") could send the visitor off-site.
 	if trimmed, ok := strings.CutSuffix(name, ".git"); ok && action == "" && utils.ValidateRepo(trimmed) == nil {
@@ -183,6 +208,24 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.feed(w, r, b, p, q.Get("path"))
 	case action == "access":
 		h.access(w, r, b, p)
+	case action == "access/add":
+		h.collab(w, r, b, p, "add")
+	case action == "access/remove":
+		h.collab(w, r, b, p, "remove")
+	case action == "settings":
+		h.settings(w, r, b, p)
+	case action == "rename":
+		h.rename(w, r, b, p)
+	case action == "sync":
+		h.syncMirror(w, r, b, p)
+	case action == "delete":
+		h.deleteRepo(w, r, b, p)
+	case action == "refs/delete":
+		h.deleteRef(w, r, b, p)
+	case action == "webhooks":
+		h.webhooks(w, r, b, p, "")
+	case strings.HasPrefix(action, "webhooks/"):
+		h.webhooks(w, r, b, p, strings.TrimPrefix(action, "webhooks/"))
 	default:
 		h.fail(w, r, p, errNotFound)
 	}
@@ -422,7 +465,7 @@ func (h uiHandler) fail(w http.ResponseWriter, r *http.Request, p page, err erro
 	case status == http.StatusBadRequest:
 		msg = publicMessage(err)
 	case status == http.StatusForbidden:
-		msg = "Only this repository's admins can see this."
+		msg = "You don't have enough access to this repository to see this."
 	default:
 		log.FromContext(r.Context()).Error("web", "path", r.URL.Path, "err", err)
 	}

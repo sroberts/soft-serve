@@ -6,12 +6,9 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2/table"
-	"github.com/charmbracelet/soft-serve/pkg/access"
-	"github.com/charmbracelet/soft-serve/pkg/backend"
-	"github.com/charmbracelet/soft-serve/pkg/utils"
+	"github.com/charmbracelet/soft-serve/pkg/ops"
 	"github.com/charmbracelet/soft-serve/pkg/webhook"
 	"github.com/dustin/go-humanize"
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -43,36 +40,31 @@ func init() {
 	}
 }
 
-func webhookListCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:               "list REPOSITORY",
-		Short:             "List repository webhooks",
-		Args:              cobra.ExactArgs(1),
-		PersistentPreRunE: requireRepo(access.AdminAccess),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			repo, _, err := repoFromContext(ctx)
-			if err != nil {
-				return err
-			}
+func parseWebhookID(s string) (int64, error) {
+	id, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("invalid webhook ID: %w", err)
+	}
+	return id, nil
+}
 
-			webhooks, err := be.ListWebhooks(ctx, repo)
+func webhookListCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list REPOSITORY",
+		Short: "List repository webhooks",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			webhooks, err := service(cmd.Context()).Webhooks(cmd.Context(), args[0])
 			if err != nil {
 				return err
 			}
 
 			table := table.New().Headers("ID", "URL", "Events", "Active", "Created At", "Updated At")
 			for _, h := range webhooks {
-				events := make([]string, len(h.Events))
-				for i, e := range h.Events {
-					events[i] = e.String()
-				}
-
 				table = table.Row(
 					strconv.FormatInt(h.ID, 10),
-					utils.Sanitize(h.URL),
-					strings.Join(events, ","),
+					h.URL,
+					strings.Join(h.Events, ","),
 					strconv.FormatBool(h.Active),
 					humanize.Time(h.CreatedAt),
 					humanize.Time(h.UpdatedAt),
@@ -82,174 +74,79 @@ func webhookListCommand() *cobra.Command {
 			return nil
 		},
 	}
+}
 
-	return cmd
+func webhookFlags(cmd *cobra.Command, opts *ops.WebhookOptions) {
+	cmd.Flags().StringSliceVarP(&opts.Events, "events", "e", nil, fmt.Sprintf("events to trigger the webhook, available events are (%s)", strings.Join(webhookEvents, ", ")))
+	cmd.Flags().StringVarP(&opts.Secret, "secret", "s", "", "secret to sign the webhook payload")
 }
 
 func webhookCreateCommand() *cobra.Command {
-	var events []string
-	var secret string
+	var opts ops.WebhookOptions
 	var active bool
-	var contentType string
+
 	cmd := &cobra.Command{
-		Use:               "create REPOSITORY URL",
-		Short:             "Create a repository webhook",
-		Args:              cobra.ExactArgs(2),
-		PersistentPreRunE: requireRepo(access.AdminAccess),
+		Use:   "create REPOSITORY URL",
+		Short: "Create a repository webhook",
+		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			repo, _, err := repoFromContext(ctx)
-			if err != nil {
-				return err
-			}
-
-			var evs []webhook.Event
-			for _, e := range events {
-				ev, err := webhook.ParseEvent(e)
-				if err != nil {
-					return fmt.Errorf("invalid event: %w", err)
-				}
-
-				evs = append(evs, ev)
-			}
-
-			var ct webhook.ContentType
-			switch strings.ToLower(strings.TrimSpace(contentType)) {
-			case "json":
-				ct = webhook.ContentTypeJSON
-			case "form":
-				ct = webhook.ContentTypeForm
-			default:
-				return webhook.ErrInvalidContentType
-			}
-
-			url := utils.Sanitize(args[1])
-			return be.CreateWebhook(ctx, repo, strings.TrimSpace(url), ct, secret, evs, active)
+			opts.URL = args[1]
+			opts.Active = &active
+			_, err := service(cmd.Context()).CreateWebhook(cmd.Context(), args[0], opts)
+			return err
 		},
 	}
 
-	cmd.Flags().StringSliceVarP(&events, "events", "e", nil, fmt.Sprintf("events to trigger the webhook, available events are (%s)", strings.Join(webhookEvents, ", ")))
-	cmd.Flags().StringVarP(&secret, "secret", "s", "", "secret to sign the webhook payload")
+	webhookFlags(cmd, &opts)
 	cmd.Flags().BoolVarP(&active, "active", "a", true, "whether the webhook is active")
-	cmd.Flags().StringVarP(&contentType, "content-type", "c", "json", "content type of the webhook payload, can be either `json` or `form`")
+	cmd.Flags().StringVarP(&opts.ContentType, "content-type", "c", "json", "content type of the webhook payload, can be either `json` or `form`")
 
 	return cmd
 }
 
 func webhookDeleteCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:               "delete REPOSITORY WEBHOOK_ID",
-		Short:             "Delete a repository webhook",
-		Args:              cobra.ExactArgs(2),
-		PersistentPreRunE: requireRepo(access.AdminAccess),
+	return &cobra.Command{
+		Use:   "delete REPOSITORY WEBHOOK_ID",
+		Short: "Delete a repository webhook",
+		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			repo, _, err := repoFromContext(ctx)
+			id, err := parseWebhookID(args[1])
 			if err != nil {
 				return err
 			}
-
-			id, err := strconv.ParseInt(args[1], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid webhook ID: %w", err)
-			}
-
-			return be.DeleteWebhook(ctx, repo, id)
+			return service(cmd.Context()).DeleteWebhook(cmd.Context(), args[0], id)
 		},
 	}
-
-	return cmd
 }
 
 func webhookUpdateCommand() *cobra.Command {
-	var events []string
-	var secret string
+	var opts ops.WebhookOptions
 	var active string
-	var contentType string
-	var url string
+
 	cmd := &cobra.Command{
-		Use:               "update REPOSITORY WEBHOOK_ID",
-		Short:             "Update a repository webhook",
-		Args:              cobra.ExactArgs(2),
-		PersistentPreRunE: requireRepo(access.AdminAccess),
+		Use:   "update REPOSITORY WEBHOOK_ID",
+		Short: "Update a repository webhook",
+		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			repo, _, err := repoFromContext(ctx)
+			id, err := parseWebhookID(args[1])
 			if err != nil {
 				return err
 			}
-
-			id, err := strconv.ParseInt(args[1], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid webhook ID: %w", err)
-			}
-
-			wh, err := be.Webhook(ctx, repo, id)
-			if err != nil {
-				return err
-			}
-
-			newURL := wh.URL
-			if url != "" {
-				newURL = url
-			}
-
-			newSecret := wh.Secret
-			if secret != "" {
-				newSecret = secret
-			}
-
-			newActive := wh.Active
 			if active != "" {
-				active, err := strconv.ParseBool(active)
+				a, err := strconv.ParseBool(active)
 				if err != nil {
 					return fmt.Errorf("invalid active value: %w", err)
 				}
-
-				newActive = active
+				opts.Active = &a
 			}
-
-			newContentType := wh.ContentType
-			if contentType != "" {
-				var ct webhook.ContentType
-				switch strings.ToLower(strings.TrimSpace(contentType)) {
-				case "json":
-					ct = webhook.ContentTypeJSON
-				case "form":
-					ct = webhook.ContentTypeForm
-				default:
-					return webhook.ErrInvalidContentType
-				}
-				newContentType = ct
-			}
-
-			newEvents := wh.Events
-			if len(events) > 0 {
-				var evs []webhook.Event
-				for _, e := range events {
-					ev, err := webhook.ParseEvent(e)
-					if err != nil {
-						return fmt.Errorf("invalid event: %w", err)
-					}
-
-					evs = append(evs, ev)
-				}
-
-				newEvents = evs
-			}
-
-			return be.UpdateWebhook(ctx, repo, id, newURL, newContentType, newSecret, newEvents, newActive)
+			return service(cmd.Context()).UpdateWebhook(cmd.Context(), args[0], id, opts)
 		},
 	}
 
-	cmd.Flags().StringSliceVarP(&events, "events", "e", nil, fmt.Sprintf("events to trigger the webhook, available events are (%s)", strings.Join(webhookEvents, ", ")))
-	cmd.Flags().StringVarP(&secret, "secret", "s", "", "secret to sign the webhook payload")
+	webhookFlags(cmd, &opts)
 	cmd.Flags().StringVarP(&active, "active", "a", "", "whether the webhook is active")
-	cmd.Flags().StringVarP(&contentType, "content-type", "c", "", "content type of the webhook payload, can be either `json` or `form`")
-	cmd.Flags().StringVarP(&url, "url", "u", "", "webhook URL")
+	cmd.Flags().StringVarP(&opts.ContentType, "content-type", "c", "", "content type of the webhook payload, can be either `json` or `form`")
+	cmd.Flags().StringVarP(&opts.URL, "url", "u", "", "webhook URL")
 
 	return cmd
 }
@@ -271,25 +168,16 @@ func webhookDeliveriesCommand() *cobra.Command {
 }
 
 func webhookDeliveriesListCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:               "list REPOSITORY WEBHOOK_ID",
-		Short:             "List webhook deliveries",
-		Args:              cobra.ExactArgs(2),
-		PersistentPreRunE: requireRepo(access.AdminAccess),
+	return &cobra.Command{
+		Use:   "list REPOSITORY WEBHOOK_ID",
+		Short: "List webhook deliveries",
+		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			repo, _, err := repoFromContext(ctx)
+			id, err := parseWebhookID(args[1])
 			if err != nil {
 				return err
 			}
-
-			id, err := strconv.ParseInt(args[1], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid webhook ID: %w", err)
-			}
-
-			dels, err := be.ListWebhookDeliveries(ctx, repo, id)
+			dels, err := service(cmd.Context()).Deliveries(cmd.Context(), args[0], id)
 			if err != nil {
 				return err
 			}
@@ -297,13 +185,13 @@ func webhookDeliveriesListCommand() *cobra.Command {
 			table := table.New().Headers("Status", "ID", "Event", "Created At")
 			for _, d := range dels {
 				status := "❌"
-				if d.ResponseStatus >= 200 && d.ResponseStatus < 300 {
+				if d.OK() {
 					status = "✅"
 				}
 				table = table.Row(
 					status,
-					d.ID.String(),
-					d.Event.String(),
+					d.ID,
+					d.Event,
 					humanize.Time(d.CreatedAt),
 				)
 			}
@@ -311,104 +199,59 @@ func webhookDeliveriesListCommand() *cobra.Command {
 			return nil
 		},
 	}
-
-	return cmd
 }
 
 func webhookDeliveriesRedeliverCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:               "redeliver REPOSITORY WEBHOOK_ID DELIVERY_ID",
-		Short:             "Redeliver a webhook delivery",
-		Args:              cobra.ExactArgs(3),
-		PersistentPreRunE: requireRepo(access.AdminAccess),
+	return &cobra.Command{
+		Use:   "redeliver REPOSITORY WEBHOOK_ID DELIVERY_ID",
+		Short: "Redeliver a webhook delivery",
+		Args:  cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			repo, _, err := repoFromContext(ctx)
+			id, err := parseWebhookID(args[1])
 			if err != nil {
 				return err
 			}
-
-			id, err := strconv.ParseInt(args[1], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid webhook ID: %w", err)
-			}
-
-			delID, err := uuid.Parse(args[2])
-			if err != nil {
-				return fmt.Errorf("invalid delivery ID: %w", err)
-			}
-
-			return be.RedeliverWebhookDelivery(ctx, repo, id, delID)
+			return service(cmd.Context()).Redeliver(cmd.Context(), args[0], id, args[2])
 		},
 	}
-
-	return cmd
 }
 
 func webhookDeliveriesGetCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:               "get REPOSITORY WEBHOOK_ID DELIVERY_ID",
-		Short:             "Get a webhook delivery",
-		Args:              cobra.ExactArgs(3),
-		PersistentPreRunE: requireRepo(access.AdminAccess),
+	return &cobra.Command{
+		Use:   "get REPOSITORY WEBHOOK_ID DELIVERY_ID",
+		Short: "Get a webhook delivery",
+		Args:  cobra.ExactArgs(3),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			repo, _, err := repoFromContext(ctx)
+			id, err := parseWebhookID(args[1])
 			if err != nil {
 				return err
 			}
-
-			id, err := strconv.ParseInt(args[1], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid webhook ID: %w", err)
-			}
-
-			delID, err := uuid.Parse(args[2])
-			if err != nil {
-				return fmt.Errorf("invalid delivery ID: %w", err)
-			}
-
-			del, err := be.WebhookDelivery(ctx, repo, id, delID)
+			del, err := service(cmd.Context()).Delivery(cmd.Context(), args[0], id, args[2])
 			if err != nil {
 				return err
 			}
 
 			out := cmd.OutOrStdout()
-			fmt.Fprintf(out, "ID: %s\n", del.ID)                             //nolint:errcheck
-			fmt.Fprintf(out, "Event: %s\n", del.Event)                       //nolint:errcheck
-			fmt.Fprintf(out, "Request URL: %s\n", del.RequestURL)            //nolint:errcheck
-			fmt.Fprintf(out, "Request Method: %s\n", del.RequestMethod)      //nolint:errcheck
-			fmt.Fprintf(out, "Request Error: %s\n", del.RequestError.String) //nolint:errcheck
-			fmt.Fprintf(out, "Request Headers:\n")                           //nolint:errcheck
-			reqHeaders := strings.Split(del.RequestHeaders, "\n")
-			for _, h := range reqHeaders {
-				fmt.Fprintf(out, "  %s\n", h) //nolint:errcheck
+			indented := func(s string) {
+				for _, l := range strings.Split(s, "\n") {
+					fmt.Fprintf(out, "  %s\n", l) //nolint:errcheck
+				}
 			}
-
+			fmt.Fprintf(out, "ID: %s\n", del.ID)                        //nolint:errcheck
+			fmt.Fprintf(out, "Event: %s\n", del.Event)                  //nolint:errcheck
+			fmt.Fprintf(out, "Request URL: %s\n", del.RequestURL)       //nolint:errcheck
+			fmt.Fprintf(out, "Request Method: %s\n", del.RequestMethod) //nolint:errcheck
+			fmt.Fprintf(out, "Request Error: %s\n", del.RequestError)   //nolint:errcheck
+			fmt.Fprintf(out, "Request Headers:\n")                      //nolint:errcheck
+			indented(del.RequestHeaders)
 			fmt.Fprintf(out, "Request Body:\n") //nolint:errcheck
-			reqBody := strings.Split(del.RequestBody, "\n")
-			for _, b := range reqBody {
-				fmt.Fprintf(out, "  %s\n", b) //nolint:errcheck
-			}
-
+			indented(del.RequestBody)
 			fmt.Fprintf(out, "Response Status: %d\n", del.ResponseStatus) //nolint:errcheck
 			fmt.Fprintf(out, "Response Headers:\n")                       //nolint:errcheck
-			resHeaders := strings.Split(del.ResponseHeaders, "\n")
-			for _, h := range resHeaders {
-				fmt.Fprintf(out, "  %s\n", h) //nolint:errcheck
-			}
-
+			indented(del.ResponseHeaders)
 			fmt.Fprintf(out, "Response Body:\n") //nolint:errcheck
-			resBody := strings.Split(del.ResponseBody, "\n")
-			for _, b := range resBody {
-				fmt.Fprintf(out, "  %s\n", b) //nolint:errcheck
-			}
-
+			indented(del.ResponseBody)
 			return nil
 		},
 	}
-
-	return cmd
 }

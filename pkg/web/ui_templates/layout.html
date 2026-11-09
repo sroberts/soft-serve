@@ -21,6 +21,7 @@
   {{else if .SoftServe}}<a class="who" href="/-/me">{{.SoftServe}}</a>{{end}}
 </header>
 <main id="content">
+{{if .Notice}}<p class="notice" role="status">{{.Notice}}</p>{{end}}
 {{end}}
 
 {{define "foot"}}
@@ -38,7 +39,7 @@
     {{if .Repo.Hidden}}<span class="badge">hidden</span>{{end}}
   </h1>
   {{if .Repo.Description}}<p class="desc">{{.Repo.Description}}</p>{{end}}
-  {{if .Repo.MirrorOf}}<p class="access">Mirror of <code>{{.Repo.MirrorOf}}</code>{{with .Repo.MirrorSyncedAt}} · last synced <time datetime="{{.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.Format "2 Jan 2006 15:04 MST"}}">{{agoPtr .}}</time>{{end}}</p>{{end}}
+  {{if .Repo.MirrorOf}}<p class="access">Mirror of <code>{{.Repo.MirrorOf}}</code>{{with .Repo.MirrorSyncedAt}} · last synced <time datetime="{{.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.Format "2 Jan 2006 15:04 MST"}}">{{agoPtr .}}</time>{{end}}{{if and .Repo.MirrorAutoSync (not (deref .Repo.MirrorAutoSync))}} · syncs only when asked{{end}}</p>{{end}}
   {{if and .SoftServe (accessText .Repo.Access)}}<p class="access">{{accessText .Repo.Access}}</p>{{end}}
   <details class="clone">
     <summary>Clone or download</summary>
@@ -61,7 +62,9 @@
     <a href="{{repoURL .Repo.Name "compare" "" ""}}"{{if eq .Tab "compare"}} aria-current="page"{{end}}>Compare</a>
     <a href="{{repoURL .Repo.Name "search" .Ref ""}}"{{if eq .Tab "search"}} aria-current="page"{{end}}>Search</a>
     {{if not .Repo.Empty}}<a href="{{repoURL .Repo.Name "insights" .Ref ""}}"{{if eq .Tab "insights"}} aria-current="page"{{end}}>Insights</a>{{end}}
-    {{if isAdmin .Repo.Access}}<a href="{{repoURL .Repo.Name "access" "" ""}}"{{if eq .Tab "access"}} aria-current="page"{{end}}>Access</a>{{end}}
+    {{if canWrite .Repo.Access}}<a href="{{repoURL .Repo.Name "access" "" ""}}"{{if eq .Tab "access"}} aria-current="page"{{end}}>Access</a>{{end}}
+    {{if isAdmin .Repo.Access}}<a href="{{repoURL .Repo.Name "webhooks" "" ""}}"{{if eq .Tab "webhooks"}} aria-current="page"{{end}}>Webhooks</a>{{end}}
+    {{if canWrite .Repo.Access}}<a href="{{repoURL .Repo.Name "settings" "" ""}}"{{if eq .Tab "settings"}} aria-current="page"{{end}}>Settings</a>{{end}}
     {{if and .Ref (not .Repo.Empty)}}<span class="grow"></span><a class="ref" href="{{repoURL .Repo.Name "refs" "" ""}}" title="Switch branch or tag">{{.Ref}}</a>{{end}}
   </nav>
 {{end}}

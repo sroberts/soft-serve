@@ -224,12 +224,6 @@ func repoArg(args []string) string {
 	return utils.SanitizeRepo(args[0])
 }
 
-// repoAccessLevel returns the caller's access level for the sanitized name.
-func repoAccessLevel(ctx context.Context, repo string) access.AccessLevel {
-	_, level := readableRepo(ctx, repo)
-	return level
-}
-
 // checkIfServerAdmin is the authorization gate for global (non-repo-scoped)
 // commands such as `user` and `settings`. It allows server admins only.
 //
@@ -239,17 +233,6 @@ func repoAccessLevel(ctx context.Context, repo string) access.AccessLevel {
 // including ones added later, is gated by default.
 func checkIfServerAdmin(cmd *cobra.Command, _ []string) error {
 	if !isServerAdmin(cmd.Context()) {
-		return proto.ErrUnauthorized
-	}
-	return nil
-}
-
-// checkIfRepoCollab gates create and import, which name a repository that
-// should not exist yet, on write access to that name. It cannot hide
-// whether the name is taken: with one flat namespace, "already exists" is
-// the answer either way.
-func checkIfRepoCollab(cmd *cobra.Command, args []string) error {
-	if repoAccessLevel(cmd.Context(), repoArg(args)) < access.ReadWriteAccess {
 		return proto.ErrUnauthorized
 	}
 	return nil

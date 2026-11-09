@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/soft-serve/git"
 	"github.com/charmbracelet/soft-serve/pkg/backend"
 	"github.com/charmbracelet/soft-serve/pkg/config"
+	"github.com/charmbracelet/soft-serve/pkg/ops"
 	"github.com/charmbracelet/soft-serve/pkg/ui/keymap"
 	"github.com/charmbracelet/soft-serve/pkg/ui/styles"
 	zone "github.com/lrstanley/bubblezone/v2"
@@ -34,6 +35,12 @@ type Common struct {
 	Zone          *zone.Manager
 	Logger        *log.Logger
 	HideCloneCmd  bool
+
+	// Service is what managing repositories goes through: on the server,
+	// the repository operations the session's caller may perform. It is
+	// nil where there is no server to manage, as in `soft browse`, and
+	// every management screen and key is left out then.
+	Service ops.Service
 }
 
 // NewCommon returns a new Common struct.

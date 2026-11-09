@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -165,14 +166,23 @@ type req struct {
 	auth     string
 	identity string
 	header   map[string]string
+	// body is sent as JSON when set.
+	body string
 }
 
 func (f *viewFixture) do(r req) *httptest.ResponseRecorder {
 	if r.method == "" {
 		r.method = http.MethodGet
 	}
-	hr := httptest.NewRequestWithContext(context.Background(), r.method, r.path, nil)
+	var body io.Reader
+	if r.body != "" {
+		body = strings.NewReader(r.body)
+	}
+	hr := httptest.NewRequestWithContext(context.Background(), r.method, r.path, body)
 	hr.Host = viewHost
+	if r.body != "" {
+		hr.Header.Set("Content-Type", "application/json")
+	}
 	if r.auth != "" {
 		hr.Header.Set("Authorization", r.auth)
 	}
@@ -449,7 +459,7 @@ func TestViewContent(t *testing.T) {
 	}
 	is.Equal(get("/v1/repos/group/open/-/tree?ref=nope", nil).Code, http.StatusNotFound)
 	is.Equal(get("/v1/repos/group/open/-/tree?path=src/main.go", nil).Code, http.StatusBadRequest)
-	is.Equal(f.do(req{method: http.MethodPost, path: "/v1/repos"}).Code, http.StatusMethodNotAllowed)
+	is.Equal(f.do(req{method: http.MethodPost, path: "/v1/repos/group/open/-/tree"}).Code, http.StatusMethodNotAllowed)
 }
 
 // Files from a repository never render as pages on our origin.

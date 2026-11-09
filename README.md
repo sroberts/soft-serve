@@ -680,6 +680,26 @@ Use "ssh -p 23231 localhost repo [command] --help" for more information about a 
 
 To use any of the above `repo` commands, a user must be a collaborator in the repository. More on this below.
 
+### From Your Own Machine
+
+The `soft` binary runs the same `repo` commands against a server's HTTP API,
+with an access token instead of an SSH key. The commands, flags and output are
+the ones above, and the server applies the same permissions.
+
+```sh
+export SOFT_SERVE_REMOTE=http://localhost:23232
+export SOFT_SERVE_TOKEN=$(ssh -p 23231 localhost token create laptop)
+
+soft repo list
+soft repo create icecream -d 'Scoops'
+soft repo import --mirror --auto-sync=false upstream https://github.com/charmbracelet/soft-serve
+soft repo sync upstream
+soft repo collab add icecream ana read-write
+```
+
+This is handy where SSH can't reach the server, such as behind Outpost's
+gateway. `repo blob`, `repo tree` and `repo commit` are SSH-only for now.
+
 ### Creating Repositories
 
 To create a repository, first make sure you are a registered user. Use the
@@ -882,8 +902,8 @@ Flags:
 
 ## The Web View, REST API and MCP
 
-Soft Serve's HTTP port also serves a read-only view of its repositories, three
-ways, all showing exactly what the caller may read:
+Soft Serve's HTTP port also serves its repositories three ways, each showing
+exactly what the caller may read and allowing what they may change:
 
 - **Web pages** at `/`: repositories (with a filter), files with syntax
   highlighting and each one's latest commit, rendered READMEs, history of
@@ -891,8 +911,17 @@ ways, all showing exactly what the caller may read:
   branches and tags with their dates and release notes, comparing two
   branches, tags or commits, searching the files, and `.tar.gz` and `.zip`
   downloads of any of them. Each history has an Atom feed
-  (`/<repo>/-/commits.atom`). A repository's admins also see its
-  collaborators. Pages are plain HTML with no script. Also:
+  (`/<repo>/-/commits.atom`). Pages are plain HTML with no script. Also:
+  - **Managing repositories**, for signed-in users, with the same permissions
+    as the `repo` commands over SSH: *New repository* (`/-/new`) creates one
+    or imports one as a hard fork or a mirror, with or without auto-sync.
+    *Settings* (write access) changes the description, project name,
+    visibility, default branch and mirror settings, renames, syncs a mirror
+    now, and deletes. *Access* (write access) adds and removes
+    collaborators. *Webhooks* (admin access) adds, edits and removes webhooks
+    and shows and resends their deliveries. Branches and tags can be deleted
+    from their page. Without Outpost's gateway, a change asks the browser to
+    sign in with your username and an access token.
   - **Lines and permalinks.** Click a line number to select it, then another
     to select the lines between (`?lines=10-25`). *Permalink* pins the link to
     the commit, so it keeps pointing at the same code.
@@ -933,6 +962,22 @@ ways, all showing exactly what the caller may read:
   curl -OJ "http://localhost:23232/v1/repos/icecream/-/archive?ref=v1.0&format=zip"
   ```
 
+  The API also manages repositories, with the same operations and the same
+  permissions as the `repo` commands over SSH: create and import (fork or
+  mirror), settings, rename, delete, mirror sync, deleting branches and tags,
+  collaborators, and webhooks with their deliveries. Bodies are JSON. Changes
+  a browser says come from another site are refused.
+
+  ```sh
+  auth="Authorization: Token $TOKEN"
+  curl -H "$auth" -d '{"name":"icecream","description":"Scoops"}' http://localhost:23232/v1/repos
+  curl -H "$auth" -d '{"name":"upstream","remote":"https://github.com/charmbracelet/soft-serve","mirror":true,"auto_sync":false}' http://localhost:23232/v1/repos
+  curl -H "$auth" -X PATCH -d '{"private":true,"default_branch":"main"}' http://localhost:23232/v1/repos/icecream
+  curl -H "$auth" -X POST http://localhost:23232/v1/repos/upstream/-/sync
+  curl -H "$auth" -d '{"username":"ana","access":"read-write"}' http://localhost:23232/v1/repos/icecream/-/collaborators
+  curl -H "$auth" -X DELETE http://localhost:23232/v1/repos/icecream/-/branches/old-feature
+  ```
+
 - **MCP** at `/mcp` (Streamable HTTP), with read-only tools to list
   repositories, branches, tags and commits (or search them by message or
   author), read a README, list a directory, find files by name, read and
@@ -960,9 +1005,13 @@ git over HTTPS would need a login the gateway doesn't pass through.
 
 <img src="https://stuff.charm.sh/soft-serve/soft-serve-demo-commit.png" width="750" alt="TUI example showing a diff">
 
-Soft Serve TUI is mainly used to browse repos over SSH. You can also use it to
-browse local repositories with `soft browse` or running `soft` within a Git
-repository.
+Soft Serve TUI browses repos over SSH, and manages them with the same
+permissions as the `repo` commands: <kbd>n</kbd> creates a repository and
+<kbd>i</kbd> imports one (hard fork or mirror) from the list. A repository's
+*Settings*, *Collaborators* and *Webhooks* tabs change it, and <kbd>x</kbd>
+deletes a branch or tag. You can also use the TUI to browse local
+repositories with `soft browse` or running `soft` within a Git repository;
+management isn't offered there.
 
 ```sh
 ssh localhost -p 23231
