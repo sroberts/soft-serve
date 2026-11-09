@@ -618,6 +618,17 @@ ssh -p 23231 localhost user create frankie '-k "ssh-ed25519 AAAATzN..."'
 ssh -p 23231 localhost user help
 ```
 
+Admins can run `user` and `settings` from their own machine with `soft` too,
+using an admin's access token (see [From Your Own Machine](#from-your-own-machine)),
+and from the web view's admin pages and the TUI. Admins can't delete their own
+account or remove their own admin rights; another admin can.
+
+```sh
+soft user create beatrice --key "$(cat beatrice.pub)"
+soft user set-admin beatrice true
+soft settings anon-access no-access
+```
+
 Once a user is created, they get `read-only` access to public repositories.
 They can also create new repositories on the server.
 
@@ -1003,6 +1014,16 @@ exactly what the caller may read and allowing what they may change:
   curl -H "$auth" -d '{"name":"ci","expires_at":"2027-01-01T00:00:00Z"}' http://localhost:23232/v1/me/tokens
   curl -H "$auth" -X DELETE http://localhost:23232/v1/me/tokens/3
   curl -H "$auth" -X PATCH -d '{"username":"yolo"}' http://localhost:23232/v1/me
+  ```
+
+  Admins manage users under `/v1/users` and the server settings at
+  `/v1/settings`. Anyone else is refused, without learning whether a user
+  exists.
+
+  ```sh
+  curl -H "$auth" -d '{"username":"beatrice","keys":["ssh-ed25519 AAAA..."]}' http://localhost:23232/v1/users
+  curl -H "$auth" -X PATCH -d '{"admin":true}' http://localhost:23232/v1/users/beatrice
+  curl -H "$auth" -X PATCH -d '{"anon_access":"no-access"}' http://localhost:23232/v1/settings
   ```
 
 - **MCP** at `/mcp` (Streamable HTTP), with read-only tools to list
