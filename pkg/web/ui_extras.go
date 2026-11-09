@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// Pages for finding files, a repository's insights and your account, and
+// Pages for finding files and a repository's insights, and
 // the helpers the other pages use for line links, history filters and
 // branch distances.
 
@@ -330,20 +330,4 @@ func percent(f float64) string {
 		return "<0.1%"
 	}
 	return strconv.FormatFloat(f, 'f', 1, 64) + "%"
-}
-
-// --- Your account ---
-
-func (h uiHandler) account(w http.ResponseWriter, r *http.Request, b *browser, p page) {
-	acct, err := b.account(r.Context(), p.SignedIn)
-	if err != nil {
-		h.fail(w, r, p, err)
-		return
-	}
-	p.Title = "Your account"
-	if acct.SignedIn {
-		p.Title = acct.Username + " · Your account"
-	}
-	p.Data = acct
-	h.render(w, r, "account", p)
 }

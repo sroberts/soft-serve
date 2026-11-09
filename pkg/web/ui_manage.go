@@ -61,6 +61,11 @@ var notices = map[string]string{
 	"hook-saved":     "Webhook saved.",
 	"hook-deleted":   "Webhook removed.",
 	"redelivered":    "Delivery sent again.",
+
+	"key-added":        "SSH key added.",
+	"key-removed":      "SSH key removed.",
+	"token-deleted":    "Access token deleted.",
+	"username-changed": "Username changed.",
 }
 
 // withDone adds a notice code to a page's URL.
