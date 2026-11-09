@@ -62,7 +62,7 @@ git push -u origin main</pre>{{end}}
 {{with .Data}}
 <article class="file">
   <header>
-    <span>{{bytes .Blob.Size}}{{if .Blob.LFS}} · stored with Git LFS{{end}}{{if .Blob.Truncated}} · showing the first 1 MiB{{end}}{{if .Sel.Start}} · {{if eq .Sel.Start .Sel.End}}line {{.Sel.Start}}{{else}}lines {{.Sel.Start}}–{{.Sel.End}}{{end}} selected (<a href="{{.ClearURL}}">clear</a>){{else if .Lines}} · click a line number, then another, to select lines{{end}}</span>
+    <span>{{bytes .Blob.Size}}{{if .Blob.LFS}} · stored with Git LFS{{end}}{{if .Blob.Truncated}} · showing the first 1 MiB{{end}}{{if .Sel.Start}} · {{if eq .Sel.Start .Sel.End}}line {{.Sel.Start}}{{else}}lines {{.Sel.Start}}–{{.Sel.End}}{{end}} selected (<a href="{{.ClearURL}}">clear</a>){{else if .Lines}} · <span class="pointer-only">click</span><span class="touch-only">tap</span> a line number, then another, to select lines{{end}}</span>
     <span class="grow"></span>
     {{if .Markdown}}{{if .Source}}<a href="{{.RenderedURL}}">Rendered</a>{{else}}<a href="{{.SourceURL}}">Source</a>{{end}}{{end}}
     {{if .Permalink}}<a href="{{.Permalink}}" title="This file at commit {{short .Blob.Commit}}, so the link keeps pointing at the same code">Permalink</a>{{end}}
@@ -80,6 +80,7 @@ git push -u origin main</pre>{{end}}
     {{end}}</tbody>
   </table>
   </div>
+  {{if gt (len .Lines) 60}}<footer><a href="#content">Back to top</a></footer>{{end}}
   {{else if .Code}}<div class="markdown">{{.Code}}</div>
   {{else}}<p class="empty">This file is empty.</p>{{end}}
 </article>
@@ -244,6 +245,7 @@ git push -u origin main</pre>{{end}}
     </tbody>
   </table>
   </div>
+  {{if gt (len .Rows) 60}}<footer><a href="#content">Back to top</a></footer>{{end}}
 </article>
 {{end}}
 {{template "foot" .}}{{end}}

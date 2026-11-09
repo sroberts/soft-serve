@@ -571,8 +571,94 @@ form.history .author { flex: 0 1 12rem; }
   .tabs .ref { margin: 0; padding: 4px 11px; }
 }
 
-/* Touch: code lines tall enough that each line number is a 24px target. */
+/* The end of a long file or blame, back to where the page starts. */
+.file > footer { border-top: 1px solid var(--line); padding: 0 14px; font-size: 0.8125rem; }
+.file > footer a { display: inline-block; padding: 8px 0; }
+
+/* Wording that depends on the pointer: "click" with a mouse, "tap" by touch. */
+.touch-only { display: none; }
+
+/* Touch: every control is at least 44px tall, and a row in a list is one
+   target rather than a line of small text. Code lines stay compact, but
+   each line number is still a 24px target. Fields use 16px text so iOS
+   doesn't zoom the page when one is focused. */
 @media (pointer: coarse) {
+  .touch-only { display: inline; }
+  .pointer-only { display: none; }
+
   .lines, .blame { line-height: 1.85; }
   .blame .who { line-height: calc(0.8125rem * 1.85); }
+
+  /* The site bar's links fill its height. */
+  .site { padding-block: 0; }
+  .site .brand, .site .crumb, .site .who, .site button.link { padding-block: 11px; }
+
+  input[type="search"], .compareform input,
+  form.find input, form.find button[type="submit"]:not(.link),
+  button[type="submit"]:not(.link) { min-height: 44px; font-size: 1rem; }
+  .compareform .dots { padding-bottom: 12px; }
+
+  /* Tabs: wide screens keep the underline, so the links grow down to it. */
+  .tabs a { padding-block: 12px; }
+  .tabs .ref { position: relative; padding-block: 6px; }
+  .tabs .ref::before { content: ""; position: absolute; inset: -8px 0; }
+
+  /* Links that stand alone grow without moving anything around them. */
+  .action, .scope a, .pager a, .clone .downloads a, .summaryline a,
+  .pathbar a, .file > header > span a {
+    display: inline-block;
+    padding-block: 11px;
+    margin-block: -11px;
+  }
+  /* Links inside a row: 24px, so they don't cover the row's own target. */
+  .commits .meta a.author, .refs .meta a, .commit dd a { display: inline-block; padding-block: 4px; margin-block: -4px; }
+  .clone summary, .weeks summary { padding-block: 12px; }
+  .clone { margin-top: 0; }
+  .refs .notes summary { padding-block: 8px; }
+
+  /* File and diff headers: the actions fill the header's height. */
+  .readme > header, .file > header { padding-block: 0; min-height: 44px; }
+  .file > header > span:first-child { padding-block: 10px; }
+  .file > header > a { padding: 12px 8px; margin-inline: -8px; }
+  .file > footer a { padding-block: 12px; }
+
+  /* Rows: the name is the link, and its box fills the row. */
+  .files tbody td { height: 44px; padding-block: 0; }
+  .files .name a { display: block; padding-block: 11px; }
+  .files thead td { padding-block: 0; }
+  .files .latest .row > a { padding-block: 12px; }
+  .files .latest .row { align-items: center; }
+
+  .repos li, .commits li, .refs li { position: relative; }
+  .repos .repo::after, .commits .summary::after, .refs a.refname::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+  /* Other links in a row sit above the row's own. */
+  .commits .meta a, .refs .meta a, .refs .refactions, .refs .notes { position: relative; z-index: 1; }
+  .refs .refactions { margin-block: -10px; }
+  .refs .refactions a { display: inline-block; padding-block: 13px; }
+
+  .found a { padding-block: 12px; }
+  .people li { padding-block: 0; align-items: center; }
+  .people a { flex: 1; padding-block: 11px; }
+
+  .difftools .seg a { padding-block: 12px; }
+  .difftools .toggle { padding-block: 12px; }
+  .filediff > summary { padding-block: 12px; }
+  .changes td { padding-block: 13px; }
+  .changes .name a { display: inline-block; padding-block: 13px; margin-block: -13px; }
+
+  .matches td { padding-block: 4px; }
+  .matches .ln { padding-inline: 0; }
+  .matches .ln a { display: block; padding: 4px 12px 4px 14px; margin-block: -4px; }
+}
+
+/* Phones by touch: the tab pills are 36px, and each one's target reaches
+   4px into the gap on either side, so a row of them is 44px to the thumb. */
+@media (pointer: coarse) and (max-width: 600px) {
+  .tabs { row-gap: 8px; }
+  .tabs a, .tabs .ref { position: relative; display: inline-flex; align-items: center; min-height: 36px; padding-block: 7px; }
+  .tabs a::before, .tabs .ref::before { content: ""; position: absolute; inset: -4px 0; }
 }

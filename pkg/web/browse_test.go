@@ -509,6 +509,10 @@ func TestPages(t *testing.T) {
 	is.True(!strings.Contains(file, "An open one")) // the description
 	is.Equal(strings.Count(file, "<h1"), 1)
 	is.True(strings.Contains(file, `<span aria-current="page">main.go</span>`))
+	// The hint names the gesture for the pointer; CSS shows the one that
+	// applies. A three-line file needs no way back to the top.
+	is.True(strings.Contains(file, `<span class="pointer-only">click</span><span class="touch-only">tap</span> a line number`))
+	is.True(!strings.Contains(file, "Back to top"))
 	commit := f.do(req{path: "/group/open/-/commits"}).Body.String()
 	is.Equal(strings.Count(commit, "<h1"), 1)
 	is.True(strings.Contains(commit, `aria-current="page">Commits</a>`))
