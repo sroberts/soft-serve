@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/soft-serve/cmd/soft/admin"
 	"github.com/charmbracelet/soft-serve/cmd/soft/browse"
 	"github.com/charmbracelet/soft-serve/cmd/soft/hook"
+	"github.com/charmbracelet/soft-serve/cmd/soft/repo"
 	"github.com/charmbracelet/soft-serve/cmd/soft/serve"
 	"github.com/charmbracelet/soft-serve/pkg/config"
 	logr "github.com/charmbracelet/soft-serve/pkg/log"
@@ -76,6 +77,7 @@ func init() {
 		hook.Command,
 		admin.Command,
 		browse.Command,
+		repo.Command(),
 	)
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true
 
