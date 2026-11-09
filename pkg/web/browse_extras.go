@@ -650,7 +650,7 @@ func (b *browser) account(ctx context.Context, outpostUser string) (Account, err
 		return Account{}, err
 	}
 	for _, r := range repos {
-		level := b.be.AccessLevelForUser(ctx, r.Name(), b.user)
+		level := b.be.AccessLevelForRepo(ctx, r, b.user)
 		if level < access.ReadWriteAccess {
 			continue
 		}

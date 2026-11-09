@@ -140,6 +140,8 @@ mark { background: var(--accent-soft); color: inherit; border-radius: 2px; box-s
 /* Repository header */
 
 .repohead h1 { font-size: 1.375rem; margin: 0; overflow-wrap: anywhere; }
+/* Deeper pages: the tabs alone, straight under the site bar. */
+.repohead.compact .tabs { margin-top: 0; }
 .repohead .desc { margin: 4px 0 0; color: var(--muted); }
 .repohead .access { margin: 4px 0 0; color: var(--muted); font-size: 0.8125rem; }
 .clone .downloads { margin: 10px 0 0; font-size: 0.8125rem; color: var(--muted); }
@@ -196,8 +198,21 @@ mark { background: var(--accent-soft); color: inherit; border-radius: 2px; box-s
   color: var(--text);
 }
 
-.pathbar { margin: 0 0 12px; font-family: var(--mono); font-size: 0.875rem; overflow-wrap: anywhere; }
+/* On deeper pages the path is the heading: the folders lead to the file. */
+.pathbar { margin: 0 0 14px; font-family: var(--mono); font-size: 1.0625rem; font-weight: 400; line-height: 1.4; overflow-wrap: anywhere; }
 .pathbar .sep { color: var(--muted); margin: 0 4px; }
+.pathbar [aria-current] { color: var(--text); font-weight: 600; }
+.pagetitle { margin: 0 0 14px; font-size: 1.25rem; line-height: 1.35; overflow-wrap: anywhere; }
+.pagetitle code { font-size: 0.9em; }
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .pathrow { display: flex; align-items: baseline; gap: 16px; margin: 0 0 12px; }
 .pathrow .pathbar { margin: 0; flex: 1; min-width: 0; }
 .action { font-size: 0.875rem; white-space: nowrap; }
@@ -242,13 +257,18 @@ table { border-collapse: collapse; width: 100%; }
 }
 .readme > header, .file > header {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 4px 16px;
   align-items: center;
   padding: 8px 14px;
   border-bottom: 1px solid var(--line);
   font-size: 0.8125rem;
   color: var(--muted);
 }
+/* The description takes the row; the actions sit at its end, or wrap
+   onto their own line when it's too narrow to share. */
+.file > header > span:first-child { flex: 1 1 20rem; }
+.file > header > span:first-child + .grow { display: none; }
 .card { padding: 4px 20px 16px; }
 
 .markdown { padding: 8px 28px 24px; overflow-wrap: break-word; }
@@ -308,7 +328,7 @@ table { border-collapse: collapse; width: 100%; }
 
 .pager { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 14px; }
 
-.commit h2 { margin: 0 0 8px; font-size: 1.1875rem; overflow-wrap: anywhere; }
+.commit h1 { margin: 0 0 8px; font-size: 1.25rem; line-height: 1.35; overflow-wrap: anywhere; }
 .commit .message { white-space: pre-wrap; margin: 0 0 16px; font-size: 0.8438rem; }
 .commit dl.meta { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0 0 20px; font-size: 0.875rem; }
 .commit dt { color: var(--muted); }

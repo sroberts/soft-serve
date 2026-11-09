@@ -64,6 +64,12 @@ func (d *Backend) AccessLevelForUser(ctx context.Context, repo string, user prot
 	return level
 }
 
+// AccessLevelForRepo is AccessLevelForUser for a repository already looked
+// up, as from Repositories, so listing many costs no lookup per repository.
+func (d *Backend) AccessLevelForRepo(ctx context.Context, r proto.Repository, user proto.User) access.AccessLevel {
+	return d.accessLevel(ctx, r, r.Name(), user)
+}
+
 // Readable looks a repository up once and returns it together with the
 // caller's access level. The repository is nil when it does not exist or
 // when the caller may not read it, so callers cannot tell the two apart.
