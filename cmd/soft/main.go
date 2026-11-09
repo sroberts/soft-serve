@@ -9,14 +9,15 @@ import (
 
 	"charm.land/log/v2"
 	"github.com/charmbracelet/colorprofile"
-	"github.com/charmbracelet/soft-serve/cmd/soft/account"
 	"github.com/charmbracelet/soft-serve/cmd/soft/admin"
 	"github.com/charmbracelet/soft-serve/cmd/soft/browse"
 	"github.com/charmbracelet/soft-serve/cmd/soft/hook"
+	"github.com/charmbracelet/soft-serve/cmd/soft/remote"
 	"github.com/charmbracelet/soft-serve/cmd/soft/repo"
 	"github.com/charmbracelet/soft-serve/cmd/soft/serve"
 	"github.com/charmbracelet/soft-serve/pkg/config"
 	logr "github.com/charmbracelet/soft-serve/pkg/log"
+	sshcmd "github.com/charmbracelet/soft-serve/pkg/ssh/cmd"
 	"github.com/charmbracelet/soft-serve/pkg/ui/common"
 	"github.com/charmbracelet/soft-serve/pkg/version"
 	mcobra "github.com/muesli/mango-cobra"
@@ -80,7 +81,8 @@ func init() {
 		browse.Command,
 		repo.Command(),
 	)
-	rootCmd.AddCommand(account.Commands()...)
+	rootCmd.AddCommand(remote.Commands(sshcmd.AccountCommands()...)...)
+	rootCmd.AddCommand(remote.Commands(sshcmd.AdminCommands()...)...)
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true
 
 	if len(CommitSHA) >= 7 {

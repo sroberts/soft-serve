@@ -50,6 +50,9 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if serveAdmin(w, r, ops.NewLocal(backend.FromContext(r.Context()), ops.UserActor(c.user)), c.user == nil) {
+		return
+	}
 	if rest, ok := strings.CutPrefix(r.URL.Path, "/v1/me"); ok && (rest == "" || strings.HasPrefix(rest, "/")) {
 		svc := ops.NewLocal(backend.FromContext(r.Context()), ops.UserActor(c.user))
 		if serveAccount(w, r, svc, c.user == nil, strings.TrimRight(rest, "/")) {

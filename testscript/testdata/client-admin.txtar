@@ -1,0 +1,67 @@
+# vi: set ft=conf
+
+# soft user and soft settings run the SSH admin commands against the REST
+# API, for admins only.
+
+[windows] dos2unix info.txt
+
+exec soft serve &
+ensureserverrunning SSH_PORT
+ensureserverrunning HTTP_PORT
+
+soft token create 'cli'
+cp stdout tokenfile
+envfile SOFT_SERVE_TOKEN=tokenfile
+env SOFT_SERVE_REMOTE=http://localhost:$HTTP_PORT
+
+# users, as over SSH
+exec soft user create foo --key $USER1_AUTHORIZED_KEY
+exec soft user list
+stdout 'admin'
+stdout 'foo'
+exec soft user info foo
+cmpenv stdout info.txt
+exec soft user set-admin foo true
+exec soft user info foo
+stdout 'Admin: true'
+! exec soft user set-admin foo maybe
+stderr 'want true or false'
+exec soft user set-admin foo false
+exec soft user add-pubkey foo $ADMIN2_AUTHORIZED_KEY
+exec soft user remove-pubkey foo $ADMIN2_AUTHORIZED_KEY
+exec soft user set-username foo foo2
+! exec soft user info foo
+stderr 'user not found'
+! exec soft user delete admin
+stderr 'delete your own account'
+
+# settings, as over SSH
+exec soft settings anon-access no-access
+exec soft settings anon-access
+stdout 'no-access'
+exec soft settings allow-keyless false
+exec soft settings allow-keyless
+stdout 'false'
+! exec soft settings anon-access lots
+stderr 'invalid access level'
+exec soft settings anon-access read-only
+
+# a non-admin gets nowhere
+usoft token create 'cli'
+cp stdout utokenfile
+envfile SOFT_SERVE_TOKEN=utokenfile
+! exec soft user list
+stderr 'unauthorized'
+! exec soft settings anon-access admin-access
+stderr 'unauthorized'
+env SOFT_SERVE_TOKEN=
+! exec soft user list
+stderr 'unauthorized'
+
+[windows] stopserver
+
+-- info.txt --
+Username: foo
+Admin: false
+Public keys:
+  $USER1_AUTHORIZED_KEY

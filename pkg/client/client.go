@@ -115,6 +115,7 @@ var sentinels = []error{
 	proto.ErrRepoNotFound,
 	proto.ErrRepoExist,
 	proto.ErrUserNotFound,
+	proto.ErrUserOwnsRepos,
 	proto.ErrCollaboratorNotFound,
 	proto.ErrCollaboratorExist,
 	proto.ErrExceedsAccessLevel,
@@ -138,6 +139,10 @@ func serverError(status int, msg string) error {
 	for _, s := range sentinels {
 		if msg == s.Error() {
 			return s
+		}
+		// Some are wrapped with detail, as "sentinel: detail".
+		if rest, ok := strings.CutPrefix(msg, s.Error()+": "); ok {
+			return fmt.Errorf("%w: %s", s, rest)
 		}
 	}
 	if status == http.StatusBadRequest {
@@ -315,4 +320,65 @@ func (c *Client) DeleteAccessToken(ctx context.Context, id int64) error {
 // SetUsername implements ops.Service.
 func (c *Client) SetUsername(ctx context.Context, username string) error {
 	return c.do(ctx, http.MethodPatch, "/v1/me", nil, map[string]string{"username": username}, nil)
+}
+
+func userPath(name string, rest ...string) string {
+	return strings.Join(append([]string{"/v1/users/" + url.PathEscape(name)}, rest...), "/")
+}
+
+// Users implements ops.Service.
+func (c *Client) Users(ctx context.Context) ([]ops.UserSummary, error) {
+	var out []ops.UserSummary
+	err := c.do(ctx, http.MethodGet, "/v1/users", nil, nil, &out)
+	return out, err
+}
+
+// User implements ops.Service.
+func (c *Client) User(ctx context.Context, name string) (ops.Account, error) {
+	var out ops.Account
+	err := c.do(ctx, http.MethodGet, userPath(name), nil, nil, &out)
+	return out, err
+}
+
+// CreateUser implements ops.Service.
+func (c *Client) CreateUser(ctx context.Context, opts ops.CreateUser) (ops.Account, error) {
+	var out ops.Account
+	err := c.do(ctx, http.MethodPost, "/v1/users", nil, opts, &out)
+	return out, err
+}
+
+// DeleteUser implements ops.Service.
+func (c *Client) DeleteUser(ctx context.Context, name string) error {
+	return c.do(ctx, http.MethodDelete, userPath(name), nil, nil, nil)
+}
+
+// UpdateUser implements ops.Service.
+func (c *Client) UpdateUser(ctx context.Context, name string, u ops.UserUpdate) error {
+	return c.do(ctx, http.MethodPatch, userPath(name), nil, u, nil)
+}
+
+// AddUserKey implements ops.Service.
+func (c *Client) AddUserKey(ctx context.Context, name, key string) (ops.PublicKey, error) {
+	var out ops.PublicKey
+	err := c.do(ctx, http.MethodPost, userPath(name, "keys"), nil, map[string]string{"key": key}, &out)
+	return out, err
+}
+
+// RemoveUserKey implements ops.Service.
+func (c *Client) RemoveUserKey(ctx context.Context, name, key string) error {
+	return c.do(ctx, http.MethodDelete, userPath(name, "keys"), url.Values{"key": {key}}, nil, nil)
+}
+
+// Settings implements ops.Service.
+func (c *Client) Settings(ctx context.Context) (ops.Settings, error) {
+	var out ops.Settings
+	err := c.do(ctx, http.MethodGet, "/v1/settings", nil, nil, &out)
+	return out, err
+}
+
+// UpdateSettings implements ops.Service.
+func (c *Client) UpdateSettings(ctx context.Context, u ops.SettingsUpdate) (ops.Settings, error) {
+	var out ops.Settings
+	err := c.do(ctx, http.MethodPatch, "/v1/settings", nil, u, &out)
+	return out, err
 }

@@ -1,5 +1,5 @@
-// Package ops is everything a caller can do to repositories and their own
-// account, with the caller's permissions applied, independent of how they asked.
+// Package ops is everything a caller can do to repositories, their own
+// account and, for admins, the server's users and settings, with the caller's permissions applied, independent of how they asked.
 //
 // The SSH commands, the REST API, the web UI and the TUI all go through a
 // Service, so a rule about who may do what lives in one place and every
@@ -103,6 +103,29 @@ type Service interface {
 	DeleteAccessToken(ctx context.Context, id int64) error
 	// SetUsername renames the actor's account.
 	SetUsername(ctx context.Context, username string) error
+
+	// Users lists the server's users. This and the rest of the user and
+	// settings methods are for server admins only.
+	Users(ctx context.Context) ([]UserSummary, error)
+	// User describes one user.
+	User(ctx context.Context, name string) (Account, error)
+	// CreateUser creates a user.
+	CreateUser(ctx context.Context, opts CreateUser) (Account, error)
+	// DeleteUser deletes a user who owns no repositories. Admins can't
+	// delete themselves.
+	DeleteUser(ctx context.Context, name string) error
+	// UpdateUser changes the admin flag, then the username, as set in u.
+	// Admins can't remove their own admin flag.
+	UpdateUser(ctx context.Context, name string, u UserUpdate) error
+	// AddUserKey adds an SSH key to a user.
+	AddUserKey(ctx context.Context, name, key string) (PublicKey, error)
+	// RemoveUserKey removes an SSH key, or the key with a fingerprint,
+	// from a user.
+	RemoveUserKey(ctx context.Context, name, key string) error
+	// Settings are the server's settings.
+	Settings(ctx context.Context) (Settings, error)
+	// UpdateSettings changes the settings set in u, and returns them all.
+	UpdateSettings(ctx context.Context, u SettingsUpdate) (Settings, error)
 }
 
 // RepoSummary is a repository in a list.

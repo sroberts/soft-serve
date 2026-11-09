@@ -194,3 +194,62 @@ func (s *sessionService) CreateAccessToken(ctx context.Context, opts ops.CreateT
 func (s *sessionService) DeleteAccessToken(ctx context.Context, id int64) error {
 	return s.local().DeleteAccessToken(ctx, id)
 }
+
+// Users implements ops.Service.
+func (s *sessionService) Users(ctx context.Context) ([]ops.UserSummary, error) {
+	return s.local().Users(ctx)
+}
+
+// User implements ops.Service.
+func (s *sessionService) User(ctx context.Context, name string) (ops.Account, error) {
+	return s.local().User(ctx, name)
+}
+
+// CreateUser implements ops.Service.
+func (s *sessionService) CreateUser(ctx context.Context, opts ops.CreateUser) (ops.Account, error) {
+	return s.local().CreateUser(ctx, opts)
+}
+
+// DeleteUser implements ops.Service.
+func (s *sessionService) DeleteUser(ctx context.Context, name string) error {
+	return s.local().DeleteUser(ctx, name)
+}
+
+// UpdateUser implements ops.Service. An admin renaming their own account
+// is followed like SetUsername.
+func (s *sessionService) UpdateUser(ctx context.Context, name string, u ops.UserUpdate) error {
+	l := s.local()
+	self := false
+	if me := l.Actor().User; me != nil {
+		if acct, err := l.User(ctx, name); err == nil && acct.Username == me.Username() {
+			self = true
+		}
+	}
+	if err := l.UpdateUser(ctx, name, u); err != nil {
+		return err
+	}
+	if self {
+		return s.refresh(ctx)
+	}
+	return nil
+}
+
+// AddUserKey implements ops.Service.
+func (s *sessionService) AddUserKey(ctx context.Context, name, key string) (ops.PublicKey, error) {
+	return s.local().AddUserKey(ctx, name, key)
+}
+
+// RemoveUserKey implements ops.Service.
+func (s *sessionService) RemoveUserKey(ctx context.Context, name, key string) error {
+	return s.local().RemoveUserKey(ctx, name, key)
+}
+
+// Settings implements ops.Service.
+func (s *sessionService) Settings(ctx context.Context) (ops.Settings, error) {
+	return s.local().Settings(ctx)
+}
+
+// UpdateSettings implements ops.Service.
+func (s *sessionService) UpdateSettings(ctx context.Context, u ops.SettingsUpdate) (ops.Settings, error) {
+	return s.local().UpdateSettings(ctx, u)
+}

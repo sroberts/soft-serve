@@ -48,3 +48,18 @@ func Attach(cmd *cobra.Command) {
 	// stderr; over SSH the session sets stdout, and so does this.
 	cmd.SetOut(os.Stdout)
 }
+
+// Commands attaches each of cmds, top-level SSH commands, to a server's REST
+// API, and says so in their help.
+func Commands(cmds ...*cobra.Command) []*cobra.Command {
+	for _, c := range cmds {
+		c.Short += " on a Soft Serve server"
+		c.Long = c.Short + `.
+
+This is the server's "` + c.Name() + `" SSH command, run here over the REST API.
+Point it at the server with --remote or $` + RemoteEnv + `, and
+authenticate with an access token in $` + TokenEnv + `.`
+		Attach(c)
+	}
+	return cmds
+}
