@@ -89,6 +89,7 @@ git push -u origin main</pre>{{end}}
 {{define "commits"}}{{template "head" .}}
 {{template "repohead" .}}
 {{with .Data}}
+{{if .Page.Path}}<h1 class="pagetitle">History of <a href="{{repoURL $.Repo.Name "blob" $.Ref .Page.Path}}"><code>{{.Page.Path}}</code></a></h1>{{else}}<h1 class="visually-hidden">Commits</h1>{{end}}
 <form class="search history" method="get" action="{{repoURL $.Repo.Name "commits" "" ""}}" role="search">
   <input type="search" name="q" value="{{.Page.Query}}" placeholder="Search commit messages" aria-label="Search commit messages" maxlength="200">
   <input type="search" name="author" value="{{.Page.Author}}" placeholder="Author" aria-label="Author's name or email" maxlength="100" class="author">
@@ -98,7 +99,7 @@ git push -u origin main</pre>{{end}}
 </form>
 {{if .Err}}<p class="formerror" role="alert">{{.Err}}</p>{{end}}
 {{if .Searched}}<p class="summaryline">{{.Page.Total}} commit{{if ne .Page.Total 1}}s{{end}}{{with .Page.Query}} mentioning “{{.}}”{{end}}{{with .Page.Author}} by authors matching “{{.}}”{{end}} on <code>{{.Page.Ref}}</code>. <a href="{{repoURL $.Repo.Name "commits" $.Ref .Page.Path}}">Clear</a></p>{{end}}
-<p class="scope">{{if .Page.Path}}History of <a href="{{repoURL $.Repo.Name "blob" $.Ref .Page.Path}}"><code>{{.Page.Path}}</code></a>{{end}}<span class="grow"></span>{{if .Page.Path}}<a href="{{repoURL $.Repo.Name "commits" $.Ref ""}}">All commits</a> · {{end}}<a href="{{$.Feed}}">Atom feed</a></p>
+<p class="scope"><span class="grow"></span>{{if .Page.Path}}<a href="{{repoURL $.Repo.Name "commits" $.Ref ""}}">All commits</a> · {{end}}<a href="{{$.Feed}}">Atom feed</a></p>
 <ol class="commits">
   {{range .Page.Commits}}
   <li>
@@ -121,7 +122,7 @@ git push -u origin main</pre>{{end}}
 {{template "repohead" .}}
 {{with .Data}}
 <article class="commit">
-  <h2>{{.Summary}}</h2>
+  <h1>{{.Summary}}</h1>
   {{with body .Message}}<pre class="message">{{.}}</pre>{{end}}
   <dl class="meta">
     <dt>Author</dt><dd>{{.Author.Name}} &lt;{{.Author.Email}}&gt; · <time datetime="{{.Author.When.Format "2006-01-02T15:04:05Z07:00"}}">{{.Author.When.Format "2 Jan 2006 15:04"}}</time></dd>
@@ -137,6 +138,7 @@ git push -u origin main</pre>{{end}}
 
 {{define "refs"}}{{template "head" .}}
 {{template "repohead" .}}
+<h1 class="visually-hidden">Branches and tags</h1>
 {{with .Data}}
 <section class="refs">
   <h2>Branches</h2>
@@ -248,6 +250,7 @@ git push -u origin main</pre>{{end}}
 
 {{define "compare"}}{{template "head" .}}
 {{template "repohead" .}}
+<h1 class="visually-hidden">Compare</h1>
 {{with .Data}}
 <form class="compareform" method="get" action="{{repoURL $.Repo.Name "compare" "" ""}}">
   <label>Base <input name="base" value="{{.Base}}" list="refnames" required autocomplete="off" spellcheck="false"></label>
@@ -284,6 +287,7 @@ git push -u origin main</pre>{{end}}
 
 {{define "search"}}{{template "head" .}}
 {{template "repohead" .}}
+<h1 class="visually-hidden">Search</h1>
 {{with .Data}}
 <form class="search" method="get" action="{{repoURL $.Repo.Name "search" "" ""}}" role="search">
   <input type="search" name="q" value="{{.Query}}" placeholder="Find text in the files" aria-label="Search the files" minlength="2" maxlength="200" required>
@@ -311,6 +315,7 @@ git push -u origin main</pre>{{end}}
 
 {{define "access"}}{{template "head" .}}
 {{template "repohead" .}}
+<h1 class="visually-hidden">Access</h1>
 {{with .Data}}
 <section class="refs">
   <h2>Collaborators</h2>
@@ -325,6 +330,7 @@ git push -u origin main</pre>{{end}}
 
 {{define "find"}}{{template "head" .}}
 {{template "repohead" .}}
+<h1 class="pagetitle">Go to file</h1>
 {{with .Data}}
 <form class="search" method="get" action="{{repoURL $.Repo.Name "find" "" ""}}" role="search">
   <input type="search" name="q" value="{{.Query}}" placeholder="Part of a file's path, or its letters in order" aria-label="Go to file" maxlength="200" required autofocus>
@@ -348,6 +354,7 @@ git push -u origin main</pre>{{end}}
 
 {{define "insights"}}{{template "head" .}}
 {{template "repohead" .}}
+<h1 class="visually-hidden">Insights</h1>
 {{with .Data}}
 <section class="insights">
   <dl class="figures">
