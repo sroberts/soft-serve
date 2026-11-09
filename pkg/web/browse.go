@@ -278,6 +278,12 @@ func (b *browser) openLevel(ctx context.Context, name string) (proto.Repository,
 // repositories are left out, as they are in the TUI; they can still be
 // opened by name.
 func (b *browser) repos(ctx context.Context) ([]RepoInfo, error) {
+	return b.listRepos(ctx, false)
+}
+
+// listRepos lists the repositories the caller can read, hidden ones too if
+// asked, as `repo list --all` does.
+func (b *browser) listRepos(ctx context.Context, hidden bool) ([]RepoInfo, error) {
 	all, err := b.be.Repositories(ctx)
 	if err != nil {
 		return nil, err
@@ -285,7 +291,7 @@ func (b *browser) repos(ctx context.Context) ([]RepoInfo, error) {
 	out := make([]RepoInfo, 0, len(all))
 	for _, r := range all {
 		level := b.be.AccessLevelForUser(ctx, r.Name(), b.user)
-		if r.IsHidden() || level < access.ReadOnlyAccess {
+		if (r.IsHidden() && !hidden) || level < access.ReadOnlyAccess {
 			continue
 		}
 		info := b.info(r, nil, level)

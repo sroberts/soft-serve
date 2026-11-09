@@ -314,8 +314,11 @@ func TestAccessAndCollaborators(t *testing.T) {
 	is.NoErr(json.Unmarshal(w.Body.Bytes(), &cs))
 	is.Equal(cs, []Collaborator{{Username: "stranger", Access: "read-only"}})
 	is.Equal(f.do(req{path: "/v1/repos/group/open/-/collaborators", identity: stranger}).Code, http.StatusForbidden)
-	is.Equal(f.do(req{path: "/v1/repos/group/open/-/collaborators"}).Code, http.StatusForbidden)
-	is.Equal(f.do(req{path: "/v1/repos/secret/-/collaborators"}).Code, http.StatusNotFound)
+	// Anonymous callers are asked to sign in, the same for a private
+	// repository as for a public one, as over SSH.
+	is.Equal(f.do(req{path: "/v1/repos/group/open/-/collaborators"}).Code, http.StatusUnauthorized)
+	is.Equal(f.do(req{path: "/v1/repos/secret/-/collaborators"}).Code, http.StatusUnauthorized)
+	is.Equal(f.do(req{path: "/v1/repos/secret/-/collaborators", identity: stranger}).Code, http.StatusNotFound)
 
 	w = f.do(req{path: "/group/open", auth: ownerAuth})
 	is.True(strings.Contains(w.Body.String(), `/group/open/-/access`))

@@ -91,6 +91,24 @@ func (l *Local) creatable(ctx context.Context, name string) (access.AccessLevel,
 	return level, nil
 }
 
+// validName checks a name for a new repository, so a bad one is reported
+// as the caller's mistake rather than a failure.
+func validName(name string) error {
+	if err := utils.ValidateRepo(utils.SanitizeRepo(name)); err != nil {
+		return Invalid("%v", err)
+	}
+	return nil
+}
+
+// validWebhookURL checks where a webhook would be sent, for the same
+// reason; the backend checks again.
+func validWebhookURL(url string) error {
+	if err := webhook.ValidateWebhookURL(url); err != nil {
+		return Invalid("invalid webhook URL: %v", err)
+	}
+	return nil
+}
+
 // ListRepos implements Service.
 func (l *Local) ListRepos(ctx context.Context, all bool) ([]RepoSummary, error) {
 	ctx = l.withUser(ctx)
@@ -166,6 +184,9 @@ func (l *Local) describe(ctx context.Context, r proto.Repository, level access.A
 // CreateRepo implements Service.
 func (l *Local) CreateRepo(ctx context.Context, opts CreateRepo) (Repo, error) {
 	ctx = l.withUser(ctx)
+	if err := validName(opts.Name); err != nil {
+		return Repo{}, err
+	}
 	level, err := l.creatable(ctx, opts.Name)
 	if err != nil {
 		return Repo{}, err
@@ -226,6 +247,9 @@ func (l *Local) RenameRepo(ctx context.Context, name, newName string) error {
 	ctx = l.withUser(ctx)
 	r, _, err := l.repo(ctx, name, access.ReadWriteAccess)
 	if err != nil {
+		return err
+	}
+	if err := validName(newName); err != nil {
 		return err
 	}
 	newName = utils.SanitizeRepo(newName)
@@ -573,6 +597,9 @@ func (l *Local) CreateWebhook(ctx context.Context, name string, opts WebhookOpti
 	}
 	active := opts.Active == nil || *opts.Active
 	url := strings.TrimSpace(utils.Sanitize(opts.URL))
+	if err := validWebhookURL(url); err != nil {
+		return Webhook{}, err
+	}
 
 	before, err := l.be.ListWebhooks(ctx, r)
 	if err != nil {
@@ -609,6 +636,9 @@ func (l *Local) UpdateWebhook(ctx context.Context, name string, id int64, opts W
 	url, secret, active, ct, events := wh.URL, wh.Secret, wh.Active, wh.ContentType, wh.Events
 	if opts.URL != "" {
 		url = strings.TrimSpace(utils.Sanitize(opts.URL))
+		if err := validWebhookURL(url); err != nil {
+			return err
+		}
 	}
 	if opts.Secret != "" {
 		secret = opts.Secret

@@ -237,4 +237,3 @@ func checkIfServerAdmin(cmd *cobra.Command, _ []string) error {
 	}
 	return nil
 }
-

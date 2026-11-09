@@ -551,8 +551,10 @@ func (b *browser) collaborators(ctx context.Context, name string) ([]Collaborato
 	if err != nil {
 		return nil, err
 	}
-	if level < access.AdminAccess {
-		return nil, fmt.Errorf("%w: only a repository's admins can see its collaborators", errForbidden)
+	// The same rule as `repo collab list` over SSH: anyone who may add
+	// collaborators may see them.
+	if level < access.ReadWriteAccess {
+		return nil, fmt.Errorf("%w: only those with write access can see a repository's collaborators", errForbidden)
 	}
 	names, err := b.be.Collaborators(ctx, r.Name())
 	if err != nil {

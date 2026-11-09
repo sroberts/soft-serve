@@ -3,18 +3,36 @@
   "info": {
     "title": "Soft Serve",
     "version": "1",
-    "description": "Read-only access to the repositories on a Soft Serve server. Every endpoint answers with what the caller may read: behind Outpost's login gateway the caller is the Soft Serve user named like the signed-in Outpost user; otherwise send a Soft Serve access token as `Authorization: Token <token>`, or nothing for anonymous access. A repository the caller may not read answers 404, like one that does not exist. Repository names can contain slashes, so the name and the action are separated by `/-/`."
+    "description": "The repositories on a Soft Serve server: reading them, and managing them with the same operations and permissions as the SSH `repo` commands. Every endpoint answers with what the caller may do: behind Outpost's login gateway the caller is the Soft Serve user named like the signed-in Outpost user; otherwise send a Soft Serve access token as `Authorization: Token <token>`, or nothing for anonymous access. A repository the caller may not read answers 404, like one that does not exist; to an anonymous caller, the management endpoints answer 401 instead, either way. Requests that change something are refused (403) when a browser says they come from another site. Bodies are JSON. Repository names can contain slashes, so the name and the action are separated by `/-/`."
   },
   "paths": {
     "/v1/repos": {
       "get": {
         "operationId": "listRepositories",
         "summary": "List the repositories the caller can read",
-        "description": "Hidden repositories are left out; they can still be fetched by name.",
-        "parameters": [{"name": "q", "in": "query", "description": "Only repositories whose name, project name or description contains this, ignoring case", "schema": {"type": "string"}}],
+        "description": "Hidden repositories are left out unless asked for; they can still be fetched by name.",
+        "parameters": [
+          {"name": "q", "in": "query", "description": "Only repositories whose name, project name or description contains this, ignoring case", "schema": {"type": "string"}},
+          {"name": "hidden", "in": "query", "description": "`true` to include hidden repositories, as `repo list --all` does", "schema": {"type": "boolean"}}
+        ],
         "responses": {
           "200": {"description": "Repositories, by name", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Repo"}}}}},
           "401": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "post": {
+        "operationId": "createRepository",
+        "summary": "Create a repository, or import one",
+        "description": "With `remote`, the repository is imported from it: a hard fork that keeps no tie to the remote, or with `mirror` a mirror that keeps following it. Needs write access to the name.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateRepo"}}}},
+        "responses": {
+          "201": {"description": "The new repository", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RepoSettings"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "409": {"$ref": "#/components/responses/Error"},
+          "502": {"$ref": "#/components/responses/Error"},
+          "503": {"$ref": "#/components/responses/Error"}
         }
       }
     },
@@ -25,6 +43,106 @@
         "summary": "Describe a repository",
         "responses": {
           "200": {"description": "The repository", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Repo"}}}},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "patch": {
+        "operationId": "updateRepository",
+        "summary": "Change a repository's settings",
+        "description": "Only the fields sent change, in the order listed, stopping at the first that fails. Needs write access.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RepoUpdate"}}}},
+        "responses": {
+          "204": {"description": "Changed"},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "delete": {
+        "operationId": "deleteRepository",
+        "summary": "Delete a repository",
+        "description": "Needs write access.",
+        "responses": {
+          "204": {"description": "Deleted"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/info": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}],
+      "get": {
+        "operationId": "getRepositorySettings",
+        "summary": "A repository's settings and refs, as `repo info` shows them",
+        "responses": {
+          "200": {"description": "The repository", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RepoSettings"}}}},
+          "401": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/rename": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}],
+      "post": {
+        "operationId": "renameRepository",
+        "summary": "Rename a repository",
+        "description": "Needs write access to the repository and to the new name.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}}},
+        "responses": {
+          "204": {"description": "Renamed"},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"},
+          "409": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/sync": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}],
+      "post": {
+        "operationId": "syncMirror",
+        "summary": "Pull a mirror from its upstream now",
+        "description": "Needs write access. 400 if the repository is not a mirror, 409 if it is already syncing, 502 if the upstream could not be reached.",
+        "responses": {
+          "204": {"description": "Synced"},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"},
+          "409": {"$ref": "#/components/responses/Error"},
+          "502": {"$ref": "#/components/responses/Error"},
+          "503": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/branches/{branch}": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"name": "branch", "in": "path", "required": true, "description": "Branch name; may contain slashes", "schema": {"type": "string"}}],
+      "delete": {
+        "operationId": "deleteBranch",
+        "summary": "Delete a branch",
+        "description": "Not the default branch. Needs write access.",
+        "responses": {
+          "204": {"description": "Deleted"},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/tags/{tag}": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"name": "tag", "in": "path", "required": true, "description": "Tag name; may contain slashes", "schema": {"type": "string"}}],
+      "delete": {
+        "operationId": "deleteTag",
+        "summary": "Delete a tag",
+        "description": "Needs write access.",
+        "responses": {
+          "204": {"description": "Deleted"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
           "404": {"$ref": "#/components/responses/Error"}
         }
       }
@@ -191,9 +309,136 @@
       "get": {
         "operationId": "listCollaborators",
         "summary": "List a repository's collaborators",
-        "description": "Only the repository's admins can.",
+        "description": "Needs write access.",
         "responses": {
           "200": {"description": "Collaborators, by name", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Collaborator"}}}}},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "post": {
+        "operationId": "addCollaborator",
+        "summary": "Add a collaborator",
+        "description": "`access` defaults to read-write. Needs write access, and nobody but a server admin can grant more access than they have. To change someone's access, remove and add them again.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "properties": {"username": {"type": "string"}, "access": {"type": "string", "enum": ["no-access", "read-only", "read-write", "admin-access"]}}, "required": ["username"]}}}},
+        "responses": {
+          "201": {"description": "Added"},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"},
+          "409": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/collaborators/{username}": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"name": "username", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "delete": {
+        "operationId": "removeCollaborator",
+        "summary": "Remove a collaborator",
+        "description": "Needs write access, and nobody but a server admin can remove someone with more access than they have.",
+        "responses": {
+          "204": {"description": "Removed"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/webhooks": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}],
+      "get": {
+        "operationId": "listWebhooks",
+        "summary": "List a repository's webhooks",
+        "description": "Needs admin access. Secrets are never returned.",
+        "responses": {
+          "200": {"description": "Webhooks", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Webhook"}}}}},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "post": {
+        "operationId": "createWebhook",
+        "summary": "Add a webhook",
+        "description": "Needs admin access. The URL may not point at a private or local address.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WebhookOptions"}}}},
+        "responses": {
+          "201": {"description": "The new webhook", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Webhook"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/webhooks/{id}": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/WebhookID"}],
+      "patch": {
+        "operationId": "updateWebhook",
+        "summary": "Change a webhook",
+        "description": "Only the fields sent change. Needs admin access.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WebhookOptions"}}}},
+        "responses": {
+          "204": {"description": "Changed"},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "delete": {
+        "operationId": "deleteWebhook",
+        "summary": "Remove a webhook",
+        "description": "Needs admin access.",
+        "responses": {
+          "204": {"description": "Removed"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/webhooks/{id}/deliveries": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/WebhookID"}],
+      "get": {
+        "operationId": "listWebhookDeliveries",
+        "summary": "List a webhook's deliveries",
+        "description": "Needs admin access.",
+        "responses": {
+          "200": {"description": "Deliveries", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Delivery"}}}}},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/webhooks/{id}/deliveries/{delivery}": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/WebhookID"}, {"$ref": "#/components/parameters/DeliveryID"}],
+      "get": {
+        "operationId": "getWebhookDelivery",
+        "summary": "One delivery, with its request and response",
+        "description": "Needs admin access.",
+        "responses": {
+          "200": {"description": "The delivery", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DeliveryDetail"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/webhooks/{id}/deliveries/{delivery}/redeliver": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/WebhookID"}, {"$ref": "#/components/parameters/DeliveryID"}],
+      "post": {
+        "operationId": "redeliverWebhookDelivery",
+        "summary": "Send a delivery again",
+        "description": "Needs admin access.",
+        "responses": {
+          "204": {"description": "Sent"},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
           "403": {"$ref": "#/components/responses/Error"},
           "404": {"$ref": "#/components/responses/Error"}
         }
@@ -255,7 +500,9 @@
     "parameters": {
       "Repo": {"name": "repo", "in": "path", "required": true, "description": "Repository name; may contain slashes", "schema": {"type": "string"}},
       "Ref": {"name": "ref", "in": "query", "description": "Branch, tag or commit hash; the default branch when omitted", "schema": {"type": "string"}},
-      "Path": {"name": "path", "in": "query", "description": "Path inside the repository; the root when omitted", "schema": {"type": "string"}}
+      "Path": {"name": "path", "in": "query", "description": "Path inside the repository; the root when omitted", "schema": {"type": "string"}},
+      "WebhookID": {"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}},
+      "DeliveryID": {"name": "delivery", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
     },
     "responses": {
       "Error": {"description": "An error", "content": {"application/json": {"schema": {"type": "object", "properties": {"error": {"type": "string"}}, "required": ["error"]}}}}
@@ -456,6 +703,106 @@
           "files": {"type": "array", "items": {"type": "object", "properties": {"path": {"type": "string"}, "matches": {"type": "array", "items": {"type": "object", "properties": {"line": {"type": "integer"}, "text": {"type": "string"}}, "required": ["line", "text"]}}, "more": {"type": "integer", "description": "Matches in this file past the ones shown"}}, "required": ["path", "matches"]}}
         },
         "required": ["ref", "commit", "query", "files", "truncated"]
+      },
+      "RepoSettings": {
+        "type": "object",
+        "description": "A repository's settings and refs, as `repo info` shows them",
+        "properties": {
+          "name": {"type": "string"},
+          "project_name": {"type": "string"},
+          "description": {"type": "string"},
+          "private": {"type": "boolean"},
+          "hidden": {"type": "boolean"},
+          "mirror": {"type": "boolean"},
+          "auto_sync": {"type": "boolean", "description": "For a mirror: whether it syncs on the server's schedule, or only when asked"},
+          "owner": {"type": "string"},
+          "ssh_url": {"type": "string"},
+          "default_branch": {"type": "string", "description": "Left out for a repository with no commits"},
+          "branches": {"type": "array", "items": {"type": "string"}},
+          "tags": {"type": "array", "items": {"type": "string"}},
+          "access": {"type": "string", "enum": ["read-only", "read-write", "admin-access"]}
+        },
+        "required": ["name", "private", "hidden", "mirror", "branches", "tags", "access"]
+      },
+      "CreateRepo": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "project_name": {"type": "string"},
+          "description": {"type": "string"},
+          "private": {"type": "boolean"},
+          "hidden": {"type": "boolean"},
+          "remote": {"type": "string", "description": "Import from this URL"},
+          "mirror": {"type": "boolean", "description": "With remote: keep following it, rather than a hard fork"},
+          "auto_sync": {"type": "boolean", "description": "With mirror: sync on the server's schedule. Defaults to true"},
+          "lfs": {"type": "boolean", "description": "With remote: pull Git LFS objects"},
+          "lfs_endpoint": {"type": "string", "description": "With remote: the Git LFS endpoint"}
+        },
+        "required": ["name"]
+      },
+      "RepoUpdate": {
+        "type": "object",
+        "properties": {
+          "project_name": {"type": "string"},
+          "description": {"type": "string"},
+          "private": {"type": "boolean"},
+          "hidden": {"type": "boolean"},
+          "mirror": {"type": "boolean"},
+          "auto_sync": {"type": "boolean", "description": "Only for a mirror"},
+          "default_branch": {"type": "string"}
+        }
+      },
+      "Webhook": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "integer"},
+          "url": {"type": "string"},
+          "events": {"type": "array", "items": {"type": "string"}},
+          "content_type": {"type": "string", "enum": ["json", "form"]},
+          "active": {"type": "boolean"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "updated_at": {"type": "string", "format": "date-time"}
+        },
+        "required": ["id", "url", "events", "content_type", "active", "created_at", "updated_at"]
+      },
+      "WebhookOptions": {
+        "type": "object",
+        "description": "When creating: url and events are needed, content_type defaults to json and active to true. When changing: only the fields sent change.",
+        "properties": {
+          "url": {"type": "string"},
+          "events": {"type": "array", "items": {"type": "string", "enum": ["branch_tag_create", "branch_tag_delete", "collaborator", "push", "repository", "repository_visibility_change"]}},
+          "content_type": {"type": "string", "enum": ["json", "form"]},
+          "secret": {"type": "string", "description": "Signs the payload; never returned"},
+          "active": {"type": "boolean"}
+        }
+      },
+      "Delivery": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "format": "uuid"},
+          "event": {"type": "string"},
+          "response_status": {"type": "integer"},
+          "created_at": {"type": "string", "format": "date-time"}
+        },
+        "required": ["id", "event", "response_status", "created_at"]
+      },
+      "DeliveryDetail": {
+        "allOf": [
+          {"$ref": "#/components/schemas/Delivery"},
+          {
+            "type": "object",
+            "properties": {
+              "request_url": {"type": "string"},
+              "request_method": {"type": "string"},
+              "request_error": {"type": "string"},
+              "request_headers": {"type": "string"},
+              "request_body": {"type": "string"},
+              "response_headers": {"type": "string"},
+              "response_body": {"type": "string"}
+            },
+            "required": ["request_url", "request_method", "request_headers", "request_body", "response_headers", "response_body"]
+          }
+        ]
       },
       "Collaborator": {
         "type": "object",

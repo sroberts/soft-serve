@@ -32,10 +32,14 @@ func newRouter(ctx context.Context, v *outpostVerifier) http.Handler {
 	// mistaken for a page.
 	GitController(ctx, router)
 
-	// The read-only REST API, MCP and the web pages.
+	// The REST API, MCP and the web pages. The API and the pages change
+	// repositories on behalf of whoever the request is from, and in a
+	// browser that can be decided by a cookie Outpost's gateway reads, so
+	// changes from other sites are refused. MCP has its own protection.
+	cop := crossOriginProtection(ctx)
 	router.Path("/mcp").Handler(mcpHandler(v))
-	router.PathPrefix("/v1/").Handler(apiHandler{verifier: v})
-	router.PathPrefix("/").Handler(uiHandler{verifier: v})
+	router.PathPrefix("/v1/").Handler(cop.Handler(apiHandler{verifier: v}))
+	router.PathPrefix("/").Handler(cop.Handler(uiHandler{verifier: v}))
 
 	// Context handler
 	// Adds context to the request
@@ -51,4 +55,25 @@ func newRouter(ctx context.Context, v *outpostVerifier) http.Handler {
 	)(h)
 
 	return h
+}
+
+// crossOriginProtection refuses requests that change something when a
+// browser says they come from another site. Origins the operator allows for
+// CORS are trusted to make them; a wildcard is not, since that would trust
+// every site.
+func crossOriginProtection(ctx context.Context) *http.CrossOriginProtection {
+	cop := http.NewCrossOriginProtection()
+	cfg := config.FromContext(ctx)
+	for _, o := range cfg.HTTP.CORS.AllowedOrigins {
+		if o == "" || o == "*" {
+			continue
+		}
+		if err := cop.AddTrustedOrigin(o); err != nil {
+			log.FromContext(ctx).Warn("ignoring CORS origin for cross-origin protection", "origin", o, "err", err)
+		}
+	}
+	cop.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		writeAPIError(w, http.StatusForbidden, "cross-origin request refused")
+	}))
+	return cop
 }
