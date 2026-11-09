@@ -81,6 +81,15 @@ func TestHistoryOfPath(t *testing.T) {
 	is.Equal(other.Commits[0].Summary, "First commit")
 	is.Equal(f.do(req{path: "/v1/repos/group/open/-/commits?path=../x"}).Code, http.StatusBadRequest)
 
+	// The path is a path, never a pattern or pathspec magic: nothing is
+	// named "*.md" or ":(exclude)src".
+	for _, p := range []string{"%2A.md", "%3A%28exclude%29src"} {
+		var none CommitPage
+		f.getJSON(t, "/v1/repos/group/open/-/commits?path="+p, &none)
+		is.Equal(none.Total, int64(0))
+		is.Equal(len(none.Commits), 0)
+	}
+
 	// The file page's History link is the file's history.
 	w := f.do(req{path: "/group/open/-/blob?path=src/main.go"})
 	is.True(strings.Contains(w.Body.String(), `href="/group/open/-/commits?path=src%2Fmain.go&amp;ref=main"`))

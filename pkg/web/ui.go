@@ -101,6 +101,10 @@ type page struct {
 	Repo      *RepoInfo
 	Ref       string
 	Tab       string
+	// RepoHome is set on a repository's front page, the one page that
+	// shows its description, clone URLs and downloads. Deeper pages lead
+	// with what they show instead.
+	RepoHome bool
 	// Feed is an Atom feed for the page, if it has one.
 	Feed string
 	// Notice says what the change that led here did.
@@ -259,6 +263,7 @@ type summaryData struct {
 
 func (h uiHandler) summary(w http.ResponseWriter, r *http.Request, b *browser, p page) {
 	p.Tab = "files"
+	p.RepoHome = true
 	d := summaryData{}
 	if !p.Repo.Empty {
 		t, err := b.tree(r.Context(), p.Repo.Name, p.Ref, "", true)
@@ -650,6 +655,8 @@ func dataPath(d any) string {
 type pathPart struct {
 	Name string
 	Path string
+	// Last marks the page's own file or folder, which isn't a link.
+	Last bool
 }
 
 // pathParts splits a path into breadcrumbs.
@@ -663,6 +670,7 @@ func pathParts(p string) []pathPart {
 		acc = gopath.Join(acc, seg)
 		parts = append(parts, pathPart{Name: seg, Path: acc})
 	}
+	parts[len(parts)-1].Last = true
 	return parts
 }
 

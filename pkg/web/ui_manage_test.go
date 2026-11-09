@@ -223,8 +223,10 @@ func TestUICollaborators(t *testing.T) {
 	if w := f.post("/secret/-/access/add", "", url.Values{"username": {"x"}}); w.Code != http.StatusNotFound {
 		t.Errorf("anonymous add on a private repository: %d", w.Code)
 	}
-	wr := f.do(req{method: http.MethodPost, path: "/secret/-/access/remove", identity: stranger, body: "username=stranger",
-		header: map[string]string{"Content-Type": "application/x-www-form-urlencoded"}})
+	wr := f.do(req{
+		method: http.MethodPost, path: "/secret/-/access/remove", identity: stranger, body: "username=stranger",
+		header: map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
+	})
 	if wr.Code != http.StatusForbidden {
 		t.Errorf("reader remove: %d", wr.Code)
 	}
