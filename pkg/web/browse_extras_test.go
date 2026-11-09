@@ -375,6 +375,10 @@ func TestRedactRemote(t *testing.T) {
 	is.Equal(redactRemote("file:///srv/a.git"), "")
 	is.Equal(redactRemote(`C:\repos\a`), "")
 	is.Equal(redactRemote("./relative"), "")
+	// Passwords that keep the URL from parsing must not come back whole.
+	for _, raw := range []string{"https://user:pa#ss@example.com/a.git", "https://user:pa/ss@example.com/a.git", "https://user:pa?ss@example.com/a.git"} {
+		is.Equal(redactRemote(raw), "")
+	}
 }
 
 func TestMirrorDetails(t *testing.T) {

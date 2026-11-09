@@ -2,9 +2,12 @@ package web
 
 import (
 	"context"
+	"net"
 	"net/http"
-	"os"
+	"net/url"
+	"strings"
 
+	"github.com/charmbracelet/soft-serve/pkg/config"
 	"github.com/charmbracelet/soft-serve/pkg/version"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -26,15 +29,19 @@ func mcpHandler(v *outpostVerifier) http.Handler {
 		// is no session state for a portal that drops cookies to break.
 		Stateless:    true,
 		JSONResponse: true,
-		// Outpost reaches us on 127.0.0.1 with the tailnet name in Host,
-		// which this check would refuse. Behind Outpost only its node and
-		// gateway can reach us, and the origin check below still stops
-		// browsers on other sites.
-		DisableLocalhostProtection: os.Getenv("OUTPOST_STORAGE_DIR") != "",
+		// The SDK's DNS-rebinding check refuses any non-loopback Host on a
+		// loopback connection, which is how Outpost and reverse proxies
+		// reach us. allowedHost below does the same job, knowing which
+		// names are ours.
+		DisableLocalhostProtection: true,
 		MaxRequestBodyBytes:        1 << 20,
 	})
 	h := http.NewCrossOriginProtection().Handler(stream)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !allowedHost(r, v) {
+			writeAPIError(w, http.StatusForbidden, "invalid Host header")
+			return
+		}
 		c, err := identifyCaller(r, v)
 		if err != nil {
 			writeAPIError(w, http.StatusUnauthorized, "invalid credentials")
@@ -277,4 +284,41 @@ func newMCPServer(b *browser, outpostUser string, cache *mcp.SchemaCache) *mcp.S
 	}))
 
 	return s
+}
+
+// allowedHost guards /mcp against DNS rebinding: a page on another site whose
+// name now resolves to 127.0.0.1 reaches us with that name in Host. A request
+// on a loopback connection is accepted when Host is a loopback name, when
+// Outpost's login gateway is in front of us (Outpost's node holds the tailnet
+// name, which we don't know), or when Host is the host of the HTTP server's
+// configured public URL.
+func allowedHost(r *http.Request, v *outpostVerifier) bool {
+	local, ok := r.Context().Value(http.LocalAddrContextKey).(net.Addr)
+	if !ok || local == nil || !isLoopbackHost(hostOnly(local.String())) {
+		return true
+	}
+	host := hostOnly(r.Host)
+	if isLoopbackHost(host) || v != nil {
+		return true
+	}
+	public := config.FromContext(r.Context()).HTTP.PublicURL
+	u, err := url.Parse(public)
+	return err == nil && u.Hostname() != "" && strings.EqualFold(u.Hostname(), host)
+}
+
+// hostOnly drops the port from host:port, and the brackets from an IPv6
+// address.
+func hostOnly(hostport string) string {
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
+		return h
+	}
+	return strings.Trim(hostport, "[]")
+}
+
+func isLoopbackHost(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

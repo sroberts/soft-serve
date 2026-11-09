@@ -20,6 +20,7 @@ import (
 	"charm.land/log/v2"
 	"github.com/charmbracelet/soft-serve/pkg/access"
 	"github.com/charmbracelet/soft-serve/pkg/config"
+	"github.com/charmbracelet/soft-serve/pkg/utils"
 	"github.com/dustin/go-humanize"
 )
 
@@ -154,7 +155,9 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		renderNotFound(w, r)
 		return
 	}
-	if trimmed, ok := strings.CutSuffix(name, ".git"); ok && action == "" {
+	// Redirect only a valid repository name: anything else (a leading "\\",
+	// say, which browsers read as "//") could send the visitor off-site.
+	if trimmed, ok := strings.CutSuffix(name, ".git"); ok && action == "" && utils.ValidateRepo(trimmed) == nil {
 		http.Redirect(w, r, repoURL(trimmed, "", "", ""), http.StatusMovedPermanently)
 		return
 	}

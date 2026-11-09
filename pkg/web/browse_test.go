@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -255,6 +256,11 @@ func TestViewOutpostIdentity(t *testing.T) {
 	w = f.do(req{path: "/v1/repos", header: map[string]string{"X-Outpost-User": "owner"}})
 	is.Equal(repoNames(t, w), []string{"group/open"})
 
+	// X-Forwarded-Host is the client's to set, so it can't vouch for a
+	// token minted for another host.
+	w = f.do(req{path: "/v1/repos", identity: o.token(t, "owner", "other.example.ts.net", nil), header: map[string]string{"X-Forwarded-Host": "other.example.ts.net"}})
+	is.Equal(repoNames(t, w), []string{"group/open"})
+
 	// Tokens that don't verify are ignored.
 	bad := map[string]string{
 		"another host":  o.token(t, "owner", "other.example.ts.net", nil),
@@ -458,6 +464,11 @@ func TestPages(t *testing.T) {
 	is.Equal(f.do(req{path: "/group/open/-/blob?path=src"}).Code, http.StatusFound)
 	is.Equal(f.do(req{path: "/group/open/-/tree?path=src/main.go"}).Code, http.StatusFound)
 	is.Equal(f.do(req{path: "/group/open.git"}).Code, http.StatusMovedPermanently)
+	// A name that isn't a repository's is never redirected: browsers read a
+	// leading "/\\" as "//", so this one would leave the site.
+	w := f.do(req{path: "/%5Cevil.com.git"})
+	is.True(w.Code != http.StatusMovedPermanently)
+	is.Equal(w.Header().Get("Location"), "")
 
 	// Static assets.
 	is.Equal(f.do(req{path: "/-/static/style.css"}).Code, http.StatusOK)
@@ -569,4 +580,41 @@ func TestBaseURL(t *testing.T) {
 	is.Equal(baseURL(r), "https://"+viewHost)
 	r.Header.Set("X-Forwarded-Host", "evil/path")
 	is.Equal(baseURL(r), "") // not a host: no URL rather than a wrong one
+}
+
+// /mcp refuses a loopback connection addressed to a name that isn't ours,
+// which is what a DNS-rebinding page looks like.
+func TestMCPAllowedHost(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.HTTP.PublicURL = "https://git.example.ts.net"
+	loop := &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 23232}
+	public := &net.TCPAddr{IP: net.IPv4(100, 64, 0, 1), Port: 23232}
+	for _, tc := range []struct {
+		name    string
+		local   net.Addr
+		host    string
+		gateway bool
+		want    bool
+	}{
+		{"loopback name", loop, "localhost:23232", false, true},
+		{"loopback address", loop, "127.0.0.1:23232", false, true},
+		{"loopback IPv6", loop, "[::1]:23232", false, true},
+		{"public URL host", loop, "git.example.ts.net", false, true},
+		{"public URL host, any case", loop, "GIT.example.ts.net:443", false, true},
+		{"rebound name", loop, "evil.example", false, false},
+		{"rebound name behind the gateway", loop, "evil.example", true, true},
+		{"not a loopback connection", public, "evil.example", false, true},
+	} {
+		ctx := config.WithContext(context.Background(), cfg)
+		ctx = context.WithValue(ctx, http.LocalAddrContextKey, tc.local)
+		r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/mcp", nil)
+		r.Host = tc.host
+		var v *outpostVerifier
+		if tc.gateway {
+			v = &outpostVerifier{}
+		}
+		if got := allowedHost(r, v); got != tc.want {
+			t.Errorf("%s: allowedHost = %v; want %v", tc.name, got, tc.want)
+		}
+	}
 }
