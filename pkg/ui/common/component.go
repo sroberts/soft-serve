@@ -59,3 +59,6 @@ type OpenRepoMsg string
 
 // HomeMsg asks the UI to go back to the repository list and reload it.
 type HomeMsg struct{}
+
+// OpenAccountMsg asks the UI to show the caller's account.
+type OpenAccountMsg struct{}

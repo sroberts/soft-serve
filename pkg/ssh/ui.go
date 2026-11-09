@@ -13,6 +13,7 @@ import (
 	"github.com/charmbracelet/soft-serve/pkg/ui/components/footer"
 	"github.com/charmbracelet/soft-serve/pkg/ui/components/header"
 	"github.com/charmbracelet/soft-serve/pkg/ui/components/selector"
+	"github.com/charmbracelet/soft-serve/pkg/ui/pages/account"
 	"github.com/charmbracelet/soft-serve/pkg/ui/pages/repo"
 	"github.com/charmbracelet/soft-serve/pkg/ui/pages/selection"
 )
@@ -22,6 +23,7 @@ type page int
 const (
 	selectionPage page = iota
 	repoPage
+	accountPage
 )
 
 type sessionState int
@@ -53,7 +55,7 @@ func NewUI(c common.Common, initialRepo string) *UI {
 	ui := &UI{
 		serverName:  serverName,
 		common:      c,
-		pages:       make([]common.Component, 2), // selection & repo
+		pages:       make([]common.Component, 3), // selection, repo & account
 		activePage:  selectionPage,
 		state:       loadingState,
 		header:      h,
@@ -67,7 +69,7 @@ func NewUI(c common.Common, initialRepo string) *UI {
 func (ui *UI) getMargins() (wm, hm int) {
 	style := ui.common.Styles.App
 	switch ui.activePage {
-	case selectionPage:
+	case selectionPage, accountPage:
 		hm += ui.common.Styles.ServerName.GetHeight() +
 			ui.common.Styles.ServerName.GetVerticalFrameSize()
 	case repoPage:
@@ -155,6 +157,7 @@ func (ui *UI) Init() tea.Cmd {
 		)
 	}
 	ui.pages[repoPage] = repo.New(ui.common, panes...)
+	ui.pages[accountPage] = account.New(ui.common)
 	ui.SetSize(ui.common.Width, ui.common.Height)
 	cmds := make([]tea.Cmd, 0)
 	cmds = append(cmds,
@@ -225,6 +228,9 @@ func (ui *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			ui.activePage = selectionPage
 			// Always show the footer on selection page.
 			ui.showFooter = true
+		case ui.activePage == accountPage && key.Matches(msg, ui.common.KeyMap.Back):
+			ui.activePage = selectionPage
+			ui.showFooter = true
 		}
 	case tea.MouseClickMsg:
 		switch msg.Button {
@@ -250,6 +256,10 @@ func (ui *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// A repository was made, renamed or changed: show it, and the
 		// list as it now is.
 		cmds = append(cmds, ui.setRepoCmd(string(msg)), ui.pages[selectionPage].Init())
+	case common.OpenAccountMsg:
+		ui.activePage = accountPage
+		ui.showFooter = true
+		cmds = append(cmds, ui.pages[accountPage].Init())
 	case common.HomeMsg:
 		ui.activePage = selectionPage
 		ui.showFooter = true
@@ -315,7 +325,7 @@ func (ui *UI) View() tea.View {
 	default:
 		view = "Unknown state :/ this is a bug!"
 	}
-	if ui.activePage == selectionPage {
+	if ui.activePage == selectionPage || ui.activePage == accountPage {
 		view = lipgloss.JoinVertical(lipgloss.Left, ui.header.View(), view)
 	}
 	if ui.showFooter {

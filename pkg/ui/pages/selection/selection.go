@@ -124,8 +124,13 @@ func (s *Selection) ShortHelp() []key.Binding {
 	if s.activePane == selectorPane {
 		copyKey := s.common.KeyMap.Copy
 		copyKey.SetHelp("c", "copy command")
+		kb = append(kb, s.common.KeyMap.Select)
+		// The account key comes early: the footer cuts off what doesn't
+		// fit, and it's the only way to the account screen.
+		if s.canManage() {
+			kb = append(kb, accountKey)
+		}
 		kb = append(kb,
-			s.common.KeyMap.Select,
 			k.Filter,
 			k.ClearFilter,
 			copyKey,
@@ -189,7 +194,7 @@ func (s *Selection) FullHelp() [][]key.Binding {
 			k.AcceptWhileFiltering,
 		})
 		if s.canManage() {
-			b = append(b, []key.Binding{newKey, importKey})
+			b = append(b, []key.Binding{newKey, importKey, accountKey})
 		}
 	}
 	return b
@@ -261,6 +266,8 @@ func (s *Selection) Update(msg tea.Msg) (common.Model, tea.Cmd) {
 			return s, s.newRepo()
 		case key.Matches(k, importKey):
 			return s, s.importRepo()
+		case key.Matches(k, accountKey):
+			return s, func() tea.Msg { return common.OpenAccountMsg{} }
 		}
 	}
 	cmds := make([]tea.Cmd, 0)
