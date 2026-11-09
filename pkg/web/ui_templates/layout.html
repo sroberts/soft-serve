@@ -29,7 +29,8 @@
 </html>
 {{end}}
 
-{{define "repohead"}}
+{{define "repohead"}}{{/* The full header is the front page's; deeper pages get the tabs and lead with their own heading. */}}
+{{if .RepoHome}}
 <section class="repohead">
   <h1>{{if .Repo.ProjectName}}{{.Repo.ProjectName}}{{else}}{{.Repo.Name}}{{end}}
     {{if .Repo.Private}}<span class="badge">private</span>{{end}}
@@ -45,6 +46,14 @@
     {{if .Repo.Clone.HTTPS}}<div class="cloneline"><span>HTTPS</span> <code class="copy">git clone {{.Repo.Clone.HTTPS}}</code></div>{{end}}
     {{if not .Repo.Empty}}<p class="downloads">Download {{if .Ref}}<code>{{.Ref}}</code>{{else}}the default branch{{end}}: <a href="{{archiveURL .Repo.Name .Ref "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL .Repo.Name .Ref "zip"}}" download>.zip</a></p>{{end}}
   </details>
+  {{template "tabs" .}}
+</section>
+{{else}}
+<div class="repohead compact">{{template "tabs" .}}</div>
+{{end}}
+{{end}}
+
+{{define "tabs"}}
   <nav class="tabs" aria-label="Repository">
     <a href="{{repoURL .Repo.Name "" .Ref ""}}"{{if eq .Tab "files"}} aria-current="page"{{end}}>Files</a>
     <a href="{{repoURL .Repo.Name "commits" .Ref ""}}"{{if eq .Tab "commits"}} aria-current="page"{{end}}>Commits</a>
@@ -55,7 +64,6 @@
     {{if isAdmin .Repo.Access}}<a href="{{repoURL .Repo.Name "access" "" ""}}"{{if eq .Tab "access"}} aria-current="page"{{end}}>Access</a>{{end}}
     {{if and .Ref (not .Repo.Empty)}}<span class="grow"></span><a class="ref" href="{{repoURL .Repo.Name "refs" "" ""}}" title="Switch branch or tag">{{.Ref}}</a>{{end}}
   </nav>
-</section>
 {{end}}
 
 {{define "entries"}}
@@ -95,9 +103,9 @@
 </form>
 {{end}}
 
-{{define "pathbar"}}{{/* . is a page; the path comes from $.Data */}}
-{{$repo := .Repo.Name}}{{$ref := .Ref}}
-<nav class="pathbar" aria-label="Path">
-  <a href="{{repoURL $repo "tree" $ref ""}}">{{$repo}}</a>{{range pathParts (dataPath .Data)}}<span class="sep" aria-hidden="true">/</span><a href="{{repoURL $repo "tree" $ref .Path}}">{{.Name}}</a>{{end}}
-</nav>
+{{define "pathbar"}}{{/* . is a page; the path comes from $.Data. It is the page's heading: the file or folder is what the page is about. */}}
+{{$repo := .Repo.Name}}{{$ref := .Ref}}{{$parts := pathParts (dataPath .Data)}}
+<h1 class="pathbar">
+  {{if $parts}}<a href="{{repoURL $repo "tree" $ref ""}}">{{$repo}}</a>{{else}}<span aria-current="page">{{$repo}}</span>{{end}}{{range $parts}}<span class="sep" aria-hidden="true">/</span>{{if .Last}}<span aria-current="page">{{.Name}}</span>{{else}}<a href="{{repoURL $repo "tree" $ref .Path}}">{{.Name}}</a>{{end}}{{end}}
+</h1>
 {{end}}

@@ -501,6 +501,18 @@ func TestPages(t *testing.T) {
 	is.True(strings.Contains(body, `href="/group/open/-/blob?path=docs%2Fguide.md&amp;ref=main"`))
 	is.True(strings.Contains(body, `src="/group/open/-/raw?path=img%2Flogo.png&amp;ref=main"`))
 
+	// Only the front page carries the full header; deeper pages lead with
+	// what they show, as their one h1.
+	is.True(strings.Contains(body, "Clone or download"))
+	file := f.do(req{path: "/group/open/-/blob?path=src/main.go"}).Body.String()
+	is.True(!strings.Contains(file, "Clone or download"))
+	is.True(!strings.Contains(file, "An open one")) // the description
+	is.Equal(strings.Count(file, "<h1"), 1)
+	is.True(strings.Contains(file, `<span aria-current="page">main.go</span>`))
+	commit := f.do(req{path: "/group/open/-/commits"}).Body.String()
+	is.Equal(strings.Count(commit, "<h1"), 1)
+	is.True(strings.Contains(commit, `aria-current="page">Commits</a>`))
+
 	// A directory opened as a file, and the reverse, redirect.
 	is.Equal(f.do(req{path: "/group/open/-/blob?path=src"}).Code, http.StatusFound)
 	is.Equal(f.do(req{path: "/group/open/-/tree?path=src/main.go"}).Code, http.StatusFound)
