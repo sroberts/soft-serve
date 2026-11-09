@@ -109,6 +109,12 @@ const refFormat = "%(refname)%1f%(objecttype)%1f%(objectname)%1f%(*objectname)%1
 var signatureStart = regexp.MustCompile(`(?m)^-----BEGIN (PGP|SSH) SIGNATURE-----`)
 
 func (b *browser) refs(ctx context.Context, name string) (Refs, error) {
+	return b.listRefs(ctx, name, true)
+}
+
+// listRefs is refs, counting how far each branch is from the default one
+// only when counts is set: that takes a rev-list per branch.
+func (b *browser) listRefs(ctx context.Context, name string, counts bool) (Refs, error) {
 	_, gr, err := b.open(ctx, name)
 	if err != nil {
 		return Refs{}, err
@@ -149,7 +155,9 @@ func (b *browser) refs(ctx context.Context, name string) (Refs, error) {
 			out.Tags = append(out.Tags, ri)
 		}
 	}
-	aheadBehind(ctx, gr, &out)
+	if counts {
+		aheadBehind(ctx, gr, &out)
+	}
 	// The default branch first, then the most recently updated.
 	slices.SortStableFunc(out.Branches, func(a, c RefInfo) int {
 		switch {

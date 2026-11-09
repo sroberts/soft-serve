@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/soft-serve/git"
@@ -80,6 +81,17 @@ type browser struct {
 	// base is the scheme and host the caller reached us at, for HTTPS clone
 	// URLs. Built from the request, never configured (no hard-coded host).
 	base string
+
+	// opened keeps the repositories this request has opened, so a page
+	// that checks access first and then reads doesn't do both twice.
+	mu     sync.Mutex
+	opened map[string]openedRepo
+}
+
+type openedRepo struct {
+	r     proto.Repository
+	gr    *git.Repository
+	level access.AccessLevel
 }
 
 func newBrowser(ctx context.Context, user proto.User, base string) *browser {
@@ -259,6 +271,12 @@ func (b *browser) openLevel(ctx context.Context, name string) (proto.Repository,
 	if name == "" {
 		return nil, nil, access.NoAccess, errNotFound
 	}
+	b.mu.Lock()
+	o, ok := b.opened[name]
+	b.mu.Unlock()
+	if ok {
+		return o.r, o.gr, o.level, nil
+	}
 	r, level := b.be.Readable(ctx, name, b.user)
 	if r == nil {
 		return nil, nil, access.NoAccess, errNotFound
@@ -267,6 +285,12 @@ func (b *browser) openLevel(ctx context.Context, name string) (proto.Repository,
 	if err != nil {
 		return nil, nil, access.NoAccess, err
 	}
+	b.mu.Lock()
+	if b.opened == nil {
+		b.opened = map[string]openedRepo{}
+	}
+	b.opened[name] = openedRepo{r: r, gr: gr, level: level}
+	b.mu.Unlock()
 	return r, gr, level, nil
 }
 
