@@ -110,6 +110,9 @@ type RepoInfo struct {
 	// and MirrorSyncedAt when it last fetched from there.
 	MirrorOf       string     `json:"mirror_of,omitempty"`
 	MirrorSyncedAt *time.Time `json:"mirror_synced_at,omitempty"`
+	// MirrorAutoSync says whether a mirror syncs on the server's schedule
+	// or only when someone runs "repo sync". Unset for other repositories.
+	MirrorAutoSync *bool `json:"mirror_auto_sync,omitempty"`
 }
 
 // CloneURLs are the ways to clone a repository.
@@ -304,6 +307,8 @@ func (b *browser) repo(ctx context.Context, name string) (RepoInfo, error) {
 	info := b.info(r, gr, level)
 	if info.Mirror {
 		info.MirrorOf, info.MirrorSyncedAt = mirrorDetails(ctx, gr)
+		autoSync := backend.MirrorAutoSyncOf(gr)
+		info.MirrorAutoSync = &autoSync
 	}
 	return info, nil
 }

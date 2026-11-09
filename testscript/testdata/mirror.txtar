@@ -22,12 +22,53 @@ cmp stdout info1.txt
 soft repo list
 stdout charmbracelet/wizard-tutorial
 
+# a mirror keeps its remote and syncs on schedule by default
+readfile $DATA_PATH/repos/charmbracelet/wizard-tutorial.git/config
+stdout 'url = https://github.com/charmbracelet/wizard-tutorial.git'
+soft repo auto-sync charmbracelet/wizard-tutorial
+stdout true
+
+# sync it on demand
+soft repo sync charmbracelet/wizard-tutorial
+exists $DATA_PATH/repos/charmbracelet/wizard-tutorial.git/FETCH_HEAD
+
+# take it off the schedule and put it back
+soft repo auto-sync charmbracelet/wizard-tutorial false
+soft repo auto-sync charmbracelet/wizard-tutorial
+stdout false
+readfile $DATA_PATH/repos/charmbracelet/wizard-tutorial.git/config
+stdout 'autosync = false'
+soft repo auto-sync charmbracelet/wizard-tutorial true
+soft repo auto-sync charmbracelet/wizard-tutorial
+stdout true
+! soft repo auto-sync charmbracelet/wizard-tutorial maybe
+stderr 'want true or false'
+
+# a mirror that syncs only on demand
+soft repo import --mirror --auto-sync=false manual-mirror https://github.com/charmbracelet/wizard-tutorial.git
+soft repo auto-sync manual-mirror
+stdout false
+soft repo info manual-mirror
+stdout 'Auto Sync: false'
+soft repo sync manual-mirror
+
+# --auto-sync means nothing for a fork
+! soft repo import --auto-sync=false not-a-mirror https://github.com/charmbracelet/wizard-tutorial.git
+stderr 'only applies with --mirror'
+
 # create a non-mirror repo
 soft repo create test-normal
 soft repo mirror test-normal
 stdout false
 # try to enable mirror on repo without remote - should fail
 ! soft repo mirror test-normal true
+# a repo that is not a mirror has nothing to sync
+! soft repo sync test-normal
+stderr 'not a mirror'
+! soft repo auto-sync test-normal
+stderr 'not a mirror'
+! soft repo auto-sync test-normal false
+stderr 'not a mirror'
 
 # disable mirror
 soft repo mirror charmbracelet/wizard-tutorial false
@@ -110,6 +151,7 @@ Description:
 Private: false
 Hidden: false
 Mirror: true
+Auto Sync: true
 Owner: admin
 Default Branch: main
 Branches:
@@ -121,6 +163,7 @@ Description: testing repo
 Private: true
 Hidden: true
 Mirror: true
+Auto Sync: true
 Owner: admin
 Default Branch: main
 Branches:

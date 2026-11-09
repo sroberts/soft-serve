@@ -17,6 +17,15 @@ var (
 	// which it does when the installed git is too old to enforce the remote
 	// validation. The reason stays in the server log.
 	ErrImportsDisabled = errors.New("imports are disabled on this server")
+	// ErrNotMirror is returned when a mirror-only action is asked of a
+	// repository that is not a mirror.
+	ErrNotMirror = errors.New("repository is not a mirror")
+	// ErrMirrorSyncFailed is returned when syncing a mirror from its
+	// upstream fails. Like ErrImportFailed it carries no detail, so a sync
+	// cannot be used to probe hosts and ports; the server log has it.
+	ErrMirrorSyncFailed = errors.New("mirror sync failed")
+	// ErrMirrorSyncInProgress is returned when a mirror is already syncing.
+	ErrMirrorSyncInProgress = errors.New("mirror sync already in progress")
 	// ErrFileNotFound is returned when the file is not found.
 	ErrFileNotFound = errors.New("file not found")
 	// ErrRepoNotFound is returned when a repository is not found.

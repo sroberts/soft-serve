@@ -31,6 +31,8 @@ func RepoCommand() *cobra.Command {
 		importCommand(),
 		listCommand(),
 		mirrorCommand(),
+		syncCommand(),
+		autoSyncCommand(),
 		privateCommand(),
 		projectName(),
 		renameCommand(),
@@ -82,6 +84,11 @@ func RepoCommand() *cobra.Command {
 				cmd.Println("Private:", rr.IsPrivate())
 				cmd.Println("Hidden:", rr.IsHidden())
 				cmd.Println("Mirror:", rr.IsMirror())
+				if rr.IsMirror() {
+					if autoSync, err := be.MirrorAutoSync(ctx, rr.Name()); err == nil {
+						cmd.Println("Auto Sync:", autoSync)
+					}
+				}
 				if owner != nil {
 					cmd.Println(strings.TrimSpace(fmt.Sprint("Owner: ", owner.Username())))
 				}

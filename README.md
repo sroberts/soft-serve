@@ -653,6 +653,7 @@ Aliases:
   repo, repos, repository, repositories
 
 Available Commands:
+  auto-sync    Set or get whether a mirror syncs on the server's schedule
   blob         Print out the contents of file at path
   branch       Manage repository branches
   collab       Manage collaborators
@@ -667,6 +668,7 @@ Available Commands:
   private      Set or get a repository private property
   project-name Set or get the project name for a repository
   rename       Rename an existing repository
+  sync         Sync a mirror from its upstream now
   tag          Manage repository tags
   tree         Print repository tree at path
 
@@ -727,7 +729,7 @@ git remote add charm ssh://localhost:23231/charmbracelet/icecream
 git push charm main
 ```
 
-### Mirrors
+### Forks and Mirrors
 
 You can also *import* repositories from any public remote. Use the `repo import` command.
 
@@ -735,7 +737,25 @@ You can also *import* repositories from any public remote. Use the `repo import`
 ssh -p 23231 localhost repo import soft-serve https://github.com/charmbracelet/soft-serve
 ```
 
-Use `--mirror` or `-m` to mark the repository as a *pull* mirror.
+A plain import is a *hard fork*: once the repository is cloned its remote is
+dropped, so nothing ties it to where it came from. It's yours to push to, and
+it never pulls from upstream again.
+
+Use `--mirror` or `-m` instead to keep the repository following its remote as
+a *pull* mirror. Mirrors sync on the server's `jobs.mirror_pull` schedule
+(every 10 minutes by default). To sync a mirror only when you ask, import it
+with `--auto-sync=false`, or switch it later:
+
+```sh
+# mirror, but only sync on demand
+ssh -p 23231 localhost repo import --mirror --auto-sync=false soft-serve https://github.com/charmbracelet/soft-serve
+
+# pull from upstream now
+ssh -p 23231 localhost repo sync soft-serve
+
+# put it back on the schedule
+ssh -p 23231 localhost repo auto-sync soft-serve true
+```
 
 ### Deleting Repositories
 
