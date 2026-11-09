@@ -103,7 +103,8 @@ func (v *outpostVerifier) verify(r *http.Request) (string, error) {
 		return "", err
 	}
 	// The audience is the host the request came to; Host is preserved
-	// through the gateway.
+	// through the gateway. X-Forwarded-Host is the client's to set, so it
+	// must not count, or a token minted for another host would pass.
 	if !audienceMatches(claims.Audience, requestHosts(r)) {
 		return "", errors.New("identity token is for another host")
 	}
@@ -113,19 +114,16 @@ func (v *outpostVerifier) verify(r *http.Request) (string, error) {
 	return claims.Subject, nil
 }
 
-// requestHosts are the names r may have been addressed to, without ports.
+// requestHosts is the name r was addressed to, without a port.
 func requestHosts(r *http.Request) []string {
-	var hosts []string
-	for _, h := range []string{r.Host, r.Header.Get("X-Forwarded-Host")} {
-		if h == "" {
-			continue
-		}
-		if host, _, err := net.SplitHostPort(h); err == nil {
-			h = host
-		}
-		hosts = append(hosts, strings.ToLower(h))
+	h := r.Host
+	if h == "" {
+		return nil
 	}
-	return hosts
+	if host, _, err := net.SplitHostPort(h); err == nil {
+		h = host
+	}
+	return []string{strings.ToLower(h)}
 }
 
 func audienceMatches(aud jwt.ClaimStrings, hosts []string) bool {
