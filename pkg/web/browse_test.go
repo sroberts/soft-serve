@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -41,7 +42,9 @@ type fakeOutpost struct {
 	kid     string
 	issuer  string
 	fetches atomic.Int32
-	srv     *httptest.Server
+	// stall, when set, holds each key-set response until it's closed.
+	stall atomic.Pointer[chan struct{}]
+	srv   *httptest.Server
 }
 
 func newFakeOutpost(t *testing.T) *fakeOutpost {
@@ -53,6 +56,9 @@ func newFakeOutpost(t *testing.T) *fakeOutpost {
 	o := &fakeOutpost{key: priv, kid: "k1", issuer: "https://outpost.example.ts.net"}
 	o.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		o.fetches.Add(1)
+		if c := o.stall.Load(); c != nil {
+			<-*c
+		}
 		pub := o.key.Public().(ed25519.PublicKey)
 		json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{{ //nolint:errcheck
 			"kty": "OKP", "crv": "Ed25519", "kid": o.kid, "alg": "EdDSA", "use": "sig",
@@ -313,6 +319,51 @@ func TestOutpostVerifierRateLimitsRefetch(t *testing.T) {
 		is.True(err != nil)
 	}
 	is.Equal(o.fetches.Load(), int32(1))
+}
+
+// A slow key server holds up only the requests that need it: one whose key
+// is already known goes straight through.
+func TestOutpostVerifierFetchDoesNotBlock(t *testing.T) {
+	is := is.New(t)
+	o := newFakeOutpost(t)
+	v := o.verifier()
+	var clock atomic.Int64
+	clock.Store(time.Now().UnixNano())
+	v.now = func() time.Time { return time.Unix(0, clock.Load()) }
+	request := func(tok string) *http.Request {
+		r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
+		r.Host = viewHost
+		r.Header.Set(outpostIdentityHeader, tok)
+		return r
+	}
+	good := o.token(t, "owner", viewHost, nil)
+	_, err := v.verify(request(good))
+	is.NoErr(err)
+
+	// Past the refresh interval, an unknown kid fetches again, and the key
+	// server stalls.
+	clock.Add(int64(2 * jwksRefreshEvery))
+	stall := make(chan struct{})
+	o.stall.Store(&stall)
+	// Release the stalled response before the server's cleanup waits on it.
+	var release sync.Once
+	t.Cleanup(func() { release.Do(func() { close(stall) }) })
+	o.kid = "k2"
+	forged := o.token(t, "owner", viewHost, nil)
+	started := o.fetches.Load()
+	go v.verify(request(forged)) //nolint:errcheck
+	for o.fetches.Load() == started {
+		time.Sleep(time.Millisecond)
+	}
+
+	done := make(chan error, 1)
+	go func() { _, err := v.verify(request(good)); done <- err }()
+	select {
+	case err := <-done:
+		is.NoErr(err)
+	case <-time.After(time.Second):
+		t.Fatal("a known key waited on the key server")
+	}
 }
 
 func TestNoGatewayTrustsNoIdentity(t *testing.T) {

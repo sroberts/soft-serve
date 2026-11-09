@@ -51,7 +51,7 @@ func lastCommits(ctx context.Context, gr *git.Repository, sha string, t *Tree) e
 	defer cancel()
 
 	args := []string{
-		"-c", "core.quotePath=false", "log",
+		"-c", "core.quotePath=false", "--literal-pathspecs", "log",
 		"--format=%x1e%H%x1f%at%x1f%an%x1f%s", "--name-only", "--no-renames",
 		sha, "--",
 	}
@@ -109,6 +109,12 @@ const refFormat = "%(refname)%1f%(objecttype)%1f%(objectname)%1f%(*objectname)%1
 var signatureStart = regexp.MustCompile(`(?m)^-----BEGIN (PGP|SSH) SIGNATURE-----`)
 
 func (b *browser) refs(ctx context.Context, name string) (Refs, error) {
+	return b.listRefs(ctx, name, true)
+}
+
+// listRefs is refs, counting how far each branch is from the default one
+// only when counts is set: that takes a rev-list per branch.
+func (b *browser) listRefs(ctx context.Context, name string, counts bool) (Refs, error) {
 	_, gr, err := b.open(ctx, name)
 	if err != nil {
 		return Refs{}, err
@@ -149,7 +155,9 @@ func (b *browser) refs(ctx context.Context, name string) (Refs, error) {
 			out.Tags = append(out.Tags, ri)
 		}
 	}
-	aheadBehind(ctx, gr, &out)
+	if counts {
+		aheadBehind(ctx, gr, &out)
+	}
 	// The default branch first, then the most recently updated.
 	slices.SortStableFunc(out.Branches, func(a, c RefInfo) int {
 		switch {
@@ -495,8 +503,9 @@ var archiveFormats = map[string][2]string{
 }
 
 // archive streams a snapshot of the files at rev to w. before is called
-// with the file name and type once the revision is known to exist.
-func (b *browser) archive(ctx context.Context, name, rev, format string, w io.Writer, before func(filename, contentType string)) error {
+// with the file name and type once the revision is known to exist; when it
+// returns false no archive is made, as for a HEAD request.
+func (b *browser) archive(ctx context.Context, name, rev, format string, w io.Writer, before func(filename, contentType string) bool) error {
 	f, ok := archiveFormats[format]
 	if !ok {
 		return badRequest("unknown archive format %q: use tar.gz or zip", format)
@@ -510,7 +519,9 @@ func (b *browser) archive(ctx context.Context, name, rev, format string, w io.Wr
 		return err
 	}
 	prefix := safeFileName(gopath.Base(r.Name()) + "-" + rev)
-	before(prefix+"."+f[0], f[1])
+	if !before(prefix+"."+f[0], f[1]) {
+		return nil
+	}
 
 	ctx, cancel := context.WithTimeout(ctx, archiveTimeout)
 	defer cancel()

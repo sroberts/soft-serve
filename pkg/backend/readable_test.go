@@ -55,6 +55,15 @@ func TestReadable(t *testing.T) {
 	is.Equal(be.AccessLevelForUser(ctx, "secret", stranger), access.NoAccess)
 	is.Equal(be.AccessLevelForUser(ctx, "ghost", stranger), access.ReadWriteAccess)
 	is.Equal(be.AccessLevelForUser(ctx, "public", nil), access.ReadOnlyAccess)
+
+	// So is AccessLevelForRepo, for every repository Repositories lists.
+	repos, err := be.Repositories(ctx)
+	is.NoErr(err)
+	for _, r := range repos {
+		for _, u := range []proto.User{nil, owner, stranger} {
+			is.Equal(be.AccessLevelForRepo(ctx, r, u), be.AccessLevelForUser(ctx, r.Name(), u))
+		}
+	}
 }
 
 // TestBaseAccessLevelByPublicKey verifies the baseline level does not

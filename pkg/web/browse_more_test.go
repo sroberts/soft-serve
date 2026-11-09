@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -80,6 +81,17 @@ func TestLastCommits(t *testing.T) {
 	f.getJSON(t, "/v1/repos/group/open/-/tree?path=src&last_commits=true", &tree)
 	is.Equal(tree.LastCommit.Summary, "First commit")
 	is.Equal(tree.Entries[0].LastCommit.Summary, "First commit")
+
+	// A directory whose name looks like a glob gets its own last commit,
+	// not that of a sibling the glob would match. (Windows can't make one.)
+	if runtime.GOOS != "windows" {
+		addCommit(t, f.repoDir("group/open"), "Add d*", map[string]string{"d*/f.txt": "x\n"})
+		addCommit(t, f.repoDir("group/open"), "Add da", map[string]string{"da/f.txt": "y\n"})
+		var glob Tree
+		f.getJSON(t, "/v1/repos/group/open/-/tree?path=d%2A&last_commits=true", &glob)
+		is.True(glob.LastCommit != nil)
+		is.Equal(glob.LastCommit.Summary, "Add d*")
+	}
 
 	// Without asking, there are none (it costs a history walk).
 	var plain Tree
@@ -371,4 +383,50 @@ func TestMarkMatches(t *testing.T) {
 	is.Equal(string(markMatches(`a <b>Foo</b> foo`, "foo")), `a &lt;b&gt;<mark>Foo</mark>&lt;/b&gt; <mark>foo</mark>`)
 	is.Equal(string(markMatches(`<x>`, "")), `&lt;x&gt;`)
 	is.Equal(string(markMatches(`nothing`, "zz")), `nothing`)
+}
+
+// A request opens each repository once, however many reads it makes, and
+// the compare form's ref list skips the per-branch commit counts.
+func TestBrowserReusesOpenedRepo(t *testing.T) {
+	is := is.New(t)
+	f := newViewFixture(t)
+	addBranchCommit(t, f.repoDir("group/open"), "feature", "On a branch", map[string]string{"x.txt": "x\n"})
+	b := newBrowser(f.ctx, nil, "http://"+viewHost)
+	_, gr1, err := b.open(f.ctx, "group/open")
+	is.NoErr(err)
+	_, gr2, err := b.open(f.ctx, "group/open.git")
+	is.NoErr(err)
+	is.True(gr1 == gr2)
+	_, _, err = b.open(f.ctx, "secret")
+	is.Equal(err, errNotFound)
+
+	full, err := b.refs(f.ctx, "group/open")
+	is.NoErr(err)
+	plain, err := b.listRefs(f.ctx, "group/open", false)
+	is.NoErr(err)
+	is.Equal(len(full.Branches), 2)
+	is.Equal(len(plain.Branches), len(full.Branches))
+	is.True(full.Branches[1].Ahead != nil)
+	is.True(plain.Branches[1].Ahead == nil)
+}
+
+// HEAD on a download answers with its headers and builds nothing.
+func TestHeadSkipsDownloads(t *testing.T) {
+	is := is.New(t)
+	f := newViewFixture(t)
+	for _, p := range []string{
+		"/v1/repos/group/open/-/archive?format=zip",
+		"/group/open/-/archive?format=tar.gz",
+		"/v1/repos/group/open/-/raw?path=src/main.go",
+		"/group/open/-/raw?path=data.bin",
+	} {
+		get := f.do(req{path: p})
+		head := f.do(req{method: http.MethodHead, path: p})
+		is.Equal(get.Code, http.StatusOK)
+		is.Equal(head.Code, http.StatusOK)
+		is.True(get.Body.Len() > 0)
+		is.Equal(head.Body.Len(), 0) // nothing was generated
+		is.Equal(head.Header().Get("Content-Type"), get.Header().Get("Content-Type"))
+		is.Equal(head.Header().Get("Content-Disposition"), get.Header().Get("Content-Disposition"))
+	}
 }

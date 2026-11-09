@@ -49,9 +49,13 @@ type outpostVerifier struct {
 	client  *http.Client
 	now     func() time.Time
 
+	// mu guards the fields below. It is never held across a fetch, so a
+	// slow key server can't stall requests whose key is already known.
 	mu      sync.Mutex
 	keys    map[string]ed25519.PublicKey
 	fetched time.Time
+	// fetching is closed when the fetch in flight, if any, ends.
+	fetching chan struct{}
 }
 
 // newOutpostVerifier returns a verifier when Outpost's gateway fronts us, or
@@ -144,24 +148,53 @@ func audienceMatches(aud jwt.ClaimStrings, hosts []string) bool {
 // key returns the public key with ID kid, fetching the key set when it isn't
 // known yet.
 func (v *outpostVerifier) key(ctx context.Context, kid string) (ed25519.PublicKey, error) {
-	v.mu.Lock()
-	defer v.mu.Unlock()
-	if k, ok := v.keys[kid]; ok {
-		return k, nil
+	for {
+		v.mu.Lock()
+		if k, ok := v.keys[kid]; ok {
+			v.mu.Unlock()
+			return k, nil
+		}
+		if wait := v.fetching; wait != nil {
+			// Someone is already fetching: wait for that rather than
+			// fetching again, then look once more.
+			v.mu.Unlock()
+			select {
+			case <-wait:
+				continue
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		if !v.fetched.IsZero() && v.now().Sub(v.fetched) < jwksRefreshEvery {
+			v.mu.Unlock()
+			return nil, fmt.Errorf("unknown signing key %q", kid)
+		}
+		v.fetched = v.now()
+		done := make(chan struct{})
+		v.fetching = done
+		v.mu.Unlock()
+
+		// The fetch has its own timeout; others may be waiting on it, so
+		// this request going away shouldn't cut it short.
+		keys, err := v.fetch(context.WithoutCancel(ctx))
+
+		v.mu.Lock()
+		if err == nil {
+			v.keys = keys
+		}
+		k, ok := v.keys[kid]
+		v.fetching = nil
+		close(done)
+		v.mu.Unlock()
+		switch {
+		case err != nil:
+			return nil, fmt.Errorf("fetch outpost keys: %w", err)
+		case ok:
+			return k, nil
+		default:
+			return nil, fmt.Errorf("unknown signing key %q", kid)
+		}
 	}
-	if !v.fetched.IsZero() && v.now().Sub(v.fetched) < jwksRefreshEvery {
-		return nil, fmt.Errorf("unknown signing key %q", kid)
-	}
-	v.fetched = v.now()
-	keys, err := v.fetch(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("fetch outpost keys: %w", err)
-	}
-	v.keys = keys
-	if k, ok := v.keys[kid]; ok {
-		return k, nil
-	}
-	return nil, fmt.Errorf("unknown signing key %q", kid)
 }
 
 func (v *outpostVerifier) fetch(ctx context.Context) (map[string]ed25519.PublicKey, error) {
