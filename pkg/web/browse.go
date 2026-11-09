@@ -280,7 +280,7 @@ func (b *browser) repos(ctx context.Context) ([]RepoInfo, error) {
 	}
 	out := make([]RepoInfo, 0, len(all))
 	for _, r := range all {
-		level := b.be.AccessLevelForUser(ctx, r.Name(), b.user)
+		level := b.be.AccessLevelForRepo(ctx, r, b.user)
 		if r.IsHidden() || level < access.ReadOnlyAccess {
 			continue
 		}
