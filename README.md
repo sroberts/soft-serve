@@ -637,6 +637,20 @@ ssh -p 23231 localhost set-username yolo
 ssh -p 23231 localhost info
 ```
 
+The same commands run from your own machine with `soft`, over the HTTP API
+with an access token (see [From Your Own Machine](#from-your-own-machine)):
+
+```sh
+soft info
+soft pubkey add "$(cat ~/.ssh/id_ed25519.pub)"
+soft pubkey remove SHA256:...   # a key or its fingerprint
+soft token create --expires-in 90d ci
+soft token list
+soft set-username yolo
+```
+
+You can also do all of this from the web view's account page and the TUI.
+
 ## Repositories
 
 You can manage repositories using the `repo` command.
@@ -976,6 +990,16 @@ exactly what the caller may read and allowing what they may change:
   curl -H "$auth" -X POST http://localhost:23232/v1/repos/upstream/-/sync
   curl -H "$auth" -d '{"username":"ana","access":"read-write"}' http://localhost:23232/v1/repos/icecream/-/collaborators
   curl -H "$auth" -X DELETE http://localhost:23232/v1/repos/icecream/-/branches/old-feature
+  ```
+
+  Your own account is under `/v1/me`: your SSH keys, access tokens (a new
+  token is in the answer to its creation and nowhere else) and username.
+
+  ```sh
+  curl -H "$auth" -d "{\"key\":\"$(cat ~/.ssh/id_ed25519.pub)\"}" http://localhost:23232/v1/me/keys
+  curl -H "$auth" -d '{"name":"ci","expires_at":"2027-01-01T00:00:00Z"}' http://localhost:23232/v1/me/tokens
+  curl -H "$auth" -X DELETE http://localhost:23232/v1/me/tokens/3
+  curl -H "$auth" -X PATCH -d '{"username":"yolo"}' http://localhost:23232/v1/me
   ```
 
 - **MCP** at `/mcp` (Streamable HTTP), with read-only tools to list
