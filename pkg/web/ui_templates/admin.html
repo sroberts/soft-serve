@@ -1,0 +1,147 @@
+{{define "adminnav"}}{{/* . is a page */}}
+<nav class="tabs" aria-label="Administration">
+  <a href="/-/admin/users"{{if eq .Tab "users"}} aria-current="page"{{end}}>Users</a>
+  <a href="/-/admin/settings"{{if eq .Tab "settings"}} aria-current="page"{{end}}>Settings</a>
+</nav>
+{{end}}
+
+{{define "admin-users"}}{{template "head" .}}
+<section class="intro">
+  <h1>Administration</h1>
+  {{template "adminnav" .}}
+</section>
+{{with .Data}}{{$self := .Self}}
+<section class="refs">
+  <h2>Users</h2>
+  <ul>
+    {{range .Users}}<li>
+      <a class="refname" href="{{adminUserURL .Username ""}}">{{.Username}}</a>
+      {{if eq .Username $self}}<span class="muted small">you</span>{{end}}
+      {{if .Admin}}<span class="badge">admin</span>{{end}}
+    </li>
+    {{else}}<li class="muted">No users.</li>{{end}}
+  </ul>
+</section>
+<section class="manage-section">
+  <h2 id="create-user">Create a user</h2>
+  {{template "formerror" .Err}}
+  <form class="manage" method="post" action="/-/admin/users" aria-labelledby="create-user">
+    <label class="field">Username <span class="hint">letters, numbers and <code>-</code>, starting with a letter</span>
+      <input type="text" name="username" value="{{.Name}}" required maxlength="100" autocomplete="off" spellcheck="false">
+    </label>
+    <label class="field">SSH key <span class="hint">optional; one line, like the contents of <code>~/.ssh/id_ed25519.pub</code></span>
+      <textarea name="key" rows="3" autocomplete="off" spellcheck="false" placeholder="ssh-ed25519 AAAA… them@laptop">{{.Key}}</textarea>
+    </label>
+    <label class="check"><input type="checkbox" name="admin"{{if .Admin}} checked{{end}}> <span>Admin: can read and change every repository, user and setting</span></label>
+    <div class="actions"><button type="submit">Create user</button></div>
+  </form>
+</section>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "admin-user"}}{{template "head" .}}
+<section class="intro">
+  <h1>Administration</h1>
+  {{template "adminnav" .}}
+</section>
+{{with .Data}}{{$name := .Username}}
+<p class="pathbar"><a href="/-/admin/users">Users</a><span class="sep" aria-hidden="true">/</span>{{.Username}}</p>
+<section class="adminuser">
+  <h2>{{.Username}}{{if .Admin}} <span class="badge">admin</span>{{end}}</h2>
+  {{if .Self}}<p class="note">This is you. Your account page has your tokens: <a href="/-/me">Your account</a>.</p>{{end}}
+</section>
+
+<section class="refs">
+  <h2>SSH keys</h2>
+  <ul>
+    {{range .PublicKeys}}<li>
+      <div class="refmain">
+        <code class="refname">{{.Fingerprint}}</code>
+        <p class="meta"><code class="key" title="{{.Key}}">{{keyShort .Key}}</code></p>
+      </div>
+      <span class="badge">{{.Type}}</span>
+      <form class="rowaction" method="post" action="{{adminUserURL $name "keys/remove"}}"><input type="hidden" name="fingerprint" value="{{.Fingerprint}}"><button type="submit" class="link danger" aria-label="Remove key {{.Fingerprint}}">Remove</button></form>
+    </li>
+    {{else}}<li class="muted">No SSH keys.</li>{{end}}
+  </ul>
+</section>
+<section class="manage-section">
+  <h2 id="add-key">Add an SSH key</h2>
+  {{template "formerror" .KeyErr}}
+  <form class="manage" method="post" action="{{adminUserURL $name "keys"}}" aria-labelledby="add-key">
+    <label class="field">Public key <span class="hint">one line, like the contents of <code>~/.ssh/id_ed25519.pub</code></span>
+      <textarea name="key" rows="3" required autocomplete="off" spellcheck="false" placeholder="ssh-ed25519 AAAA… them@laptop">{{.KeyInput}}</textarea>
+    </label>
+    <div class="actions"><button type="submit">Add key</button></div>
+  </form>
+</section>
+
+<section class="manage-section">
+  <h2 id="admin">Admin</h2>
+  {{template "formerror" .AdminErr}}
+  {{if not .Admin}}
+  <p class="note">An admin can read and change every repository, user and setting.</p>
+  <form method="post" action="{{adminUserURL $name "admin"}}"><input type="hidden" name="admin" value="true"><button type="submit">Make admin</button></form>
+  {{else if .Self}}
+  <p class="note">You can't remove your own admin rights, so the server always has an admin. Another admin can.</p>
+  {{else}}
+  <p class="note">They can read and change every repository, user and setting.</p>
+  <form method="post" action="{{adminUserURL $name "admin"}}"><input type="hidden" name="admin" value="false"><button type="submit">Remove admin</button></form>
+  {{end}}
+</section>
+
+<section class="manage-section">
+  <h2 id="rename">Rename</h2>
+  {{if and .Self .ViaOutpost}}
+  <p class="note">You signed in through Outpost, which finds your account here by its name, so renaming it here would sign you out. Use <code>set-username</code> over SSH, or <code>soft set-username</code>.</p>
+  {{else}}
+  {{template "formerror" .NameErr}}
+  <form class="inline" method="post" action="{{adminUserURL $name "rename"}}" aria-labelledby="rename">
+    <label class="field">New username <span class="hint">letters, numbers and <code>-</code>, starting with a letter</span>
+      <input type="text" name="username" value="{{.NewName}}" required maxlength="100" autocomplete="off" spellcheck="false">
+    </label>
+    <button type="submit">Rename</button>
+  </form>
+  <p class="note small">Their keys, tokens and repositories stay with them.{{if .BehindOutpost}} Outpost signs people in to these pages by matching their Outpost login to a username here, so after a rename, the Outpost login named {{.Username}} no longer reaches this account; one with the new name does.{{end}}</p>
+  {{end}}
+</section>
+
+<section class="manage-section danger">
+  <h2 id="delete">Delete</h2>
+  {{template "formerror" .DeleteErr}}
+  {{if .Self}}
+  <p class="note">You can't delete your own account, so the server always has an admin. Another admin can.</p>
+  {{else}}
+  {{if .OwnedRepos}}<ul class="owned">{{range .OwnedRepos}}<li><a href="{{repoURL . "" "" ""}}">{{.}}</a></li>{{end}}</ul>{{end}}
+  <p class="note">Delete the user with their keys and tokens. They must own no repositories.</p>
+  <a class="button danger" href="{{adminUserURL $name "delete"}}">Delete user…</a>
+  {{end}}
+</section>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "admin-settings"}}{{template "head" .}}
+<section class="intro">
+  <h1>Administration</h1>
+  {{template "adminnav" .}}
+</section>
+{{with .Data}}
+{{template "formerror" .Err}}
+<form class="manage" method="post" action="/-/admin/settings">
+  <fieldset>
+    <legend>Anonymous access</legend>
+    <p class="note">What someone who isn't signed in can do with public repositories, over SSH, HTTP and these pages. Private ones stay hidden from them.</p>
+    <label class="field">Access
+      <select name="anon_access">{{$cur := .AnonAccess}}{{range .Levels}}<option value="{{.Value}}"{{if eq .Value $cur}} selected{{end}}>{{.Label}}</option>{{end}}</select>
+    </label>
+    {{if .AnonAccessFixed}}<p class="note small">Set in the server's config file, which wins: a change here is saved, but takes effect only once the config no longer sets it.</p>{{end}}
+  </fieldset>
+  <fieldset>
+    <legend>Keyless access</legend>
+    <label class="check"><input type="checkbox" name="allow_keyless"{{if .AllowKeyless}} checked{{end}}> <span>Allow keyless: callers without an SSH key, such as over HTTP, may read public repositories</span></label>
+    {{if .AllowKeylessFixed}}<p class="note small">Set in the server's config file, which wins: a change here is saved, but takes effect only once the config no longer sets it.</p>{{end}}
+  </fieldset>
+  <div class="actions"><button type="submit">Save settings</button></div>
+</form>
+{{end}}
+{{template "foot" .}}{{end}}
