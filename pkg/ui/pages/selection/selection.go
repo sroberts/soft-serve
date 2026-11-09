@@ -130,6 +130,9 @@ func (s *Selection) ShortHelp() []key.Binding {
 		if s.canManage() {
 			kb = append(kb, accountKey)
 		}
+		if s.canAdmin() {
+			kb = append(kb, adminKey)
+		}
 		kb = append(kb,
 			k.Filter,
 			k.ClearFilter,
@@ -195,6 +198,9 @@ func (s *Selection) FullHelp() [][]key.Binding {
 		})
 		if s.canManage() {
 			b = append(b, []key.Binding{newKey, importKey, accountKey})
+		}
+		if s.canAdmin() {
+			b = append(b, []key.Binding{adminKey})
 		}
 	}
 	return b
@@ -268,6 +274,8 @@ func (s *Selection) Update(msg tea.Msg) (common.Model, tea.Cmd) {
 			return s, s.importRepo()
 		case key.Matches(k, accountKey):
 			return s, func() tea.Msg { return common.OpenAccountMsg{} }
+		case key.Matches(k, adminKey) && s.canAdmin():
+			return s, func() tea.Msg { return common.OpenAdminMsg{} }
 		}
 	}
 	cmds := make([]tea.Cmd, 0)

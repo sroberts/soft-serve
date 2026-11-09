@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/soft-serve/pkg/ui/common"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type kind int
@@ -310,7 +311,11 @@ func (f *Form) View() string {
 		var v string
 		switch fl.kind {
 		case textKind:
-			fl.input.SetWidth(max(10, f.common.Width-width-8))
+			// Only on a change: a sent form's action reads the fields
+			// off the UI loop while the form is still drawn.
+			if w := max(10, f.common.Width-width-8); fl.input.Width() != w {
+				fl.input.SetWidth(w)
+			}
 			v = fl.input.View()
 		case toggleKind:
 			v = "[ ] no"
@@ -339,7 +344,10 @@ func (f *Form) View() string {
 	case f.busy:
 		b.WriteString("\n" + st.Hint.Render("working…"))
 	case f.err != nil:
-		b.WriteString("\n" + st.Error.Render(f.err.Error()))
+		// Errors can be long, such as one naming the repositories a user
+		// owns, so they wrap at the screen's width.
+		msg := ansi.Wordwrap(f.err.Error(), max(20, f.common.Width-2), " ,")
+		b.WriteString("\n" + st.Error.Render(msg))
 	case f.confirm:
 		b.WriteString("\n" + st.Hint.Render("y to confirm, n or esc to cancel"))
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/soft-serve/pkg/ui/components/header"
 	"github.com/charmbracelet/soft-serve/pkg/ui/components/selector"
 	"github.com/charmbracelet/soft-serve/pkg/ui/pages/account"
+	"github.com/charmbracelet/soft-serve/pkg/ui/pages/admin"
 	"github.com/charmbracelet/soft-serve/pkg/ui/pages/repo"
 	"github.com/charmbracelet/soft-serve/pkg/ui/pages/selection"
 )
@@ -24,6 +25,7 @@ const (
 	selectionPage page = iota
 	repoPage
 	accountPage
+	adminPage
 )
 
 type sessionState int
@@ -55,7 +57,7 @@ func NewUI(c common.Common, initialRepo string) *UI {
 	ui := &UI{
 		serverName:  serverName,
 		common:      c,
-		pages:       make([]common.Component, 3), // selection, repo & account
+		pages:       make([]common.Component, 4), // selection, repo, account & admin
 		activePage:  selectionPage,
 		state:       loadingState,
 		header:      h,
@@ -69,7 +71,7 @@ func NewUI(c common.Common, initialRepo string) *UI {
 func (ui *UI) getMargins() (wm, hm int) {
 	style := ui.common.Styles.App
 	switch ui.activePage {
-	case selectionPage, accountPage:
+	case selectionPage, accountPage, adminPage:
 		hm += ui.common.Styles.ServerName.GetHeight() +
 			ui.common.Styles.ServerName.GetVerticalFrameSize()
 	case repoPage:
@@ -158,6 +160,7 @@ func (ui *UI) Init() tea.Cmd {
 	}
 	ui.pages[repoPage] = repo.New(ui.common, panes...)
 	ui.pages[accountPage] = account.New(ui.common)
+	ui.pages[adminPage] = admin.New(ui.common)
 	ui.SetSize(ui.common.Width, ui.common.Height)
 	cmds := make([]tea.Cmd, 0)
 	cmds = append(cmds,
@@ -231,6 +234,12 @@ func (ui *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case ui.activePage == accountPage && key.Matches(msg, ui.common.KeyMap.Back):
 			ui.activePage = selectionPage
 			ui.showFooter = true
+		case ui.activePage == adminPage &&
+			ui.pages[adminPage].(*admin.Admin).AtRoot() &&
+			key.Matches(msg, ui.common.KeyMap.Back):
+			// From a user's page, going back is the admin page's own.
+			ui.activePage = selectionPage
+			ui.showFooter = true
 		}
 	case tea.MouseClickMsg:
 		switch msg.Button {
@@ -260,6 +269,10 @@ func (ui *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		ui.activePage = accountPage
 		ui.showFooter = true
 		cmds = append(cmds, ui.pages[accountPage].Init())
+	case common.OpenAdminMsg:
+		ui.activePage = adminPage
+		ui.showFooter = true
+		cmds = append(cmds, ui.pages[adminPage].Init())
 	case common.HomeMsg:
 		ui.activePage = selectionPage
 		ui.showFooter = true
@@ -325,7 +338,7 @@ func (ui *UI) View() tea.View {
 	default:
 		view = "Unknown state :/ this is a bug!"
 	}
-	if ui.activePage == selectionPage || ui.activePage == accountPage {
+	if ui.activePage == selectionPage || ui.activePage == accountPage || ui.activePage == adminPage {
 		view = lipgloss.JoinVertical(lipgloss.Left, ui.header.View(), view)
 	}
 	if ui.showFooter {
