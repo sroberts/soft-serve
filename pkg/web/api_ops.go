@@ -296,6 +296,7 @@ func opsStatus(err error, anonymous bool) int {
 		errors.Is(err, proto.ErrCollaboratorExist),
 		errors.Is(err, proto.ErrMirrorSyncInProgress),
 		errors.Is(err, proto.ErrUserExist),
+		errors.Is(err, proto.ErrUserOwnsRepos),
 		errors.Is(err, proto.ErrPublicKeyExist),
 		errors.Is(err, proto.ErrPublicKeyInUse):
 		return http.StatusConflict

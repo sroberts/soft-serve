@@ -15,6 +15,7 @@
   <a class="brand" href="/">{{.SiteName}}</a>
   {{if .Repo}}<span class="sep" aria-hidden="true">/</span><a class="crumb" href="{{repoURL .Repo.Name "" "" ""}}">{{.Repo.Name}}</a>{{end}}
   <span class="grow"></span>
+  {{if .Admin}}<a class="who" href="/-/admin"{{if eq .Tab "users" "settings"}}{{if not .Repo}} aria-current="page"{{end}}{{end}}>Admin</a>{{end}}
   {{if .SignedIn}}
   <a class="who" href="/-/me" title="{{if .SoftServe}}Your access is Soft Serve user {{.SoftServe}}'s{{else}}No Soft Serve user is named {{.SignedIn}}, so you see public repositories only{{end}}">{{.SignedIn}}{{if not .SoftServe}} <span class="badge">public only</span>{{end}}</a>
   <form method="post" action="/.outpost/logout"><button type="submit" class="link">Sign out</button></form>

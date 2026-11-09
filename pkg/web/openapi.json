@@ -573,6 +573,126 @@
           "404": {"$ref": "#/components/responses/Error"}
         }
       }
+    },
+    "/v1/users": {
+      "get": {
+        "operationId": "listUsers",
+        "summary": "List users",
+        "description": "Server admins only; anyone else gets 401 or 403, whether or not the user exists.",
+        "responses": {
+          "200": {"description": "The users", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/UserSummary"}}}}},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "post": {
+        "operationId": "createUser",
+        "summary": "Create a user",
+        "description": "Server admins only; anyone else gets 401 or 403, whether or not the user exists.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/CreateUser"}}}},
+        "responses": {
+          "201": {"description": "Created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/User"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "409": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/users/{username}": {
+      "parameters": [{"name": "username", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "operationId": "getUser",
+        "summary": "A user and their SSH keys",
+        "description": "Server admins only; anyone else gets 401 or 403, whether or not the user exists.",
+        "responses": {
+          "200": {"description": "The user", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/User"}}}},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "patch": {
+        "operationId": "updateUser",
+        "summary": "Change a user's admin flag or username",
+        "description": "The admin flag changes first, then the username. Admins can't remove their own admin flag. Server admins only; anyone else gets 401 or 403, whether or not the user exists.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/UserUpdate"}}}},
+        "responses": {
+          "204": {"description": "Changed"},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"},
+          "409": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "delete": {
+        "operationId": "deleteUser",
+        "summary": "Delete a user",
+        "description": "A user who owns repositories can't be deleted (409), and admins can't delete themselves (400). Server admins only; anyone else gets 401 or 403, whether or not the user exists.",
+        "responses": {
+          "204": {"description": "Deleted"},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"},
+          "409": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/users/{username}/keys": {
+      "parameters": [{"name": "username", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "post": {
+        "operationId": "addUserKey",
+        "summary": "Add an SSH key to a user",
+        "description": "Server admins only; anyone else gets 401 or 403, whether or not the user exists.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "properties": {"key": {"type": "string"}}, "required": ["key"]}}}},
+        "responses": {
+          "201": {"description": "Added", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PublicKey"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"},
+          "409": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "delete": {
+        "operationId": "removeUserKey",
+        "summary": "Remove an SSH key from a user",
+        "description": "Server admins only; anyone else gets 401 or 403, whether or not the user exists.",
+        "parameters": [{"name": "key", "in": "query", "required": true, "description": "The key in authorized_keys form, or its SHA256 fingerprint", "schema": {"type": "string"}}],
+        "responses": {
+          "204": {"description": "Removed"},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/settings": {
+      "get": {
+        "operationId": "getSettings",
+        "summary": "The server settings",
+        "description": "Server admins only.",
+        "responses": {
+          "200": {"description": "The settings", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Settings"}}}},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "patch": {
+        "operationId": "updateSettings",
+        "summary": "Change the server settings",
+        "description": "Server admins only. A setting the config file fixes is still saved, but the config wins; `*_fixed` says so.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SettingsUpdate"}}}},
+        "responses": {
+          "200": {"description": "All the settings, after the change", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Settings"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"}
+        }
+      }
     }
   },
   "components": {
@@ -947,7 +1067,13 @@
       "PublicKey": {"type": "object", "properties": {"key": {"type": "string", "description": "authorized_keys form, without a comment"}, "type": {"type": "string"}, "fingerprint": {"type": "string"}}, "required": ["key", "type", "fingerprint"]},
       "AccessToken": {"type": "object", "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "created_at": {"type": "string", "format": "date-time"}, "expires_at": {"type": "string", "format": "date-time"}}, "required": ["id", "name", "created_at"]},
       "CreateToken": {"type": "object", "properties": {"name": {"type": "string", "maxLength": 100}, "expires_at": {"type": "string", "format": "date-time", "description": "Unset for a token that never expires"}}, "required": ["name"]},
-      "NewToken": {"allOf": [{"$ref": "#/components/schemas/AccessToken"}, {"type": "object", "properties": {"token": {"type": "string"}}, "required": ["token"]}]}
+      "NewToken": {"allOf": [{"$ref": "#/components/schemas/AccessToken"}, {"type": "object", "properties": {"token": {"type": "string"}}, "required": ["token"]}]},
+      "UserSummary": {"type": "object", "properties": {"username": {"type": "string"}, "admin": {"type": "boolean"}}, "required": ["username", "admin"]},
+      "User": {"type": "object", "properties": {"username": {"type": "string"}, "admin": {"type": "boolean"}, "keys": {"type": "array", "items": {"$ref": "#/components/schemas/PublicKey"}}}, "required": ["username", "admin", "keys"]},
+      "CreateUser": {"type": "object", "properties": {"username": {"type": "string"}, "admin": {"type": "boolean"}, "keys": {"type": "array", "items": {"type": "string"}, "description": "SSH keys in authorized_keys form"}}, "required": ["username"]},
+      "UserUpdate": {"type": "object", "properties": {"username": {"type": "string"}, "admin": {"type": "boolean"}}},
+      "Settings": {"type": "object", "properties": {"anon_access": {"type": "string", "enum": ["no-access", "read-only", "read-write", "admin-access"]}, "allow_keyless": {"type": "boolean"}, "anon_access_fixed": {"type": "boolean"}, "allow_keyless_fixed": {"type": "boolean"}}, "required": ["anon_access", "allow_keyless", "anon_access_fixed", "allow_keyless_fixed"]},
+      "SettingsUpdate": {"type": "object", "properties": {"anon_access": {"type": "string", "enum": ["no-access", "read-only", "read-write", "admin-access"]}, "allow_keyless": {"type": "boolean"}}}
     }
   }
 }

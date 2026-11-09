@@ -1,0 +1,84 @@
+# vi: set ft=conf
+
+# Server administration from the TUI: the same operations, and the same
+# rules, as the SSH user and settings commands.
+
+exec soft serve &
+ensureserverrunning SSH_PORT
+
+# A opens the admin screen; n creates a user with a key.
+ui '"   A     nalice\t\t'$USER1_AUTHORIZED_KEY'\r     q"'
+cp stdout create.txt
+grep 'Server administration' create.txt
+grep 'User alice created' create.txt
+soft user info alice
+stdout 'Username: alice'
+stdout 'Admin: false'
+
+# A non-admin is not offered the screen, and pressing A does nothing.
+uui '"   A     q"'
+cp stdout nonadmin.txt
+! grep 'Server administration' nonadmin.txt
+! grep 'A admin' nonadmin.txt
+
+# Open alice (second in the list), add a key, make her an admin and
+# rename her.
+ui '"   A     j\r     a  '$ADMIN2_AUTHORIZED_KEY'\r     t  y     r\x15bob\r     \x1b  \x1b  q"'
+cp stdout user.txt
+grep 'User alice' user.txt
+grep 'Key added' user.txt
+grep 'alice is now an admin' user.txt
+grep 'Renamed alice to bob' user.txt
+soft user info bob
+stdout 'Admin: true'
+stdout -count=2 'ssh-ed25519'
+! soft user info alice
+
+# Deleting a user who owns a repository names it, and nothing is deleted.
+usoft repo create mine
+ui '"   A     j\r     d  y     \x1b  \x1b  \x1b  q"'
+cp stdout owns.txt
+grep 'Delete the user bob\?' owns.txt
+grep 'mine' owns.txt
+soft user info bob
+stdout 'Username: bob'
+
+# With the repository gone, the user can be deleted.
+soft repo delete mine
+ui '"   A     j\r     d  y     q"'
+cp stdout delete.txt
+grep 'User bob deleted' delete.txt
+! soft user info bob
+
+# Settings: anonymous access is the first row after the users; one step
+# right of read-only is read-write. Allow keyless is the last row.
+soft settings anon-access
+stdout 'read-only'
+ui '"   A     j\rl\r     G\r     q"'
+cp stdout settings.txt
+grep 'Anonymous access changed' settings.txt
+grep 'Keyless access refused' settings.txt
+soft settings anon-access
+stdout 'read-write'
+soft settings allow-keyless
+stdout 'false'
+
+# The admin's own page offers neither delete nor removing admin, and says
+# why. Renaming it keeps the session going as the new name.
+ui '"   A     \r     d  t  r\x15boss\r     \x1b  q"'
+cp stdout self.txt
+grep 'This is you' self.txt
+! grep 'Delete the user' self.txt
+! grep 'admin rights\?' self.txt
+grep 'Renamed admin to boss' self.txt
+# The renderer redraws only cells that change, so the new name is checked
+# on a fresh screen rather than in the session that changed it.
+ui '"   A     q"'
+cp stdout after.txt
+grep 'boss  +admin  you' after.txt
+soft info
+stdout 'Username: boss'
+
+# stop the server
+[windows] stopserver
+[windows] ! stderr .

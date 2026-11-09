@@ -124,11 +124,10 @@ func CommandMiddleware(sh ssh.Handler) ssh.Handler {
 			cmd.GitUploadArchiveCommand(),
 			cmd.GitReceivePackCommand(),
 			cmd.RepoCommand(),
-			cmd.SettingsCommand(),
-			cmd.UserCommand(),
 			cmd.JWTCommand(),
 		)
 		rootCmd.AddCommand(cmd.AccountCommands()...)
+		rootCmd.AddCommand(cmd.AdminCommands()...)
 
 		if cfg.LFS.Enabled {
 			rootCmd.AddCommand(

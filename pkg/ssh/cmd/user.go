@@ -1,15 +1,21 @@
 package cmd
 
 import (
-	"sort"
+	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/soft-serve/pkg/backend"
-	"github.com/charmbracelet/soft-serve/pkg/proto"
-	"github.com/charmbracelet/soft-serve/pkg/sshutils"
+	"github.com/charmbracelet/soft-serve/pkg/ops"
 	"github.com/spf13/cobra"
-	"golang.org/x/crypto/ssh"
 )
+
+// parseBool reads a true or false argument.
+func parseBool(s string) (bool, error) {
+	b, err := strconv.ParseBool(s)
+	if err != nil {
+		return false, ops.Invalid("want true or false, not %q", s)
+	}
+	return b, nil
+}
 
 // UserCommand returns the user subcommand.
 func UserCommand() *cobra.Command {
@@ -20,7 +26,8 @@ func UserCommand() *cobra.Command {
 		// Gate the whole command tree rather than each subcommand. Cobra
 		// runs the nearest persistent pre-run found when walking up from
 		// the invoked command, so subcommands added later are gated by
-		// default instead of silently unprotected.
+		// default instead of silently unprotected. The service checks
+		// again, which is what protects the soft client's copy.
 		PersistentPreRunE: checkIfServerAdmin,
 	}
 
@@ -31,25 +38,12 @@ func UserCommand() *cobra.Command {
 		Short: "Create a new user",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var pubkeys []ssh.PublicKey
 			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			username := args[0]
+			opts := ops.CreateUser{Username: args[0], Admin: admin}
 			if key != "" {
-				pk, _, err := sshutils.ParseAuthorizedKey(key)
-				if err != nil {
-					return err
-				}
-
-				pubkeys = []ssh.PublicKey{pk}
+				opts.Keys = []string{key}
 			}
-
-			opts := proto.UserOptions{
-				Admin:      admin,
-				PublicKeys: pubkeys,
-			}
-
-			_, err := be.CreateUser(ctx, username, opts)
+			_, err := service(ctx).CreateUser(ctx, opts)
 			return err
 		},
 	}
@@ -63,10 +57,7 @@ func UserCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			username := args[0]
-
-			return be.DeleteUser(ctx, username)
+			return service(ctx).DeleteUser(ctx, args[0])
 		},
 	}
 
@@ -77,17 +68,13 @@ func UserCommand() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			users, err := be.Users(ctx)
+			users, err := service(ctx).Users(ctx)
 			if err != nil {
 				return err
 			}
-
-			sort.Strings(users)
 			for _, u := range users {
-				cmd.Println(u)
+				cmd.Println(u.Username)
 			}
-
 			return nil
 		},
 	}
@@ -98,33 +85,18 @@ func UserCommand() *cobra.Command {
 		Args:  cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			username := args[0]
-			pubkey := strings.Join(args[1:], " ")
-			pk, _, err := sshutils.ParseAuthorizedKey(pubkey)
-			if err != nil {
-				return err
-			}
-
-			return be.AddPublicKey(ctx, username, pk)
+			_, err := service(ctx).AddUserKey(ctx, args[0], strings.Join(args[1:], " "))
+			return err
 		},
 	}
 
 	userRemovePubkeyCommand := &cobra.Command{
-		Use:   "remove-pubkey USERNAME AUTHORIZED_KEY",
+		Use:   "remove-pubkey USERNAME AUTHORIZED_KEY|FINGERPRINT",
 		Short: "Remove a public key from a user",
 		Args:  cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			username := args[0]
-			pubkey := strings.Join(args[1:], " ")
-			pk, _, err := sshutils.ParseAuthorizedKey(pubkey)
-			if err != nil {
-				return err
-			}
-
-			return be.RemovePublicKey(ctx, username, pk)
+			return service(ctx).RemoveUserKey(ctx, args[0], strings.Join(args[1:], " "))
 		},
 	}
 
@@ -134,10 +106,11 @@ func UserCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			username := args[0]
-
-			return be.SetAdmin(ctx, username, args[1] == "true")
+			b, err := parseBool(args[1])
+			if err != nil {
+				return err
+			}
+			return service(ctx).UpdateUser(ctx, args[0], ops.UserUpdate{Admin: &b})
 		},
 	}
 
@@ -147,21 +120,16 @@ func UserCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			username := args[0]
-
-			user, err := be.User(ctx, username)
+			u, err := service(ctx).User(ctx, args[0])
 			if err != nil {
 				return err
 			}
 
-			isAdmin := user.IsAdmin()
-
-			cmd.Printf("Username: %s\n", user.Username())
-			cmd.Printf("Admin: %t\n", isAdmin)
+			cmd.Printf("Username: %s\n", u.Username)
+			cmd.Printf("Admin: %t\n", u.Admin)
 			cmd.Printf("Public keys:\n")
-			for _, pk := range user.PublicKeys() {
-				cmd.Printf("  %s\n", sshutils.MarshalAuthorizedKey(pk))
+			for _, pk := range u.PublicKeys {
+				cmd.Printf("  %s\n", pk.Key)
 			}
 
 			return nil
@@ -174,11 +142,7 @@ func UserCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
-			be := backend.FromContext(ctx)
-			username := args[0]
-			newUsername := args[1]
-
-			return be.SetUsername(ctx, username, newUsername)
+			return service(ctx).UpdateUser(ctx, args[0], ops.UserUpdate{Username: &args[1]})
 		},
 	}
 

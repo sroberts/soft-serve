@@ -62,3 +62,7 @@ type HomeMsg struct{}
 
 // OpenAccountMsg asks the UI to show the caller's account.
 type OpenAccountMsg struct{}
+
+// OpenAdminMsg asks the UI to show server administration: users and
+// settings.
+type OpenAdminMsg struct{}

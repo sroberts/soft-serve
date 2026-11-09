@@ -618,6 +618,17 @@ ssh -p 23231 localhost user create frankie '-k "ssh-ed25519 AAAATzN..."'
 ssh -p 23231 localhost user help
 ```
 
+Admins can run `user` and `settings` from their own machine with `soft` too,
+using an admin's access token (see [From Your Own Machine](#from-your-own-machine)),
+and from the web view's admin pages and the TUI. Admins can't delete their own
+account or remove their own admin rights; another admin can.
+
+```sh
+soft user create beatrice --key "$(cat beatrice.pub)"
+soft user set-admin beatrice true
+soft settings anon-access no-access
+```
+
 Once a user is created, they get `read-only` access to public repositories.
 They can also create new repositories on the server.
 
@@ -959,6 +970,9 @@ exactly what the caller may read and allowing what they may change:
     remove keys, create and delete tokens (a new token is shown once), and
     change your username. Behind Outpost, where your web sign-in is matched
     to your username, renaming is left to SSH or `soft set-username`.
+  - **Admin** (`/-/admin`, server admins only): create, rename and delete
+    users, manage their keys and admin rights, and change the server
+    settings.
 - **A REST API** under `/v1`, described by `/v1/openapi.json`. Repository
   names can contain slashes, so the name and the action are separated by
   `/-/`:
@@ -1005,6 +1019,16 @@ exactly what the caller may read and allowing what they may change:
   curl -H "$auth" -X PATCH -d '{"username":"yolo"}' http://localhost:23232/v1/me
   ```
 
+  Admins manage users under `/v1/users` and the server settings at
+  `/v1/settings`. Anyone else is refused, without learning whether a user
+  exists.
+
+  ```sh
+  curl -H "$auth" -d '{"username":"beatrice","keys":["ssh-ed25519 AAAA..."]}' http://localhost:23232/v1/users
+  curl -H "$auth" -X PATCH -d '{"admin":true}' http://localhost:23232/v1/users/beatrice
+  curl -H "$auth" -X PATCH -d '{"anon_access":"no-access"}' http://localhost:23232/v1/settings
+  ```
+
 - **MCP** at `/mcp` (Streamable HTTP), with read-only tools to list
   repositories, branches, tags and commits (or search them by message or
   author), read a README, list a directory, find files by name, read and
@@ -1037,7 +1061,8 @@ permissions as the `repo` commands: <kbd>n</kbd> creates a repository and
 <kbd>i</kbd> imports one (hard fork or mirror) from the list. A repository's
 *Settings*, *Collaborators* and *Webhooks* tabs change it, and <kbd>x</kbd>
 deletes a branch or tag. <kbd>a</kbd> opens your account: add and remove
-SSH keys, create and delete access tokens, and change your username. You can also use the TUI to browse local
+SSH keys, create and delete access tokens, and change your username. Server
+admins get <kbd>A</kbd> for users and server settings. You can also use the TUI to browse local
 repositories with `soft browse` or running `soft` within a Git repository;
 management isn't offered there.
 

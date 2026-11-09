@@ -769,3 +769,10 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
   .tabs a, .tabs .ref { position: relative; display: inline-flex; align-items: center; min-height: 36px; padding-block: 7px; }
   .tabs a::before, .tabs .ref::before { content: ""; position: absolute; inset: -4px 0; }
 }
+
+/* Administration */
+.intro .tabs { margin-bottom: 20px; }
+.adminuser { margin: 0 0 20px; }
+.adminuser h2 { font-size: 1.125rem; margin: 0 0 6px; overflow-wrap: anywhere; }
+.adminuser .note { margin: 0; }
+ul.owned { margin: 0 0 10px; padding-left: 20px; font: 0.875rem/1.6 var(--mono); overflow-wrap: anywhere; }

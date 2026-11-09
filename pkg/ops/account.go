@@ -88,11 +88,15 @@ func (l *Local) Account(ctx context.Context) (Account, error) {
 	if err != nil {
 		return Account{}, err
 	}
+	return accountOf(u), nil
+}
+
+func accountOf(u proto.User) Account {
 	out := Account{Username: u.Username(), Admin: u.IsAdmin(), PublicKeys: []PublicKey{}}
 	for _, k := range u.PublicKeys() {
 		out.PublicKeys = append(out.PublicKeys, PublicKeyOf(k))
 	}
-	return out, nil
+	return out
 }
 
 // AddPublicKey implements Service.
@@ -101,9 +105,14 @@ func (l *Local) AddPublicKey(ctx context.Context, key string) (PublicKey, error)
 	if err != nil {
 		return PublicKey{}, err
 	}
-	pk, _, err := sshutils.ParseAuthorizedKey(strings.TrimSpace(key))
+	return l.addKey(ctx, u, key)
+}
+
+// addKey adds key to u's account.
+func (l *Local) addKey(ctx context.Context, u proto.User, key string) (PublicKey, error) {
+	pk, err := parseKey(key)
 	if err != nil {
-		return PublicKey{}, Invalid("not an SSH public key; paste a line like the one in ~/.ssh/id_ed25519.pub")
+		return PublicKey{}, err
 	}
 	if slices.ContainsFunc(u.PublicKeys(), func(k gossh.PublicKey) bool { return sameKey(k, pk) }) {
 		return PublicKey{}, proto.ErrPublicKeyExist
@@ -123,6 +132,12 @@ func (l *Local) RemovePublicKey(ctx context.Context, key string) error {
 	if err != nil {
 		return err
 	}
+	return l.removeKey(ctx, u, key)
+}
+
+// removeKey removes key, an authorized key or a fingerprint, from u's
+// account.
+func (l *Local) removeKey(ctx context.Context, u proto.User, key string) error {
 	key = strings.TrimSpace(key)
 	var match func(gossh.PublicKey) bool
 	if strings.HasPrefix(key, "SHA256:") {
@@ -139,6 +154,15 @@ func (l *Local) RemovePublicKey(ctx context.Context, key string) error {
 		return proto.ErrPublicKeyNotFound
 	}
 	return l.be.RemovePublicKey(ctx, u.Username(), u.PublicKeys()[i])
+}
+
+// parseKey reads a key in authorized_keys form.
+func parseKey(key string) (gossh.PublicKey, error) {
+	pk, _, err := sshutils.ParseAuthorizedKey(strings.TrimSpace(key))
+	if err != nil {
+		return nil, Invalid("not an SSH public key; paste a line like the one in ~/.ssh/id_ed25519.pub")
+	}
+	return pk, nil
 }
 
 func sameKey(a, b gossh.PublicKey) bool {
@@ -237,6 +261,11 @@ func (l *Local) SetUsername(ctx context.Context, username string) error {
 	if err != nil {
 		return err
 	}
+	return l.rename(ctx, u, username)
+}
+
+// rename renames u's account.
+func (l *Local) rename(ctx context.Context, u proto.User, username string) error {
 	username = strings.ToLower(strings.TrimSpace(username))
 	if err := utils.ValidateUsername(username); err != nil {
 		return Invalid("%s", err.Error())
