@@ -103,6 +103,14 @@ func (c *Common) PublicKey() ssh.PublicKey {
 	return nil
 }
 
+// IsAdmin reports whether the session's caller is a server admin, as far
+// as the Service says. It decides only what to offer: the Service refuses
+// administration to anyone else whatever the TUI shows.
+func (c *Common) IsAdmin() bool {
+	a, ok := c.Service.(interface{ Actor() ops.Actor })
+	return ok && a.Actor().Admin
+}
+
 // CloneCmd returns the clone command string.
 func (c *Common) CloneCmd(publicURL, name string) string {
 	if c.HideCloneCmd {

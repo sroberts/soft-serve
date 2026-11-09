@@ -40,6 +40,10 @@ func (s *sessionService) local() *ops.Local {
 	return s.svc
 }
 
+// Actor is who the session acts as. The TUI asks it whether to offer
+// server administration; the Service checks again on every call.
+func (s *sessionService) Actor() ops.Actor { return s.local().Actor() }
+
 // refresh reads the caller's user again and acts as it from now on.
 func (s *sessionService) refresh(ctx context.Context) error {
 	actor := s.local().Actor()

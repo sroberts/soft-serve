@@ -12,12 +12,19 @@ var (
 	newKey     = key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new repo"))
 	importKey  = key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "import repo"))
 	accountKey = key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "account"))
+	adminKey   = key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "admin"))
 )
 
 // canManage reports whether the create, import and account keys apply: there is a
 // Service and the repository list is showing, not being filtered.
 func (s *Selection) canManage() bool {
 	return s.common.Service != nil && s.activePane == selectorPane && !s.IsFiltering()
+}
+
+// canAdmin reports whether the admin key applies: as for canManage, and
+// the caller is a server admin.
+func (s *Selection) canAdmin() bool {
+	return s.canManage() && s.common.IsAdmin()
 }
 
 // CapturingInput implements common.InputCapturer.
