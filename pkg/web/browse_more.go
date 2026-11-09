@@ -51,7 +51,7 @@ func lastCommits(ctx context.Context, gr *git.Repository, sha string, t *Tree) e
 	defer cancel()
 
 	args := []string{
-		"-c", "core.quotePath=false", "log",
+		"-c", "core.quotePath=false", "--literal-pathspecs", "log",
 		"--format=%x1e%H%x1f%at%x1f%an%x1f%s", "--name-only", "--no-renames",
 		sha, "--",
 	}

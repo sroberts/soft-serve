@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -80,6 +81,17 @@ func TestLastCommits(t *testing.T) {
 	f.getJSON(t, "/v1/repos/group/open/-/tree?path=src&last_commits=true", &tree)
 	is.Equal(tree.LastCommit.Summary, "First commit")
 	is.Equal(tree.Entries[0].LastCommit.Summary, "First commit")
+
+	// A directory whose name looks like a glob gets its own last commit,
+	// not that of a sibling the glob would match. (Windows can't make one.)
+	if runtime.GOOS != "windows" {
+		addCommit(t, f.repoDir("group/open"), "Add d*", map[string]string{"d*/f.txt": "x\n"})
+		addCommit(t, f.repoDir("group/open"), "Add da", map[string]string{"da/f.txt": "y\n"})
+		var glob Tree
+		f.getJSON(t, "/v1/repos/group/open/-/tree?path=d%2A&last_commits=true", &glob)
+		is.True(glob.LastCommit != nil)
+		is.Equal(glob.LastCommit.Summary, "Add d*")
+	}
 
 	// Without asking, there are none (it costs a history walk).
 	var plain Tree

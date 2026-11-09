@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	gitmodule "github.com/aymanbagabas/git-module"
 	"github.com/charmbracelet/soft-serve/git"
 	"github.com/charmbracelet/soft-serve/pkg/access"
 	"github.com/charmbracelet/soft-serve/pkg/backend"
@@ -435,15 +434,17 @@ func (b *browser) commits(ctx context.Context, name, rev string, f commitFilter,
 		perPage = defaultPerPage
 	}
 	perPage = min(perPage, maxPerPage)
-	if f.Query != "" || f.Author != "" {
+	// searchCommits reads the path literally; git-module's log would take
+	// "*.go" or ":(exclude)docs" as a pattern.
+	if f.Query != "" || f.Author != "" || p != "" {
 		return b.searchCommits(ctx, gr, rev, c.ID.String(), f, page, perPage)
 	}
 	sha := c.ID.String()
-	cs, err := gr.Repository.CommitsByPage(sha, page, perPage, gitmodule.CommitsByPageOptions{Path: p})
+	cs, err := gr.Repository.CommitsByPage(sha, page, perPage)
 	if err != nil {
 		return CommitPage{}, err
 	}
-	total, err := gr.RevListCount([]string{sha}, gitmodule.RevListCountOptions{Path: p})
+	total, err := gr.RevListCount([]string{sha})
 	if err != nil {
 		return CommitPage{}, err
 	}
