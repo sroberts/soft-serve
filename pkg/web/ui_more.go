@@ -160,6 +160,9 @@ func (h uiHandler) search(w http.ResponseWriter, r *http.Request, b *browser, p 
 
 type accessData struct {
 	Collaborators []Collaborator
+	// The add form as last submitted, and why it failed.
+	Username, Level string
+	Err             string
 }
 
 func (h uiHandler) access(w http.ResponseWriter, r *http.Request, b *browser, p page) {

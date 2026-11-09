@@ -1,0 +1,207 @@
+{{define "formerror"}}{{if .}}<p class="formerror" role="alert">{{.}}</p>{{end}}{{end}}
+
+{{define "newrepo"}}{{template "head" .}}
+{{with .Data}}
+<section class="intro">
+  <h1>New repository</h1>
+  {{if not $.SoftServe}}<p class="note">Sign in to create a repository.{{if $.SignedIn}} No Soft Serve user is named <strong>{{$.SignedIn}}</strong>; an admin can add one over SSH.{{end}}</p>{{end}}
+</section>
+{{template "formerror" .Err}}
+{{if $.SoftServe}}
+<form class="manage" method="post" action="/-/new">
+  <fieldset>
+    <legend>Start from</legend>
+    <label class="check"><input type="radio" name="source" value=""{{if eq .Source ""}} checked{{end}}> <span>Nothing: an empty repository</span></label>
+    <label class="check"><input type="radio" name="source" value="fork"{{if eq .Source "fork"}} checked{{end}}> <span>Fork a remote: copy it once, then it's yours and never pulls from there again</span></label>
+    <label class="check"><input type="radio" name="source" value="mirror"{{if eq .Source "mirror"}} checked{{end}}> <span>Mirror a remote: keep following it, read-only here</span></label>
+    <label class="field">Remote URL <span class="hint">for a fork or mirror</span>
+      <input type="url" name="remote" value="{{.Remote}}" placeholder="https://github.com/owner/project.git" inputmode="url" autocomplete="off" spellcheck="false">
+    </label>
+    <label class="check"><input type="checkbox" name="auto_sync"{{if .AutoSync}} checked{{end}}> <span>Mirror only: sync on the server's schedule. Unchecked, it syncs only when you ask.</span></label>
+    <label class="check"><input type="checkbox" name="lfs"{{if .LFS}} checked{{end}}> <span>Fork or mirror: fetch Git LFS objects too</span></label>
+  </fieldset>
+  <fieldset>
+    <legend>Repository</legend>
+    <label class="field">Name <span class="hint">letters, numbers, <code>-</code> <code>_</code> <code>.</code>, and <code>/</code> for groups</span>
+      <input type="text" name="name" value="{{.Name}}" required maxlength="200" autocomplete="off" spellcheck="false" autofocus>
+    </label>
+    <label class="field">Project name <span class="hint">optional</span>
+      <input type="text" name="project_name" value="{{.ProjectName}}" maxlength="200">
+    </label>
+    <label class="field">Description <span class="hint">optional</span>
+      <input type="text" name="description" value="{{.Description}}" maxlength="500">
+    </label>
+    <label class="check"><input type="checkbox" name="private"{{if .Private}} checked{{end}}> <span>Private: only collaborators and admins can see it</span></label>
+    <label class="check"><input type="checkbox" name="hidden"{{if .Hidden}} checked{{end}}> <span>Hidden: left out of repository lists</span></label>
+  </fieldset>
+  <div class="actions"><button type="submit">Create repository</button> <a href="/">Cancel</a></div>
+</form>
+{{end}}
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "settings"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}{{$r := .Repo}}
+{{template "formerror" .Err}}
+<form class="manage" method="post" action="{{repoURL $r.Name "settings" "" ""}}">
+  <fieldset>
+    <legend>General</legend>
+    <label class="field">Project name
+      <input type="text" name="project_name" value="{{$r.ProjectName}}" maxlength="200">
+    </label>
+    <label class="field">Description
+      <input type="text" name="description" value="{{$r.Description}}" maxlength="500">
+    </label>
+    {{if $r.Branches}}<label class="field">Default branch
+      <select name="default_branch">{{range $r.Branches}}<option{{if eq . $r.DefaultBranch}} selected{{end}}>{{.}}</option>{{end}}</select>
+    </label>{{end}}
+    <label class="check"><input type="checkbox" name="private"{{if $r.Private}} checked{{end}}> <span>Private: only collaborators and admins can see it</span></label>
+    <label class="check"><input type="checkbox" name="hidden"{{if $r.Hidden}} checked{{end}}> <span>Hidden: left out of repository lists</span></label>
+  </fieldset>
+  {{if $r.Mirror}}
+  <fieldset>
+    <legend>Mirror</legend>
+    {{with $.Repo.MirrorOf}}<p class="note">Following <code>{{.}}</code>.</p>{{end}}
+    <label class="check"><input type="checkbox" name="mirror" checked> <span>Keep following the upstream. Unchecked, it stops syncing.</span></label>
+    <label class="check"><input type="checkbox" name="auto_sync"{{if and $r.AutoSync (deref $r.AutoSync)}} checked{{end}}> <span>Sync on the server's schedule. Unchecked, it syncs only when you ask.</span></label>
+  </fieldset>
+  {{end}}
+  <div class="actions"><button type="submit">Save settings</button></div>
+</form>
+
+{{if $r.Mirror}}
+<section class="manage-section">
+  <h2>Sync</h2>
+  <p class="note">Pull from the upstream now{{with $.Repo.MirrorSyncedAt}}; last synced <time datetime="{{.Format "2006-01-02T15:04:05Z07:00"}}">{{agoPtr .}}</time>{{end}}.</p>
+  <form method="post" action="{{repoURL $r.Name "sync" "" ""}}"><button type="submit">Sync now</button></form>
+</section>
+{{end}}
+
+<section class="manage-section">
+  <h2>Rename</h2>
+  <form class="inline" method="post" action="{{repoURL $r.Name "rename" "" ""}}">
+    <label class="field">New name
+      <input type="text" name="name" value="{{$r.Name}}" required maxlength="200" autocomplete="off" spellcheck="false">
+    </label>
+    <button type="submit">Rename</button>
+  </form>
+  <p class="note small">Clones will need the new address.</p>
+</section>
+
+<section class="manage-section danger">
+  <h2>Delete</h2>
+  <p class="note">Delete the repository with its history, collaborators and webhooks.</p>
+  <a class="button danger" href="{{repoURL $r.Name "delete" "" ""}}">Delete repository…</a>
+</section>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "confirm"}}{{template "head" .}}
+{{if .Repo}}{{template "repohead" .}}{{end}}
+{{with .Data}}
+<section class="card confirm">
+  <h2>{{.Heading}}</h2>
+  <p><code class="what">{{.What}}</code></p>
+  <p>{{.Message}}</p>
+  <form method="post" action="{{.Action}}">
+    {{range $k, $v := .Fields}}<input type="hidden" name="{{$k}}" value="{{$v}}">{{end}}
+    <div class="actions"><button type="submit" class="danger">{{.Button}}</button> <a href="{{.Cancel}}">Cancel</a></div>
+  </form>
+</section>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "hookfields"}}{{/* . is a struct with Form and Events */}}
+<label class="field">Payload URL
+  <input type="url" name="url" value="{{.Form.URL}}" required placeholder="https://example.com/hook" inputmode="url" autocomplete="off" spellcheck="false">
+</label>
+<fieldset class="events">
+  <legend>Events</legend>
+  {{$f := .Form}}{{range .Events}}<label class="check"><input type="checkbox" name="events" value="{{.}}"{{if $f.Has .}} checked{{end}}> <span><code>{{.}}</code></span></label>{{end}}
+</fieldset>
+<label class="field">Content type
+  <select name="content_type"><option value="json"{{if eq .Form.ContentType "json"}} selected{{end}}>JSON</option><option value="form"{{if eq .Form.ContentType "form"}} selected{{end}}>Form</option></select>
+</label>
+<label class="field">Secret <span class="hint">signs each payload{{if .Hook.ID}}; leave empty to keep the current one{{end}}</span>
+  <input type="password" name="secret" autocomplete="new-password">
+</label>
+<label class="check"><input type="checkbox" name="active"{{if .Form.Active}} checked{{end}}> <span>Active: send events to it</span></label>
+{{end}}
+
+{{define "webhooks"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}
+<section class="refs">
+  <h2>Webhooks</h2>
+  <ul>
+    {{range .Hooks}}<li>
+      <div class="refmain">
+        <a class="refname" href="{{repoURL $.Repo.Name (printf "webhooks/%d" .ID) "" ""}}">{{.URL}}</a>
+        <p class="meta">{{range $i, $e := .Events}}{{if $i}}, {{end}}{{$e}}{{end}} · {{.ContentType}} · added {{ago .CreatedAt}}</p>
+      </div>
+      {{if not .Active}}<span class="badge">inactive</span>{{end}}
+    </li>
+    {{else}}<li class="muted">No webhooks yet.</li>{{end}}
+  </ul>
+</section>
+<section class="manage-section">
+  <h2>Add a webhook</h2>
+  {{template "formerror" .Err}}
+  <form class="manage" method="post" action="{{repoURL $.Repo.Name "webhooks" "" ""}}">
+    {{template "hookfields" (hookForm .Form .Events 0)}}
+    <div class="actions"><button type="submit">Add webhook</button></div>
+  </form>
+</section>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "webhook"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}{{$hookURL := printf "webhooks/%d" .Hook.ID}}
+<p class="pathbar"><a href="{{repoURL $.Repo.Name "webhooks" "" ""}}">Webhooks</a><span class="sep" aria-hidden="true">/</span>{{.Hook.ID}}</p>
+{{template "formerror" .Err}}
+<form class="manage" method="post" action="{{repoURL $.Repo.Name $hookURL "" ""}}">
+  {{template "hookfields" (hookForm .Form .Events .Hook.ID)}}
+  <div class="actions"><button type="submit">Save webhook</button> <a class="danger" href="{{repoURL $.Repo.Name (printf "%s/delete" $hookURL) "" ""}}">Remove…</a></div>
+</form>
+<section class="refs">
+  <h2>Recent deliveries</h2>
+  <ul>
+    {{range .Deliveries}}<li>
+      <div class="refmain">
+        <a class="refname" href="{{repoURL $.Repo.Name (printf "%s/deliveries/%s" $hookURL .ID) "" ""}}">{{.Event}}</a>
+        <p class="meta"><time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .CreatedAt}}</time> · <span class="sha">{{short .ID}}</span></p>
+      </div>
+      <span class="badge {{if .OK}}ok{{else}}bad{{end}}">{{if .ResponseStatus}}{{.ResponseStatus}}{{else}}failed{{end}}</span>
+    </li>
+    {{else}}<li class="muted">Nothing sent yet.</li>{{end}}
+  </ul>
+</section>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "delivery"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}{{$hookURL := printf "webhooks/%d" .Hook.ID}}{{$d := .Delivery}}
+<p class="pathbar"><a href="{{repoURL $.Repo.Name "webhooks" "" ""}}">Webhooks</a><span class="sep" aria-hidden="true">/</span><a href="{{repoURL $.Repo.Name $hookURL "" ""}}">{{.Hook.ID}}</a><span class="sep" aria-hidden="true">/</span>{{short $d.ID}}</p>
+<section class="commit delivery">
+  <h2>{{$d.Event}} <span class="badge {{if $d.OK}}ok{{else}}bad{{end}}">{{if $d.ResponseStatus}}{{$d.ResponseStatus}}{{else}}failed{{end}}</span></h2>
+  <dl class="meta">
+    <dt>ID</dt><dd><code>{{$d.ID}}</code></dd>
+    <dt>Sent</dt><dd><time datetime="{{$d.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}" title="{{$d.CreatedAt.Format "2 Jan 2006 15:04 MST"}}">{{ago $d.CreatedAt}}</time></dd>
+    <dt>Request</dt><dd><code>{{$d.RequestMethod}} {{$d.RequestURL}}</code></dd>
+    {{if $d.RequestError}}<dt>Error</dt><dd>{{$d.RequestError}}</dd>{{end}}
+  </dl>
+  <form method="post" action="{{repoURL $.Repo.Name (printf "%s/deliveries/%s/redeliver" $hookURL $d.ID) "" ""}}"><button type="submit">Send again</button></form>
+  <h3>Request headers</h3>
+  <pre class="payload">{{$d.RequestHeaders}}</pre>
+  <h3>Request body</h3>
+  <pre class="payload">{{$d.RequestBody}}</pre>
+  <h3>Response headers</h3>
+  <pre class="payload">{{$d.ResponseHeaders}}</pre>
+  <h3>Response body</h3>
+  <pre class="payload">{{$d.ResponseBody}}</pre>
+</section>
+{{end}}
+{{template "foot" .}}{{end}}
