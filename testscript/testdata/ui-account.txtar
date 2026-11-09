@@ -13,7 +13,7 @@ soft repo collab add secret user1 read-only
 # In one session: a opens the account; add a key (a), create a token (t)
 # and dismiss it, rename (r), go back and open the private repository
 # user1 collaborates on, and look at its settings (the sixth tab).
-uui '"   a  a'$ADMIN2_AUTHORIZED_KEY'\r     tci\r     \r  r\x15newname\r     \x1b  \r     \t\t\t\t\t     q"'
+uui '"   a     a'$ADMIN2_AUTHORIZED_KEY'\r     tci\r     \r  r\x15newname\r     \x1b  \r     \t\t\t\t\t     q"'
 cp stdout session.txt
 grep 'Username  user1' session.txt
 grep 'Key added' session.txt
