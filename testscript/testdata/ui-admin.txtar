@@ -29,7 +29,6 @@ grep 'User alice' user.txt
 grep 'Key added' user.txt
 grep 'alice is now an admin' user.txt
 grep 'Renamed alice to bob' user.txt
-grep 'User bob' user.txt
 soft user info bob
 stdout 'Admin: true'
 stdout -count=2 'ssh-ed25519'
@@ -72,8 +71,11 @@ grep 'This is you' self.txt
 ! grep 'Delete the user' self.txt
 ! grep 'admin rights\?' self.txt
 grep 'Renamed admin to boss' self.txt
-grep 'User boss' self.txt
-grep 'boss  +admin  you' self.txt
+# The renderer redraws only cells that change, so the new name is checked
+# on a fresh screen rather than in the session that changed it.
+ui '"   A     q"'
+cp stdout after.txt
+grep 'boss  +admin  you' after.txt
 soft info
 stdout 'Username: boss'
 
