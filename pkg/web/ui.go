@@ -457,7 +457,7 @@ func (h uiHandler) fail(w http.ResponseWriter, r *http.Request, p page, err erro
 	case status == http.StatusBadRequest:
 		msg = publicMessage(err)
 	case status == http.StatusForbidden:
-		msg = "Only this repository's admins can see this."
+		msg = "You don't have enough access to this repository to see this."
 	default:
 		log.FromContext(r.Context()).Error("web", "path", r.URL.Path, "err", err)
 	}
