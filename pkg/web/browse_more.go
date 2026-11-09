@@ -503,8 +503,9 @@ var archiveFormats = map[string][2]string{
 }
 
 // archive streams a snapshot of the files at rev to w. before is called
-// with the file name and type once the revision is known to exist.
-func (b *browser) archive(ctx context.Context, name, rev, format string, w io.Writer, before func(filename, contentType string)) error {
+// with the file name and type once the revision is known to exist; when it
+// returns false no archive is made, as for a HEAD request.
+func (b *browser) archive(ctx context.Context, name, rev, format string, w io.Writer, before func(filename, contentType string) bool) error {
 	f, ok := archiveFormats[format]
 	if !ok {
 		return badRequest("unknown archive format %q: use tar.gz or zip", format)
@@ -518,7 +519,9 @@ func (b *browser) archive(ctx context.Context, name, rev, format string, w io.Wr
 		return err
 	}
 	prefix := safeFileName(gopath.Base(r.Name()) + "-" + rev)
-	before(prefix+"."+f[0], f[1])
+	if !before(prefix+"."+f[0], f[1]) {
+		return nil
+	}
 
 	ctx, cancel := context.WithTimeout(ctx, archiveTimeout)
 	defer cancel()

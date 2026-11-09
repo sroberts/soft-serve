@@ -409,3 +409,24 @@ func TestBrowserReusesOpenedRepo(t *testing.T) {
 	is.True(full.Branches[1].Ahead != nil)
 	is.True(plain.Branches[1].Ahead == nil)
 }
+
+// HEAD on a download answers with its headers and builds nothing.
+func TestHeadSkipsDownloads(t *testing.T) {
+	is := is.New(t)
+	f := newViewFixture(t)
+	for _, p := range []string{
+		"/v1/repos/group/open/-/archive?format=zip",
+		"/group/open/-/archive?format=tar.gz",
+		"/v1/repos/group/open/-/raw?path=src/main.go",
+		"/group/open/-/raw?path=data.bin",
+	} {
+		get := f.do(req{path: p})
+		head := f.do(req{method: http.MethodHead, path: p})
+		is.Equal(get.Code, http.StatusOK)
+		is.Equal(head.Code, http.StatusOK)
+		is.True(get.Body.Len() > 0)
+		is.Equal(head.Body.Len(), 0) // nothing was generated
+		is.Equal(head.Header().Get("Content-Type"), get.Header().Get("Content-Type"))
+		is.Equal(head.Header().Get("Content-Disposition"), get.Header().Get("Content-Disposition"))
+	}
+}

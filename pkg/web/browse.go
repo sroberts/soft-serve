@@ -669,8 +669,10 @@ func finishText(w *limitWriter) (string, bool) {
 	return string(w.buf), false
 }
 
-// raw streams a file's bytes to w and returns its path.
-func (b *browser) raw(ctx context.Context, name, rev, p string, w io.Writer, before func(path string, size int64, binary bool)) error {
+// raw streams a file's bytes to w. before is called first, with the
+// file's path, size and kind; when it returns false nothing is streamed,
+// as for a HEAD request.
+func (b *browser) raw(ctx context.Context, name, rev, p string, w io.Writer, before func(path string, size int64, binary bool) bool) error {
 	repo, gr, err := b.open(ctx, name)
 	if err != nil {
 		return err
@@ -689,13 +691,17 @@ func (b *browser) raw(ctx context.Context, name, rev, p string, w io.Writer, bef
 	if lf := b.lfsLookup(repo, te); lf != nil && lf.object != nil {
 		defer lf.object.Close() //nolint:errcheck
 		rd, bin := sniff(lf.object)
-		before(clean, lf.pointer.Size, bin)
+		if !before(clean, lf.pointer.Size, bin) {
+			return nil
+		}
 		_, err := io.Copy(w, rd)
 		return err
 	}
 	f := te.File()
 	bin, _ := f.IsBinary()
-	before(clean, te.Size(), bin)
+	if !before(clean, te.Size(), bin) {
+		return nil
+	}
 	return f.Pipeline(w, io.Discard)
 }
 
