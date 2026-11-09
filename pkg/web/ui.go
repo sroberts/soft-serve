@@ -49,7 +49,8 @@ import (
 //	/-/me                          your account
 //	/-/new                         create or import a repository
 //
-// The pages that change things are in ui_manage.go.
+// The pages that change things are in ui_manage.go, and your account's
+// forms in ui_account.go.
 //	/-/static/...                  stylesheets
 
 //go:embed ui_templates/*.html ui_static/*
@@ -81,6 +82,7 @@ var uiTemplates = template.Must(template.New("").Funcs(template.FuncMap{
 	"deref":        func(b *bool) bool { return b != nil && *b },
 	"hookForm":     hookFormArgs,
 	"deleteRefURL": deleteRefURL,
+	"keyShort":     keyShort,
 }).ParseFS(uiFS, "ui_templates/*.html"))
 
 // uiHandler serves the web pages.
@@ -148,6 +150,10 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	case "-/new":
 		h.newRepo(w, r, b, p)
+		return
+	}
+	if action, ok := strings.CutPrefix(rest, "-/me/"); ok {
+		h.accountAction(w, r, b, p, action)
 		return
 	}
 	name, action, _ := strings.Cut(rest, "/-/")

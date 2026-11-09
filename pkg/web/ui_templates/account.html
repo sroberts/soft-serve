@@ -1,0 +1,99 @@
+{{define "account"}}{{template "head" .}}
+{{with .Data}}
+<section class="intro">
+  <h1>Your account</h1>
+  {{if not .SignedIn}}
+  {{if .OutpostUser}}<p class="note">You're signed in as <strong>{{.OutpostUser}}</strong>, but no Soft Serve user has that name, so you see public repositories only. An admin can add one over SSH: <code>user create {{.OutpostUser}}</code>.</p>
+  {{else}}<p class="note">You aren't signed in, so you see public repositories only. Use an access token (<code>ssh … token create</code>) to sign in to the API and these pages.</p>{{end}}
+  {{else}}
+  <p>You're <strong>{{.Username}}</strong> on this server{{if .Admin}}, and an admin: you can read and change every repository{{end}}.{{if and .OutpostUser (ne .OutpostUser .Username)}} Outpost signed you in as {{.OutpostUser}}.{{end}}</p>
+  {{end}}
+</section>
+{{if .SignedIn}}
+{{with .NewToken}}
+<section class="card newtoken" role="status" aria-labelledby="new-token">
+  <h2 id="new-token">Your new token: {{.Name}}</h2>
+  <p><strong>Copy it now. It won't be shown again.</strong></p>
+  <code class="token">{{.Token}}</code>
+  <p class="note small">Sign in with it as the password, with your username, or send it as <code>Authorization: Token …</code>.</p>
+</section>
+{{end}}
+
+<section class="refs">
+  <h2>SSH keys</h2>
+  <ul>
+    {{range .Keys}}<li>
+      <div class="refmain">
+        <code class="refname">{{.Fingerprint}}</code>
+        <p class="meta"><code class="key" title="{{.Key}}">{{keyShort .Key}}</code></p>
+      </div>
+      <span class="badge">{{.Type}}</span>
+      <form class="rowaction" method="post" action="/-/me/keys/remove"><input type="hidden" name="fingerprint" value="{{.Fingerprint}}"><button type="submit" class="link danger" aria-label="Remove key {{.Fingerprint}}">Remove</button></form>
+    </li>
+    {{else}}<li class="muted">No SSH keys yet.</li>{{end}}
+  </ul>
+</section>
+<section class="manage-section">
+  <h2 id="add-key">Add an SSH key</h2>
+  {{template "formerror" .KeyErr}}
+  <form class="manage" method="post" action="/-/me/keys" aria-labelledby="add-key">
+    <label class="field">Public key <span class="hint">one line, like the contents of <code>~/.ssh/id_ed25519.pub</code></span>
+      <textarea name="key" rows="3" required autocomplete="off" spellcheck="false" placeholder="ssh-ed25519 AAAA… you@laptop">{{.KeyInput}}</textarea>
+    </label>
+    <div class="actions"><button type="submit">Add key</button></div>
+  </form>
+</section>
+
+<section class="refs">
+  <h2>Access tokens</h2>
+  <ul>
+    {{range .Tokens}}<li>
+      <div class="refmain"><span class="refname">{{.Name}}</span><p class="meta">Made {{ago .CreatedAt}} · {{if .ExpiresAt}}{{if .Expired}}expired{{else}}expires{{end}} <time datetime="{{.ExpiresAt.Format "2006-01-02T15:04:05Z07:00"}}">{{agoPtr .ExpiresAt}}</time>{{else}}never expires{{end}} · ID {{.ID}}</p></div>
+      {{if .Expired}}<span class="badge bad">expired</span>{{end}}
+      <form class="rowaction" method="post" action="/-/me/tokens/delete"><input type="hidden" name="id" value="{{.ID}}"><button type="submit" class="link danger" aria-label="Delete token {{.Name}}">Delete</button></form>
+    </li>
+    {{else}}<li class="muted">No access tokens yet.</li>{{end}}
+  </ul>
+</section>
+<section class="manage-section">
+  <h2 id="make-token">Make an access token</h2>
+  {{template "formerror" .TokenErr}}
+  <form class="inline" method="post" action="/-/me/tokens" aria-labelledby="make-token">
+    <label class="field">Name <span class="hint">what it's for</span>
+      <input type="text" name="name" value="{{.TokenName}}" required maxlength="100" autocomplete="off">
+    </label>
+    <label class="field">Expires
+      <select name="expires">{{$exp := .TokenExpiry}}{{range .Expiries}}<option value="{{.Value}}"{{if eq .Value $exp}} selected{{end}}>{{.Label}}</option>{{end}}</select>
+    </label>
+    <button type="submit">Make token</button>
+  </form>
+  <p class="note small">A token works like your password for git over HTTPS, the API and these pages. It's shown once, when it's made.</p>
+</section>
+
+<section class="manage-section">
+  <h2 id="username">Username</h2>
+  {{if .ViaOutpost}}
+  <p class="note">You signed in through Outpost, which finds your account here by its name. Renaming it would sign you out of these pages at once, so it can't be done here.</p>
+  <p class="note">To rename it anyway, use <code>{{if .SSHCommand}}{{.SSHCommand}}{{else}}ssh &lt;server&gt;{{end}} set-username &lt;new-name&gt;</code> or <code>soft set-username &lt;new-name&gt;</code>. These pages will know you again only if your Outpost name matches the new one.</p>
+  {{else}}
+  {{template "formerror" .NameErr}}
+  <form class="inline" method="post" action="/-/me/username" aria-labelledby="username">
+    <label class="field">New username <span class="hint">letters, numbers and <code>-</code>, starting with a letter</span>
+      <input type="text" name="username" value="{{.NewName}}" required maxlength="100" autocomplete="off" spellcheck="false">
+    </label>
+    <button type="submit">Rename</button>
+  </form>
+  <p class="note small">Your keys, tokens and repositories stay with you.</p>
+  {{end}}
+</section>
+
+<section class="refs">
+  <h2>Repositories you can push to</h2>
+  <ul>
+    {{range .Repos}}<li><a class="refname" href="{{repoURL .Name "" "" ""}}">{{.Name}}</a>{{if .Private}} <span class="badge">private</span>{{end}}{{if .Hidden}} <span class="badge">hidden</span>{{end}}<span class="badge">{{.Access}}</span></li>
+    {{else}}<li class="muted">None yet.</li>{{end}}
+  </ul>
+</section>
+{{end}}
+{{end}}
+{{template "foot" .}}{{end}}
