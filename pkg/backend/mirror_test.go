@@ -1,4 +1,4 @@
-package jobs
+package backend
 
 import (
 	"errors"
@@ -153,5 +153,60 @@ func TestValidateMirrorRemotesNoRemote(t *testing.T) {
 	r := newRepoWithRemotes(t, nil)
 	if _, err := validateMirrorRemotes(r, ssrf.GitRemotePolicy{}); err == nil {
 		t.Error("validateMirrorRemotes() accepted a repo with no remote")
+	}
+}
+
+func TestDetachRemotes(t *testing.T) {
+	r := newRepoWithRemotes(t, map[string]string{
+		"origin":   "https://github.com/charmbracelet/soft-serve.git",
+		"upstream": "https://example.com/x.git",
+	})
+
+	if err := detachRemotes(r); err != nil {
+		t.Fatalf("detachRemotes() error = %v", err)
+	}
+
+	cfg, err := r.Config()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(cfg.Section("remote").Subsections); n != 0 {
+		t.Errorf("detachRemotes() left %d remotes", n)
+	}
+	// Without a remote, the sync has nothing to fetch from.
+	if _, err := validateMirrorRemotes(r, ssrf.GitRemotePolicy{}); err == nil {
+		t.Error("a detached repo still validated as a mirror")
+	}
+}
+
+func TestMirrorAutoSync(t *testing.T) {
+	r := newRepoWithRemotes(t, map[string]string{"origin": "https://example.com/x.git"})
+
+	// A mirror from before the setting existed keeps syncing.
+	if !MirrorAutoSyncOf(r) {
+		t.Error("MirrorAutoSyncOf() = false with no setting, want true")
+	}
+
+	if err := setMirrorAutoSync(r, false); err != nil {
+		t.Fatal(err)
+	}
+	if MirrorAutoSyncOf(r) {
+		t.Error("MirrorAutoSyncOf() = true after turning it off")
+	}
+
+	// Turning it off must not disturb the remote it is about.
+	cfg, err := r.Config()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Section("remote").Subsection("origin").Option("url"); got != "https://example.com/x.git" {
+		t.Errorf("origin url = %q after setting autosync", got)
+	}
+
+	if err := setMirrorAutoSync(r, true); err != nil {
+		t.Fatal(err)
+	}
+	if !MirrorAutoSyncOf(r) {
+		t.Error("MirrorAutoSyncOf() = false after turning it back on")
 	}
 }

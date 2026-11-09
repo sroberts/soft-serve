@@ -39,7 +39,12 @@ type RepositoryOptions struct {
 	Private     bool
 	Description string
 	ProjectName string
-	Mirror      bool
+	// Mirror keeps an imported repository following its remote. Without it
+	// an import is a hard fork: the remote is dropped after cloning.
+	Mirror bool
+	// ManualSync leaves a mirror out of the scheduled mirror-pull job, so it
+	// syncs only when asked to. It means nothing without Mirror.
+	ManualSync  bool
 	Hidden      bool
 	LFS         bool
 	LFSEndpoint string

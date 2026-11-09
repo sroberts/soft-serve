@@ -26,6 +26,10 @@ type Backend struct {
 	// nothing has to happen in a particular order at startup for the gate
 	// to be in place.
 	importGate func() string
+
+	// syncing holds the names of mirrors being synced right now, so the
+	// scheduled job and an on-demand sync never fetch into one at once.
+	syncing sync.Map
 }
 
 // New returns a new Soft Serve backend.

@@ -13,6 +13,17 @@ soft repo import --private repo1 https://github.com/charmbracelet/wizard-tutoria
 soft repo private repo1
 stdout 'true'
 
+# a plain import is a hard fork: nothing points back at the remote, and it
+# cannot be turned into a mirror of it
+readfile $DATA_PATH/repos/repo1.git/config
+! stdout 'remote'
+! stdout 'github.com'
+soft repo mirror repo1
+stdout 'false'
+! soft repo mirror repo1 true
+! soft repo sync repo1
+stderr 'not a mirror'
+
 # import hidden
 soft repo import --hidden repo2 https://github.com/charmbracelet/wizard-tutorial.git
 soft repo hidden repo2

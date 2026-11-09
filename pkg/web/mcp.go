@@ -180,7 +180,7 @@ func newMCPServer(b *browser, outpostUser string, cache *mcp.SchemaCache) *mcp.S
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "get_repository",
-		Description: "Describe one repository: description, privacy, default branch, clone URLs and your access (read-only, read-write or admin-access). A mirror also says where it is copied from and when it last synced.",
+		Description: "Describe one repository: description, privacy, default branch, clone URLs and your access (read-only, read-write or admin-access). A mirror also says where it is copied from, when it last synced, and whether it syncs on a schedule.",
 		Annotations: readOnly("Get repository"),
 	}, tool(func(ctx context.Context, in repoArg) (RepoInfo, error) {
 		return b.repo(ctx, in.Repo)

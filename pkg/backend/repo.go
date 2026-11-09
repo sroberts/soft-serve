@@ -301,6 +301,14 @@ func (d *Backend) importRepository(ctx context.Context, user proto.User, imp imp
 		return nil, err
 	}
 
+	if err := configureImport(imp); err != nil {
+		d.logger.Error("failed to configure imported repository", "err", err, "mirror", imp.opts.Mirror, "path", imp.path)
+		if rerr := os.RemoveAll(imp.path); rerr != nil {
+			err = errors.Join(err, rerr)
+		}
+		return nil, err
+	}
+
 	r, err := d.registerRepository(ctx, imp.name, user, imp.opts)
 	if err != nil {
 		d.logger.Error("failed to create repository", "err", err, "name", imp.name)
@@ -319,25 +327,6 @@ func (d *Backend) importRepository(ctx context.Context, user proto.User, imp imp
 		return r, nil
 	}
 
-	rr, err := r.Open()
-	if err != nil {
-		d.logger.Error("failed to open repository", "err", err, "path", imp.path)
-		return nil, err
-	}
-
-	rcfg, err := rr.Config()
-	if err != nil {
-		d.logger.Error("failed to get repository config", "err", err, "path", imp.path)
-		return nil, err
-	}
-
-	rcfg.Section("lfs").SetOption("url", imp.lfsEndpoint)
-
-	if err := rr.SetConfig(rcfg); err != nil {
-		d.logger.Error("failed to set repository config", "err", err, "path", imp.path)
-		return nil, err
-	}
-
 	client := lfs.NewClient(imp.lfs)
 	if client == nil {
 		d.logger.Warn("failed to create lfs client: unsupported endpoint", "endpoint", imp.lfsEndpoint)
@@ -350,6 +339,33 @@ func (d *Backend) importRepository(ctx context.Context, user proto.User, imp imp
 	}
 
 	return r, nil
+}
+
+// configureImport finishes a fresh clone before it is registered. A hard
+// fork loses its remotes, so nothing ties it to where it came from. A mirror
+// keeps them, records the LFS endpoint the sync job fetches from, and is
+// taken out of the scheduled sync if asked.
+func configureImport(imp importSpec) error {
+	r, err := git.Open(imp.path)
+	if err != nil {
+		return err
+	}
+
+	if !imp.opts.Mirror {
+		return detachRemotes(r)
+	}
+
+	rcfg, err := r.Config()
+	if err != nil {
+		return err
+	}
+	if imp.lfs != nil {
+		rcfg.Section("lfs").SetOption("url", imp.lfsEndpoint)
+	}
+	if imp.opts.ManualSync {
+		rcfg.Section(mirrorConfigSection).SetOption(mirrorAutoSyncKey, "false")
+	}
+	return r.SetConfig(rcfg)
 }
 
 // DeleteRepository deletes a repository.

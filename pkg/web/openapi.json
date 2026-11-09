@@ -276,7 +276,8 @@
           "access": {"type": "string", "enum": ["read-only", "read-write", "admin-access"], "description": "The caller's access"},
           "clone": {"type": "object", "description": "How to clone. `https` is left out behind Outpost's login gateway, where git over HTTPS can't sign in; use SSH there.", "properties": {"ssh": {"type": "string"}, "https": {"type": "string"}}},
           "mirror_of": {"type": "string", "description": "Where a mirror is copied from, without credentials. Left out for a path on the server."},
-          "mirror_synced_at": {"type": "string", "format": "date-time", "description": "When a mirror last fetched"}
+          "mirror_synced_at": {"type": "string", "format": "date-time", "description": "When a mirror last fetched"},
+          "mirror_auto_sync": {"type": "boolean", "description": "Whether a mirror syncs on the server's schedule, or only when someone runs `repo sync`. Left out for repositories that are not mirrors."}
         },
         "required": ["name", "private", "mirror", "hidden", "empty", "updated_at", "clone", "access"]
       },
