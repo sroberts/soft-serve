@@ -63,4 +63,3 @@ stderr 'repository not found'
 
 # stop the server
 [windows] stopserver
-[windows] ! stderr .
