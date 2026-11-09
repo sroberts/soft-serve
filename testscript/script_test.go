@@ -122,6 +122,7 @@ func TestScript(t *testing.T) {
 			"stopserver":             cmdStopserver,
 			"ui":                     cmdUI(admin1.Signer()),
 			"uui":                    cmdUI(user1.Signer()),
+			"aui":                    cmdUI(attacker.Signer()),
 		},
 		Setup: func(e *testscript.Env) error {
 			// Add binPath to PATH

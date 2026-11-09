@@ -10,7 +10,6 @@ import (
 	"github.com/charmbracelet/soft-serve/pkg/access"
 	"github.com/charmbracelet/soft-serve/pkg/backend"
 	"github.com/charmbracelet/soft-serve/pkg/config"
-	"github.com/charmbracelet/soft-serve/pkg/ops"
 	"github.com/charmbracelet/soft-serve/pkg/proto"
 	sshcmd "github.com/charmbracelet/soft-serve/pkg/ssh/cmd"
 	"github.com/charmbracelet/soft-serve/pkg/ui/common"
@@ -67,8 +66,11 @@ func SessionHandler(s ssh.Session) *tea.Program {
 	c := common.NewCommon(ctx, pty.Window.Width, pty.Window.Height)
 	c.SetValue(common.ConfigKey, cfg)
 	// Managing repositories from the TUI goes through the same operations,
-	// with the same permissions, as the SSH repo commands.
-	c.Service = ops.NewLocal(backend.FromContext(ctx), sshcmd.Actor(ctx))
+	// with the same permissions, as the SSH repo commands. A rename from
+	// the account screen updates the session's user, here and in ctx.
+	c.Service = newSessionService(be, sshcmd.Actor(ctx), func(u proto.User) {
+		ctx.SetValue(proto.ContextKeyUser, u)
+	})
 	m := NewUI(c, initialRepo)
 	p := tea.NewProgram(m, opts...)
 
