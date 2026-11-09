@@ -85,6 +85,9 @@ func (ui *UI) getMargins() (wm, hm int) {
 
 // ShortHelp implements help.KeyMap.
 func (ui *UI) ShortHelp() []key.Binding {
+	if ui.capturingInput() {
+		return ui.pages[ui.activePage].ShortHelp()
+	}
 	b := make([]key.Binding, 0)
 	switch ui.state {
 	case errorState:
@@ -101,6 +104,9 @@ func (ui *UI) ShortHelp() []key.Binding {
 
 // FullHelp implements help.KeyMap.
 func (ui *UI) FullHelp() [][]key.Binding {
+	if ui.capturingInput() {
+		return ui.pages[ui.activePage].FullHelp()
+	}
 	b := make([][]key.Binding, 0)
 	switch ui.state {
 	case errorState:
@@ -134,13 +140,21 @@ func (ui *UI) SetSize(width, height int) {
 // Init implements tea.Model.
 func (ui *UI) Init() tea.Cmd {
 	ui.pages[selectionPage] = selection.New(ui.common)
-	ui.pages[repoPage] = repo.New(ui.common,
+	panes := []common.TabComponent{
 		repo.NewReadme(ui.common),
 		repo.NewFiles(ui.common),
 		repo.NewLog(ui.common),
 		repo.NewRefs(ui.common, git.RefsHeads),
 		repo.NewRefs(ui.common, git.RefsTags),
-	)
+	}
+	if ui.common.Service != nil {
+		panes = append(panes,
+			repo.NewSettings(ui.common),
+			repo.NewCollaborators(ui.common),
+			repo.NewWebhooks(ui.common),
+		)
+	}
+	ui.pages[repoPage] = repo.New(ui.common, panes...)
 	ui.SetSize(ui.common.Width, ui.common.Height)
 	cmds := make([]tea.Cmd, 0)
 	cmds = append(cmds,
@@ -153,6 +167,12 @@ func (ui *UI) Init() tea.Cmd {
 	ui.state = readyState
 	ui.SetSize(ui.common.Width, ui.common.Height)
 	return tea.Batch(cmds...)
+}
+
+// capturingInput reports whether the active page has a form taking typed
+// input, which then gets every key but ctrl+c.
+func (ui *UI) capturingInput() bool {
+	return ui.state == readyState && common.IsCapturingInput(ui.pages[ui.activePage])
 }
 
 // IsFiltering returns true if the selection page is filtering.
@@ -181,6 +201,11 @@ func (ui *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	case tea.KeyPressMsg:
 		switch {
+		case ui.capturingInput():
+			if msg.String() == "ctrl+c" {
+				ui.common.Zone.Close()
+				return ui, tea.Quit
+			}
 		case key.Matches(msg, ui.common.KeyMap.Back) && ui.error != nil:
 			ui.error = nil
 			ui.state = readyState
@@ -221,6 +246,14 @@ func (ui *UI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Show the footer on repo page if show all is set.
 		ui.showFooter = ui.footer.ShowAll()
 		cmds = append(cmds, repo.UpdateRefCmd(msg))
+	case common.OpenRepoMsg:
+		// A repository was made, renamed or changed: show it, and the
+		// list as it now is.
+		cmds = append(cmds, ui.setRepoCmd(string(msg)), ui.pages[selectionPage].Init())
+	case common.HomeMsg:
+		ui.activePage = selectionPage
+		ui.showFooter = true
+		cmds = append(cmds, ui.pages[selectionPage].Init())
 	case common.ErrorMsg:
 		ui.error = msg
 		ui.state = errorState

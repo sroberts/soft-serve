@@ -39,3 +39,23 @@ type TabComponent interface {
 	// Path returns the hierarchical path of the tab.
 	Path() string
 }
+
+// InputCapturer is a component that may be taking typed input, such as a
+// form. While it is, keys that mean something everywhere else (quit, help,
+// switching tabs, going back) are left to it.
+type InputCapturer interface {
+	CapturingInput() bool
+}
+
+// IsCapturingInput reports whether m is taking typed input.
+func IsCapturingInput(m any) bool {
+	ic, ok := m.(InputCapturer)
+	return ok && ic.CapturingInput()
+}
+
+// OpenRepoMsg asks the UI to open the named repository, or open it again to
+// show changes to it.
+type OpenRepoMsg string
+
+// HomeMsg asks the UI to go back to the repository list and reload it.
+type HomeMsg struct{}

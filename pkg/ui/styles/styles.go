@@ -57,6 +57,20 @@ type Styles struct {
 	HelpDivider lipgloss.Style
 	URLStyle    lipgloss.Style
 
+	// Form is how forms and management lists look.
+	Form struct {
+		Title        lipgloss.Style
+		Label        lipgloss.Style
+		LabelFocused lipgloss.Style
+		Value        lipgloss.Style
+		ValueFocused lipgloss.Style
+		Hint         lipgloss.Style
+		Error        lipgloss.Style
+		Success      lipgloss.Style
+		Row          lipgloss.Style
+		RowSelected  lipgloss.Style
+	}
+
 	Error      lipgloss.Style
 	ErrorTitle lipgloss.Style
 	ErrorBody  lipgloss.Style
@@ -288,6 +302,19 @@ func DefaultStyles() *Styles {
 	s.URLStyle = lipgloss.NewStyle().
 		MarginLeft(1).
 		Foreground(lipgloss.Color("168"))
+
+	s.Form.Title = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212")).MarginBottom(1)
+	s.Form.Label = lipgloss.NewStyle().Foreground(lipgloss.Color("246"))
+	s.Form.LabelFocused = lipgloss.NewStyle().Foreground(selectorColor).Bold(true)
+	s.Form.Value = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	s.Form.ValueFocused = lipgloss.NewStyle().Foreground(highlightColor)
+	s.Form.Hint = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	s.Form.Error = lipgloss.NewStyle().Foreground(lipgloss.Color("203"))
+	s.Form.Success = lipgloss.NewStyle().Foreground(lipgloss.Color("36"))
+	s.Form.Row = lipgloss.NewStyle().PaddingLeft(2)
+	s.Form.RowSelected = lipgloss.NewStyle().Foreground(selectorColor).
+		Border(lipgloss.NormalBorder(), false, false, false, true).
+		BorderForeground(selectorColor).PaddingLeft(1)
 
 	s.Error = lipgloss.NewStyle().
 		MarginTop(2)
