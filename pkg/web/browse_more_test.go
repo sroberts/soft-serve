@@ -377,6 +377,9 @@ func TestMCPNewTools(t *testing.T) {
 	is.Equal(len(b["hunks"].([]any)), 1)
 	l := call("list_repositories", `{"query":"open"}`)
 	is.Equal(len(l["repositories"].([]any)), 1)
+	is.True(l["repositories"].([]any)[0].(map[string]any)["last_commit"] != nil)
+	rc := call("recent_activity", `{"limit":5}`)
+	is.True(len(rc["commits"].([]any)) >= 2) // main and feature
 	d := call("list_directory", `{"repo":"group/open","last_commits":true}`)
 	is.True(d["last_commit"] != nil)
 }
