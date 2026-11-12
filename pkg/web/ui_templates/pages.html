@@ -373,28 +373,30 @@ git push -u origin main</pre>{{end}}
 {{with .Data}}
 <section class="insights">
   <dl class="figures">
-    <div><dt>Commits</dt><dd>{{.Stats.TotalCommits}}</dd></div>
-    <div><dt>Contributors</dt><dd>{{.Stats.TotalContributors}}</dd></div>
+    {{with .Stats.Owner}}<div class="yours"><dt>Your commits</dt><dd>{{.Commits}}</dd>{{with .First}}<dd class="since">since <time datetime="{{.Format "2006-01-02"}}">{{.Format "2 Jan 2006"}}</time></dd>{{end}}</div>
+    <div><dt>Everyone else's</dt><dd>{{.Others}}</dd></div>{{else}}<div><dt>Commits</dt><dd>{{.Stats.TotalCommits}}</dd></div>
+    <div><dt>Contributors</dt><dd>{{.Stats.TotalContributors}}</dd></div>{{end}}
     <div><dt>Files</dt><dd>{{.Stats.Files}}</dd></div>
     <div><dt>Size</dt><dd>{{bytes .Stats.Bytes}}</dd></div>
   </dl>
 
   <h2>Activity</h2>
-  <p class="note">{{.YearTotal}} commit{{if ne .YearTotal 1}}s{{end}} on <code>{{.Stats.Ref}}</code> in the last year{{if .BusiestN}}; the busiest week, of {{.BusiestWk}}, had {{.BusiestN}}{{end}}.</p>
+  <p class="note">{{.YearTotal}} commit{{if ne .YearTotal 1}}s{{end}} on <code>{{.Stats.Ref}}</code> in the last year{{if .Split}}, {{.YearOwner}} of them yours{{end}}{{if .BusiestN}}; the busiest week, of {{.BusiestWk}}, had {{.BusiestN}}{{end}}.</p>
+  {{if .NoEmail}}<p class="note small">Outpost's sign-in didn't give an email for you, so your commits aren't counted apart from everyone else's.</p>{{end}}
   <figure class="activity">
     <svg viewBox="0 0 {{.ChartW}} {{.ChartH}}" preserveAspectRatio="none" role="img" aria-label="Commits per week for the last year: {{.YearTotal}} in all">
       <line class="base" x1="0" y1="{{.ChartH}}" x2="{{.ChartW}}" y2="{{.ChartH}}"></line>
-      {{range .Bars}}<g><rect class="hit" x="{{.X}}" y="0" width="{{$.Data.BarW}}" height="{{$.Data.ChartH}}"></rect>{{if .H}}<rect class="bar" x="{{.X}}" y="{{.Y}}" width="{{$.Data.BarW}}" height="{{.H}}" rx="2"></rect>{{end}}<title>{{.Label}}</title></g>
+      {{range .Bars}}<g><rect class="hit" x="{{.X}}" y="0" width="{{$.Data.BarW}}" height="{{$.Data.ChartH}}"></rect>{{if .H}}<rect class="bar{{if $.Data.Split}} others{{end}}" x="{{.X}}" y="{{.Y}}" width="{{$.Data.BarW}}" height="{{.H}}" rx="2"></rect>{{end}}{{if .OwnerH}}<rect class="bar mine" x="{{.X}}" y="{{.OwnerY}}" width="{{$.Data.BarW}}" height="{{.OwnerH}}" rx="2"></rect>{{end}}<title>{{.Label}}</title></g>
       {{end}}
     </svg>
-    <figcaption><span>A year ago</span><span>This week</span></figcaption>
+    <figcaption><span>A year ago</span>{{if .Split}}<span class="legend"><span class="key mine"></span>Yours <span class="key others"></span>Everyone else's</span>{{end}}<span>This week</span></figcaption>
   </figure>
   <details class="weeks">
     <summary>Commits in each week</summary>
     <table>
-      <thead><tr><th scope="col">Week of</th><th scope="col">Commits</th></tr></thead>
+      <thead><tr><th scope="col">Week of</th><th scope="col">Commits</th>{{if .Split}}<th scope="col">Yours</th>{{end}}</tr></thead>
       <tbody>
-      {{range .Bars}}<tr{{if not .Commits}} class="none"{{end}}><td>{{.Week}}</td><td>{{.Commits}}</td></tr>
+      {{range .Bars}}<tr{{if not .Commits}} class="none"{{end}}><td>{{.Week}}</td><td>{{.Commits}}</td>{{if $.Data.Split}}<td>{{.Owner}}</td>{{end}}</tr>
       {{end}}</tbody>
     </table>
   </details>
@@ -414,13 +416,15 @@ git push -u origin main</pre>{{end}}
       {{else}}<p class="empty">No code that could be recognised.</p>{{end}}
     </section>
     <section>
-      <h2>Top contributors</h2>
+      {{if .Split}}<h2>Contributors</h2>{{else}}<h2>Top contributors</h2>{{end}}
       {{if .Stats.Contributors}}
+      {{if .Split}}<details class="weeks"><summary>All {{.Stats.TotalContributors}} contributor{{if ne .Stats.TotalContributors 1}}s{{end}}</summary>{{end}}
       <ol class="people">
         {{range .Stats.Contributors}}<li><a href="{{authorURL $.Repo.Name $.Ref .Name}}">{{.Name}}</a><span class="muted">{{.Commits}} commit{{if ne .Commits 1}}s{{end}}</span></li>
         {{end}}
       </ol>
-      <p class="note small">By commits authored, leaving out merges.</p>
+      <p class="note small">By commits authored, leaving out merges{{if gt .Stats.TotalContributors (len .Stats.Contributors)}}; the {{len .Stats.Contributors}} with the most{{end}}.</p>
+      {{if .Split}}</details>{{end}}
       {{else}}<p class="empty">No commits other than merges.</p>{{end}}
     </section>
   </div>

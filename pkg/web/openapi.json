@@ -474,11 +474,14 @@
       }
     },
     "/v1/repos/{repo}/-/stats": {
-      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/Ref"}],
+      "parameters": [
+        {"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/Ref"},
+        {"name": "owner_email", "in": "query", "description": "Author emails, comma-separated (up to 5), whose commits to count apart from everyone else's in `owner` and each week's `owner_commits`. Behind Outpost's login gateway, the signed-in user's email is used when this is left out.", "schema": {"type": "string"}}
+      ],
       "get": {
         "operationId": "getStats",
         "summary": "Languages, size, contributors and weekly activity at a ref",
-        "description": "Each count stops after 10 seconds on a very large repository; `partial` says when one did.",
+        "description": "Each count stops after 10 seconds on a very large repository; `partial` says when one did. With the caller's email known, the history is also split between their commits and everyone else's.",
         "responses": {
           "200": {"description": "The stats", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Stats"}}}},
           "404": {"$ref": "#/components/responses/Error"}
@@ -1046,7 +1049,8 @@
           "total_commits": {"type": "integer"},
           "contributors": {"type": "array", "description": "The 25 most frequent authors, by commits, leaving out merges", "items": {"type": "object", "properties": {"name": {"type": "string"}, "commits": {"type": "integer"}}, "required": ["name", "commits"]}},
           "total_contributors": {"type": "integer"},
-          "weekly": {"type": "array", "description": "Commits in each of the last 52 weeks, oldest first; weeks start on Monday, UTC", "items": {"type": "object", "properties": {"week": {"type": "string", "format": "date-time"}, "commits": {"type": "integer"}}, "required": ["week", "commits"]}},
+          "weekly": {"type": "array", "description": "Commits in each of the last 52 weeks, oldest first; weeks start on Monday, UTC", "items": {"type": "object", "properties": {"week": {"type": "string", "format": "date-time"}, "commits": {"type": "integer"}, "owner_commits": {"type": "integer", "description": "How many of them are the caller's; left out when none are, or the caller's email isn't known"}}, "required": ["week", "commits"]}},
+          "owner": {"type": "object", "description": "The history split between the caller's commits, by author email, and everyone else's. Left out when the caller's email isn't known.", "properties": {"commits": {"type": "integer"}, "other_commits": {"type": "integer"}, "first": {"type": "string", "format": "date-time", "description": "When the caller's first commit here was made"}, "last": {"type": "string", "format": "date-time"}}, "required": ["commits", "other_commits"]},
           "partial": {"type": "boolean"}
         },
         "required": ["ref", "commit", "files", "bytes", "languages", "total_commits", "contributors", "total_contributors", "weekly", "partial"]

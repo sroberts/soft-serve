@@ -377,6 +377,8 @@ func TestMCPNewTools(t *testing.T) {
 	is.Equal(len(b["hunks"].([]any)), 1)
 	l := call("list_repositories", `{"query":"open"}`)
 	is.Equal(len(l["repositories"].([]any)), 1)
+	st := call("get_repository_stats", `{"repo":"group/open","owner_email":"a@example.com"}`)
+	is.True(st["owner"].(map[string]any)["commits"].(float64) >= 1)
 	d := call("list_directory", `{"repo":"group/open","last_commits":true}`)
 	is.True(d["last_commit"] != nil)
 }

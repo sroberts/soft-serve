@@ -81,6 +81,9 @@ type browser struct {
 	// base is the scheme and host the caller reached us at, for HTTPS clone
 	// URLs. Built from the request, never configured (no hard-coded host).
 	base string
+	// owner is the caller's own author emails, for telling their commits
+	// from everyone else's: the email Outpost's sign-in gives, if any.
+	owner []string
 
 	// opened keeps the repositories this request has opened, so a page
 	// that checks access first and then reads doesn't do both twice.

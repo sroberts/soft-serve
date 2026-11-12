@@ -16,8 +16,10 @@ type caller struct {
 	// user is the Soft Serve user whose access applies; nil means anonymous.
 	user proto.User
 	// outpostUser is the verified Outpost username, when the gateway fronts
-	// us and the request carried a valid identity token.
-	outpostUser string
+	// us and the request carried a valid identity token, and outpostEmail
+	// the email it gives for them, if any.
+	outpostUser  string
+	outpostEmail string
 }
 
 var errBadCredentials = errors.New("invalid credentials")
@@ -46,14 +48,14 @@ func identifyCaller(r *http.Request, v *outpostVerifier) (caller, error) {
 	if v == nil {
 		return caller{}, nil
 	}
-	name, err := v.verify(r)
+	id, err := v.verifyIdentity(r)
 	if err != nil {
 		if !errors.Is(err, errNoIdentity) {
 			log.FromContext(ctx).Warn("ignoring outpost identity", "err", err)
 		}
 		return caller{}, nil
 	}
-	return caller{user: softServeUser(ctx, name), outpostUser: name}, nil
+	return caller{user: softServeUser(ctx, id.name), outpostUser: id.name, outpostEmail: id.email}, nil
 }
 
 // isOutpostToken reports whether an Authorization header holds an Outpost

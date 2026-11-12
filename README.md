@@ -964,7 +964,8 @@ exactly what the caller may read and allowing what they may change:
   - **Mirrors** say where they're copied from (credentials taken out) and when
     they last synced.
   - **Insights** (`/<repo>/-/insights`): languages, contributors and commits
-    per week for the last year.
+    per week for the last year. Behind Outpost, your commits (by your sign-in
+    email) are counted and charted apart from everyone else's.
   - **Your account** (`/-/me`): your user, SSH keys, access tokens (never
     the tokens themselves) and the repositories you can push to. Add and
     remove keys, create and delete tokens (a new token is shown once), and
@@ -989,6 +990,7 @@ exactly what the caller may read and allowing what they may change:
   curl "http://localhost:23232/v1/repos/icecream/-/files?q=guide"
   curl "http://localhost:23232/v1/repos/icecream/-/commits/abc1234?ignore_whitespace=true"
   curl http://localhost:23232/v1/repos/icecream/-/stats
+  curl "http://localhost:23232/v1/repos/icecream/-/stats?owner_email=me@example.com"
   curl -H "Authorization: Token $TOKEN" http://localhost:23232/v1/me
   curl -OJ "http://localhost:23232/v1/repos/icecream/-/archive?ref=v1.0&format=zip"
   ```
