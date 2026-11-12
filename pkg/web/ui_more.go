@@ -41,6 +41,9 @@ func (h uiHandler) blame(w http.ResponseWriter, r *http.Request, b *browser, p p
 		return
 	}
 	if err != nil {
+		if statusFor(err) == http.StatusNotFound && nearestDir(w, r, b, p.Repo.Name, p.Ref, path) {
+			return
+		}
 		h.fail(w, r, p, err)
 		return
 	}
