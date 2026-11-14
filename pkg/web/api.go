@@ -71,6 +71,16 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.respond(w, r)(b.account(r.Context(), c.outpostUser))
 		return
 	}
+	if r.URL.Path == "/v1/recent" {
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		rs, err := b.repos(r.Context())
+		if err != nil {
+			h.respond(w, r)(nil, err)
+			return
+		}
+		h.respond(w, r)(b.withRecent(r.Context(), rs, limit), nil)
+		return
+	}
 	rest, ok := strings.CutPrefix(r.URL.Path, "/v1/repos")
 	if !ok {
 		writeAPIError(w, http.StatusNotFound, "not found")
@@ -79,7 +89,12 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rest = strings.Trim(rest, "/")
 	if rest == "" {
 		rs, err := b.listRepos(r.Context(), r.URL.Query().Get("hidden") == "true")
-		h.respond(w, r)(filterRepos(rs, r.URL.Query().Get("q")), err)
+		rs = filterRepos(rs, r.URL.Query().Get("q"))
+		b.withRecent(r.Context(), rs, 1)
+		if r.URL.Query().Get("sort") == "recent" {
+			sortRecent(rs)
+		}
+		h.respond(w, r)(rs, err)
 		return
 	}
 	name, action, _ := strings.Cut(rest, "/-/")

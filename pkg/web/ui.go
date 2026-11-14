@@ -258,6 +258,8 @@ type indexData struct {
 	Repos []RepoInfo
 	Query string
 	Total int
+	// Recent is the newest work across the repositories, unless filtering.
+	Recent []RecentCommit
 }
 
 func (h uiHandler) index(w http.ResponseWriter, r *http.Request, b *browser, p page) {
@@ -268,7 +270,14 @@ func (h uiHandler) index(w http.ResponseWriter, r *http.Request, b *browser, p p
 	}
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	p.Title = p.SiteName
-	p.Data = indexData{Repos: filterRepos(repos, q), Query: q, Total: len(repos)}
+	d := indexData{Repos: filterRepos(repos, q), Query: q, Total: len(repos)}
+	if q == "" {
+		d.Recent = b.withRecent(r.Context(), d.Repos, homeRecent).Commits
+	} else {
+		b.withRecent(r.Context(), d.Repos, 1)
+	}
+	sortRecent(d.Repos)
+	p.Data = d
 	h.render(w, r, "index", p)
 }
 
