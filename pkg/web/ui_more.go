@@ -31,6 +31,7 @@ type blameData struct {
 	Blame     Blame
 	Rows      []blameRow
 	Permalink string
+	Cut       *lineCut
 }
 
 func (h uiHandler) blame(w http.ResponseWriter, r *http.Request, b *browser, p page, path string) {
@@ -51,12 +52,34 @@ func (h uiHandler) blame(w http.ResponseWriter, r *http.Request, b *browser, p p
 	p.Title = "Blame " + bl.Path + " · " + p.Repo.Name
 
 	slices.SortFunc(bl.Hunks, func(a, c BlameHunk) int { return a.Start - c.Start })
+	d := blameData{Blame: bl}
+	total := 0
+	for _, hk := range bl.Hunks {
+		total += len(hk.Lines)
+	}
+	if total > maxPageLines && r.URL.Query().Get("all") != "1" {
+		// As on the file page: the first lines, and a way to the rest.
+		d.Cut = &lineCut{Shown: maxPageLines, Total: total, AllURL: withAll(r.URL)}
+		left := maxPageLines
+		hunks := bl.Hunks[:0:0]
+		for _, hk := range bl.Hunks {
+			if left == 0 {
+				break
+			}
+			if len(hk.Lines) > left {
+				hk.Lines = hk.Lines[:left]
+			}
+			left -= len(hk.Lines)
+			hunks = append(hunks, hk)
+		}
+		bl.Hunks = hunks
+	}
 	var src []string
 	for _, hk := range bl.Hunks {
 		src = append(src, hk.Lines...)
 	}
 	code := highlightLines(gopath.Base(bl.Path), strings.Join(src, "\n"))
-	d := blameData{Blame: bl}
+	d.Blame = bl
 	if r.URL.Query().Get("ref") != bl.Commit {
 		d.Permalink = repoURL(p.Repo.Name, "blame", bl.Commit, bl.Path)
 	}
@@ -119,7 +142,7 @@ func (h uiHandler) compare(w http.ResponseWriter, r *http.Request, b *browser, p
 	default:
 		// A ref that doesn't exist or doesn't make sense: say so beside
 		// the form, so it can be fixed.
-		d.Err = publicMessage(err)
+		d.Err = pageMessage(err)
 		p.Data = d
 		h.renderStatus(w, r, statusFor(err), "compare", p)
 		return
@@ -153,7 +176,7 @@ func (h uiHandler) search(w http.ResponseWriter, r *http.Request, b *browser, p 
 		h.fail(w, r, p, err)
 		return
 	default:
-		d.Err = publicMessage(err)
+		d.Err = pageMessage(err)
 		p.Data = d
 		h.renderStatus(w, r, statusFor(err), "search", p)
 		return

@@ -1,94 +1,55 @@
 package git
 
 import (
-	"bytes"
 	"fmt"
 	"math"
 	"strings"
-	"sync"
 
 	"github.com/aymanbagabas/git-module"
 	"github.com/dustin/go-humanize/english"
-	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
 // DiffSection is a wrapper to git.DiffSection with helper methods.
 type DiffSection struct {
 	*git.DiffSection
-
-	initOnce sync.Once
-	dmp      *diffmatchpatch.DiffMatchPatch
-}
-
-// diffFor computes inline diff for the given line.
-func (s *DiffSection) diffFor(line *git.DiffLine) string {
-	fallback := line.Content
-
-	// Find equivalent diff line, ignore when not found.
-	var diff1, diff2 string
-	switch line.Type {
-	case git.DiffLineAdd:
-		compareLine := s.Line(git.DiffLineDelete, line.RightLine)
-		if compareLine == nil {
-			return fallback
-		}
-
-		diff1 = compareLine.Content
-		diff2 = line.Content
-
-	case git.DiffLineDelete:
-		compareLine := s.Line(git.DiffLineAdd, line.LeftLine)
-		if compareLine == nil {
-			return fallback
-		}
-
-		diff1 = line.Content
-		diff2 = compareLine.Content
-
-	default:
-		return fallback
-	}
-
-	s.initOnce.Do(func() {
-		s.dmp = diffmatchpatch.New()
-		s.dmp.DiffEditCost = 100
-	})
-
-	diffs := s.dmp.DiffMain(diff1[1:], diff2[1:], true)
-	diffs = s.dmp.DiffCleanupEfficiency(diffs)
-
-	return diffsToString(diffs, line.Type)
-}
-
-func diffsToString(diffs []diffmatchpatch.Diff, lineType git.DiffLineType) string {
-	buf := bytes.NewBuffer(nil)
-
-	// Reproduce signs that were cut off for inline diff before.
-	switch lineType {
-	case git.DiffLineAdd:
-		buf.WriteByte('+')
-	case git.DiffLineDelete:
-		buf.WriteByte('-')
-	}
-
-	for i := range diffs {
-		switch {
-		case diffs[i].Type == diffmatchpatch.DiffInsert && lineType == git.DiffLineAdd:
-			buf.WriteString(diffs[i].Text)
-		case diffs[i].Type == diffmatchpatch.DiffDelete && lineType == git.DiffLineDelete:
-			buf.WriteString(diffs[i].Text)
-		case diffs[i].Type == diffmatchpatch.DiffEqual:
-			buf.WriteString(diffs[i].Text)
-		}
-	}
-
-	return buf.String()
 }
 
 // DiffFile is a wrapper to git.DiffFile with helper methods.
 type DiffFile struct {
 	*git.DiffFile
 	Sections []*DiffSection
+	// cut is set when capLines left out some of the file's lines.
+	cut bool
+}
+
+// IsIncomplete reports whether the file's diff was cut short.
+func (f *DiffFile) IsIncomplete() bool {
+	return f.cut || f.DiffFile.IsIncomplete()
+}
+
+// capLines keeps at most max lines of each file's diff. The parser only
+// checks its limit between hunks, so one large hunk, such as a new file's,
+// came through whole, however long.
+func (d *Diff) capLines(max int) {
+	for _, f := range d.Files {
+		n := 0
+		for i, s := range f.Sections {
+			left := max - n
+			if left <= 0 {
+				f.Sections, f.cut = f.Sections[:i], true
+				break
+			}
+			if len(s.Lines) > left {
+				// A copy: the section's lines are the parser's.
+				cut := *s.DiffSection
+				cut.Lines = s.Lines[:left]
+				f.Sections[i] = &DiffSection{DiffSection: &cut}
+				f.Sections, f.cut = f.Sections[:i+1], true
+				break
+			}
+			n += len(s.Lines)
+		}
+	}
 }
 
 // DiffFileChange represents a file diff.
@@ -325,7 +286,7 @@ func (d *Diff) Patch() string {
 		writeFilePatchHeader(&p, f)
 		for _, s := range f.Sections {
 			for _, l := range s.Lines {
-				p.WriteString(s.diffFor(l))
+				p.WriteString(l.Content)
 				p.WriteString("\n")
 			}
 		}

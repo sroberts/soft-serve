@@ -88,7 +88,7 @@ main {
   background: var(--surface);
   min-width: 0;
 }
-.site .brand { font-weight: 650; color: var(--text); }
+.site .brand { font-weight: 650; color: var(--text); white-space: nowrap; }
 .site .crumb { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .site .sep { color: var(--muted); }
 .site form { margin: 0; }
@@ -96,6 +96,12 @@ main {
 .site a.who:hover { color: var(--text); }
 
 .grow { flex: 1; }
+
+/* Names, messages and descriptions come from repositories: a right-to-left
+   name mustn't reorder the text around it, and one long unbroken word
+   mustn't push the page wider than the screen. */
+bdi, .meta a, .refname, .files .name a { unicode-bidi: isolate; }
+.desc, .meta, .recent .summary { overflow-wrap: anywhere; }
 
 button.link {
   background: none;
@@ -620,6 +626,8 @@ form.history .author { flex: 0 1 12rem; }
 .people .muted { white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 .error h1 { font-size: 1.25rem; }
+.error .ways { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.error .status { margin: 16px 0 0; color: var(--muted); }
 
 /* Managing repositories */
 
@@ -755,6 +763,7 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
 }
 
 /* The end of a long file or blame, back to where the page starts. */
+.file > .cut { margin: 0; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--bg); font-size: 0.875rem; }
 .file > footer { border-top: 1px solid var(--line); padding: 0 14px; font-size: 0.8125rem; }
 .file > footer a { display: inline-block; padding: 8px 0; }
 

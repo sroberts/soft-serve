@@ -60,6 +60,7 @@ var uiFS embed.FS
 var uiTemplates = template.Must(template.New("").Funcs(template.FuncMap{
 	"ago":          ago,
 	"bytes":        func(n int64) string { return humanize.Bytes(uint64(max(n, 0))) }, //nolint:gosec
+	"comma":        func(n int) string { return humanize.Comma(int64(n)) },
 	"short":        func(s string) string { return s[:min(len(s), 7)] },
 	"repoURL":      repoURL,
 	"pathParts":    pathParts,
@@ -361,6 +362,48 @@ type blobData struct {
 	SourceURL   string
 	RenderedURL string
 	ClearURL    string
+	// Cut is set when only the first lines are shown.
+	Cut *lineCut
+}
+
+// maxPageLines is how many lines a file or blame page shows before asking:
+// every line carries its own link, so a long file makes a page of many
+// megabytes, which a phone takes a long time over.
+const maxPageLines = 5000
+
+// lineCut says a page shows Shown of Total lines, and where all of them are.
+type lineCut struct {
+	Shown, Total int
+	AllURL       string
+}
+
+// cutLines keeps the first maxPageLines lines of src, unless all of them
+// are asked for (all=1) or a selection reaches past them.
+func cutLines(r *http.Request, src string, sel lineSel) (string, *lineCut) {
+	total := strings.Count(src, "\n")
+	if !strings.HasSuffix(src, "\n") {
+		total++
+	}
+	if total <= maxPageLines || r.URL.Query().Get("all") == "1" || sel.End > maxPageLines {
+		return src, nil
+	}
+	i, n := 0, 0
+	for n < maxPageLines {
+		j := strings.IndexByte(src[i:], '\n')
+		i += j + 1
+		n++
+	}
+	return src[:i], &lineCut{Shown: maxPageLines, Total: total, AllURL: withAll(r.URL)}
+}
+
+// withAll is u asking for every line.
+func withAll(u *url.URL) string {
+	q := u.Query()
+	q.Set("all", "1")
+	v := *u
+	v.RawQuery = q.Encode()
+	v.Fragment = ""
+	return v.RequestURI()
 }
 
 func (h uiHandler) blob(w http.ResponseWriter, r *http.Request, b *browser, p page, path string) {
@@ -407,7 +450,9 @@ func (h uiHandler) blob(w http.ResponseWriter, r *http.Request, b *browser, p pa
 	case bl.Content == "":
 		// Left for the page to say the file is empty.
 	default:
-		d.Lines = codeLines(p.Repo.Name, ref, bl.Path, bl.Content, d.Sel)
+		var src string
+		src, d.Cut = cutLines(r, bl.Content, d.Sel)
+		d.Lines = codeLines(p.Repo.Name, ref, bl.Path, src, d.Sel)
 	}
 	p.Data = d
 	h.render(w, r, "blob", p)
@@ -498,28 +543,107 @@ func (h uiHandler) refs(w http.ResponseWriter, r *http.Request, b *browser, p pa
 
 func (h uiHandler) fail(w http.ResponseWriter, r *http.Request, p page, err error) {
 	status := statusFor(err)
-	msg := "Something went wrong on the server."
 	switch {
-	case errors.Is(err, errEmptyRepo):
-		msg = "This repository has no commits yet."
-	case status == http.StatusNotFound:
-		msg = "There's nothing here, or you don't have access to it."
-	case status == http.StatusBadRequest:
-		msg = publicMessage(err)
-	case status == http.StatusForbidden:
-		msg = "You don't have enough access to this repository to see this."
-	default:
+	case errors.Is(err, errEmptyRepo) && p.Repo != nil && r.Method != http.MethodPost:
+		// Nothing to show yet: the repository's own page says how to push.
+		http.Redirect(w, r, repoURL(p.Repo.Name, "", "", ""), http.StatusSeeOther)
+		return
+	case status == http.StatusInternalServerError:
 		log.FromContext(r.Context()).Error("web", "path", r.URL.Path, "err", err)
 	}
-	h.renderError(w, r, &p, status, msg)
+	var links []errorLink
+	if p.Repo != nil {
+		var m *missingError
+		if errors.As(err, &m) && m.kind == "ref" {
+			// The ref is the trouble, so the tabs and links go to the
+			// default branch, and the list of refs is the way on.
+			p.Ref, p.refMenu = "", nil
+			links = append(links, errorLink{"Branches and tags", repoURL(p.Repo.Name, "refs", "", "")})
+		}
+		links = append(links, errorLink{"Files", repoURL(p.Repo.Name, "", "", "")})
+	}
+	h.renderErrorLinks(w, r, &p, status, pageMessage(err), links)
+}
+
+// pageMessage is what a page says about err, as a sentence.
+func pageMessage(err error) string {
+	var m *missingError
+	switch {
+	case errors.As(err, &m) && m.kind == "ref":
+		return fmt.Sprintf("There's no branch, tag or commit called “%s”.", m.name)
+	case errors.As(err, &m) && m.kind == "commit":
+		return fmt.Sprintf("There's no commit “%s” in this repository.", m.name)
+	case errors.As(err, &m):
+		return fmt.Sprintf("There's no “%s” here.", m.name)
+	case errors.Is(err, errEmptyRepo):
+		return "This repository has no commits yet."
+	}
+	switch statusFor(err) {
+	case http.StatusNotFound:
+		return "There's nothing here, or you don't have access to it."
+	case http.StatusForbidden:
+		if detail, ok := strings.CutPrefix(err.Error(), errForbidden.Error()+": "); ok {
+			return sentence(detail)
+		}
+		return "You don't have enough access to this repository to see this."
+	case http.StatusBadRequest:
+		return sentence(strings.TrimPrefix(err.Error(), errBadRequest.Error()+": "))
+	}
+	return "Something went wrong on the server. It has been logged."
+}
+
+// errorLink is a way on from an error page.
+type errorLink struct{ Text, URL string }
+
+type errorData struct {
+	Heading string
+	Message string
+	Status  int
+	// Retry is the page to load again, when trying again may help.
+	Retry string
+	Links []errorLink
+}
+
+// errorHeading names a status in words.
+func errorHeading(status int) string {
+	switch status {
+	case http.StatusNotFound:
+		return "Not found"
+	case http.StatusBadRequest:
+		return "Can't show that"
+	case http.StatusUnauthorized:
+		return "Not signed in"
+	case http.StatusForbidden:
+		return "No access"
+	case http.StatusMethodNotAllowed:
+		return "Not allowed"
+	case http.StatusRequestEntityTooLarge:
+		return "Too large"
+	}
+	if status >= 500 {
+		return "Something went wrong"
+	}
+	return http.StatusText(status)
 }
 
 func (h uiHandler) renderError(w http.ResponseWriter, r *http.Request, p *page, status int, msg string) {
+	h.renderErrorLinks(w, r, p, status, msg, nil)
+}
+
+func (h uiHandler) renderErrorLinks(w http.ResponseWriter, r *http.Request, p *page, status int, msg string, links []errorLink) {
 	if p == nil {
 		p = &page{SiteName: config.FromContext(r.Context()).Name}
 	}
-	p.Title = fmt.Sprintf("%d %s", status, http.StatusText(status))
-	p.Data = msg
+	d := errorData{Heading: errorHeading(status), Message: msg, Status: status, Links: links}
+	if status >= 500 && r.Method == http.MethodGet {
+		d.Retry = r.URL.RequestURI()
+	}
+	p.Title = d.Heading
+	if p.Repo != nil {
+		p.Title += " · " + p.Repo.Name
+	}
+	p.Tab = ""
+	p.Data = d
 	h.renderStatus(w, r, status, "error", *p)
 }
 

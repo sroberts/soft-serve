@@ -189,14 +189,22 @@ func (r *Repository) DiffWithOptions(base, head string, opts DiffOptions) (*Diff
 	if opts.IgnoreWhitespace {
 		o.Args = []string{"--ignore-all-space"}
 	}
+	var d *Diff
 	if opts.Path != "" {
-		return r.pathDiff(head, opts.Path, maxLines, o)
+		pd, err := r.pathDiff(head, opts.Path, maxLines, o)
+		if err != nil {
+			return nil, err
+		}
+		d = pd
+	} else {
+		diff, err := r.Repository.Diff(head, DiffMaxFiles, maxLines, DiffMaxLineChars, o)
+		if err != nil {
+			return nil, err
+		}
+		d = toDiff(diff)
 	}
-	diff, err := r.Repository.Diff(head, DiffMaxFiles, maxLines, DiffMaxLineChars, o)
-	if err != nil {
-		return nil, err
-	}
-	return toDiff(diff), nil
+	d.capLines(maxLines)
+	return d, nil
 }
 
 // pathDiff is Repository.Diff for one path: the same git commands, with
