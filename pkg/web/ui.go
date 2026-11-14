@@ -136,7 +136,7 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b := newBrowser(r.Context(), c.user, cloneBase(r, h.verifier))
-	b.owner = ownerEmails(c.outpostEmail)
+	b.owner = ownerFor(r.Context(), c.outpostEmail)
 	p := page{SiteName: config.FromContext(r.Context()).Name, SignedIn: c.outpostUser}
 	if c.user != nil {
 		p.SoftServe = c.user.Username()

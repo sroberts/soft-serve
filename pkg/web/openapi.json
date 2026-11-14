@@ -476,7 +476,7 @@
     "/v1/repos/{repo}/-/stats": {
       "parameters": [
         {"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/Ref"},
-        {"name": "owner_email", "in": "query", "description": "Author emails, comma-separated (up to 5), whose commits to count apart from everyone else's in `owner` and each week's `owner_commits`. Behind Outpost's login gateway, the signed-in user's email is used when this is left out.", "schema": {"type": "string"}}
+        {"name": "owner_email", "in": "query", "description": "Author emails, comma-separated (up to 5), whose commits to count apart from everyone else's in `owner` and each week's `owner_commits`. Behind Outpost's login gateway, the signed-in user's email is used when this is left out. Either way, addresses the server's `author_aliases` config groups with these count too.", "schema": {"type": "string"}}
       ],
       "get": {
         "operationId": "getStats",

@@ -24,7 +24,7 @@ func mcpHandler(v *outpostVerifier) http.Handler {
 	stream := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		c, _ := r.Context().Value(callerKey{}).(caller)
 		b := newBrowser(r.Context(), c.user, cloneBase(r, v))
-		b.owner = ownerEmails(c.outpostEmail)
+		b.owner = ownerFor(r.Context(), c.outpostEmail)
 		return newMCPServer(b, c.outpostUser, cache)
 	}, &mcp.StreamableHTTPOptions{
 		// Each request stands alone, so a restart loses nothing, and there
@@ -100,7 +100,7 @@ type commitArgs struct {
 type statsArgs struct {
 	Repo       string `json:"repo" jsonschema:"repository name, as list_repositories gives it"`
 	Ref        string `json:"ref,omitempty" jsonschema:"branch, tag or commit hash; the default branch when omitted"`
-	OwnerEmail string `json:"owner_email,omitempty" jsonschema:"author emails, comma-separated (up to 5), whose commits to count apart from everyone else's; your Outpost sign-in email when omitted"`
+	OwnerEmail string `json:"owner_email,omitempty" jsonschema:"author emails, comma-separated (up to 5), whose commits to count apart from everyone else's; your Outpost sign-in email when omitted; addresses the server groups with these as aliases count too"`
 }
 
 type listArgs struct {
@@ -273,7 +273,7 @@ func newMCPServer(b *browser, outpostUser string, cache *mcp.SchemaCache) *mcp.S
 	}, tool(func(ctx context.Context, in statsArgs) (Stats, error) {
 		owner := b.owner
 		if in.OwnerEmail != "" {
-			owner = ownerEmails(in.OwnerEmail)
+			owner = ownerFor(ctx, in.OwnerEmail)
 		}
 		return b.statsFor(ctx, in.Repo, in.Ref, owner)
 	}))

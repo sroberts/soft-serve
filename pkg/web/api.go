@@ -66,9 +66,9 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	b := newBrowser(r.Context(), c.user, cloneBase(r, h.verifier))
-	b.owner = ownerEmails(c.outpostEmail)
+	b.owner = ownerFor(r.Context(), c.outpostEmail)
 	if e := r.URL.Query().Get("owner_email"); e != "" {
-		b.owner = ownerEmails(e)
+		b.owner = ownerFor(r.Context(), e)
 	}
 
 	if r.URL.Path == "/v1/me" {

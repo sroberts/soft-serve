@@ -141,6 +141,15 @@ http:
        - "PUT"
        - "OPTIONS"
 
+  # Author emails that belong to one person, a group per entry. Insights
+  # counts commits under any email in your group as yours, so commits made
+  # with an old or machine-default address still count.
+  author_aliases:{{ if not .HTTP.AuthorAliases }} []{{ end }}
+{{- range .HTTP.AuthorAliases }}
+    - "{{ . }}"
+{{- end }}
+  #   - "you@example.com, you@laptop.local"
+
 # The stats server configuration.
 stats:
   # Enable the stats server.

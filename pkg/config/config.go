@@ -121,6 +121,12 @@ type HTTPConfig struct {
 
 	// CORS is the cross-origin configuration for the HTTP server.
 	CORS CORSConfig `envPrefix:"CORS_" yaml:"cors"`
+
+	// AuthorAliases groups author emails that belong to one person, so
+	// Insights counts commits made under any of them as that person's. Each
+	// entry lists a group's emails, separated by commas; in the environment,
+	// groups are separated by semicolons.
+	AuthorAliases []string `env:"AUTHOR_ALIASES" envSeparator:";" yaml:"author_aliases"`
 }
 
 // StatsConfig is the configuration for the stats server.
@@ -269,6 +275,7 @@ func (c *Config) Environ() []string {
 		fmt.Sprintf("SOFT_SERVE_HTTP_CORS_ALLOWED_HEADERS=%s", strings.Join(c.HTTP.CORS.AllowedHeaders, ",")),
 		fmt.Sprintf("SOFT_SERVE_HTTP_CORS_ALLOWED_ORIGINS=%s", strings.Join(c.HTTP.CORS.AllowedOrigins, ",")),
 		fmt.Sprintf("SOFT_SERVE_HTTP_CORS_ALLOWED_METHODS=%s", strings.Join(c.HTTP.CORS.AllowedMethods, ",")),
+		fmt.Sprintf("SOFT_SERVE_HTTP_AUTHOR_ALIASES=%s", strings.Join(c.HTTP.AuthorAliases, ";")),
 		fmt.Sprintf("SOFT_SERVE_STATS_ENABLED=%t", c.Stats.Enabled),
 		fmt.Sprintf("SOFT_SERVE_STATS_LISTEN_ADDR=%s", c.Stats.ListenAddr),
 		fmt.Sprintf("SOFT_SERVE_LOG_FORMAT=%s", c.Log.Format),

@@ -1,10 +1,12 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/soft-serve/pkg/config"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/matryer/is"
 )
@@ -63,6 +65,27 @@ func TestInsightsOwnerSplit(t *testing.T) {
 	// The API can name the emails itself.
 	s = stats(req{path: "/v1/repos/group/open/-/stats?owner_email=nobody@example.com,a@example.com"})
 	is.Equal(s.Owner.Commits, s.TotalCommits)
+
+	// Signed in under another address that author_aliases groups with the
+	// author's: every commit is still yours, from the page, the API and MCP.
+	config.FromContext(f.ctx).HTTP.AuthorAliases = []string{"me@home.org, A@example.com"}
+	s = stats(req{path: "/v1/repos/group/open/-/stats", identity: withEmail("me@home.org")})
+	is.Equal(s.Owner.Commits, s.TotalCommits)
+	s = stats(req{path: "/v1/repos/group/open/-/stats?owner_email=me@home.org"})
+	is.Equal(s.Owner.Commits, s.TotalCommits)
+	page = f.do(req{path: "/group/open/-/insights", identity: withEmail("me@home.org")}).Body.String()
+	is.True(strings.Contains(page, "Your commits"))
+}
+
+func TestWithAliases(t *testing.T) {
+	is := is.New(t)
+	cfg := config.DefaultConfig()
+	cfg.HTTP.AuthorAliases = []string{"a@x.com, a@laptop.local", "b@y.org,b@old.org", "junk"}
+	ctx := config.WithContext(context.Background(), cfg)
+	is.Equal(ownerFor(ctx, "A@x.com"), []string{"a@x.com", "a@laptop.local"})
+	is.Equal(ownerFor(ctx, "b@old.org"), []string{"b@old.org", "b@y.org"})
+	is.Equal(ownerFor(ctx, "c@z.net"), []string{"c@z.net"})
+	is.True(ownerFor(ctx, "") == nil)
 }
 
 func TestOwnerEmails(t *testing.T) {

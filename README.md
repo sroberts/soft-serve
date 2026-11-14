@@ -965,7 +965,18 @@ exactly what the caller may read and allowing what they may change:
     they last synced.
   - **Insights** (`/<repo>/-/insights`): languages, contributors and commits
     per week for the last year. Behind Outpost, your commits (by your sign-in
-    email) are counted and charted apart from everyone else's.
+    email) are counted and charted apart from everyone else's. If you've
+    committed under other addresses, group them in the config so they count
+    as yours too:
+
+    ```yaml
+    http:
+      author_aliases:
+        - "you@example.com, you@laptop.local"
+    ```
+
+    or `SOFT_SERVE_HTTP_AUTHOR_ALIASES="you@example.com,you@laptop.local"`,
+    with groups separated by `;`.
   - **Your account** (`/-/me`): your user, SSH keys, access tokens (never
     the tokens themselves) and the repositories you can push to. Add and
     remove keys, create and delete tokens (a new token is shown once), and

@@ -18,6 +18,7 @@ import (
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/charmbracelet/soft-serve/git"
 	"github.com/charmbracelet/soft-serve/pkg/access"
+	"github.com/charmbracelet/soft-serve/pkg/config"
 	"github.com/charmbracelet/soft-serve/pkg/ops"
 )
 
@@ -480,6 +481,10 @@ func (b *browser) stats(ctx context.Context, name, rev string) (Stats, error) {
 // ownerEmails cleans a list of author emails: trimmed, lower case, at most
 // five, and only ones that look like an address.
 func ownerEmails(in ...string) []string {
+	return ownerEmailsUpTo(5, in...)
+}
+
+func ownerEmailsUpTo(limit int, in ...string) []string {
 	var out []string
 	for _, e := range in {
 		for _, one := range strings.Split(e, ",") {
@@ -488,12 +493,48 @@ func ownerEmails(in ...string) []string {
 				continue
 			}
 			out = append(out, one)
-			if len(out) == 5 {
+			if len(out) == limit {
 				return out
 			}
 		}
 	}
 	return out
+}
+
+// maxOwnerEmails bounds the emails one person's commits are counted under,
+// with their aliases.
+const maxOwnerEmails = 20
+
+// withAliases adds to emails every address the server's author_aliases
+// group with any of them, so commits made under an old or machine-default
+// address count as the same person's.
+func withAliases(ctx context.Context, emails []string) []string {
+	if len(emails) == 0 {
+		return emails
+	}
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return emails
+	}
+	out := slices.Clone(emails)
+	for _, group := range cfg.HTTP.AuthorAliases {
+		members := ownerEmailsUpTo(maxOwnerEmails, group)
+		if !slices.ContainsFunc(members, func(m string) bool { return slices.Contains(emails, m) }) {
+			continue
+		}
+		for _, m := range members {
+			if len(out) < maxOwnerEmails && !slices.Contains(out, m) {
+				out = append(out, m)
+			}
+		}
+	}
+	return out
+}
+
+// ownerFor is whose commits Insights tells apart: the given emails, cleaned,
+// with their aliases.
+func ownerFor(ctx context.Context, emails ...string) []string {
+	return withAliases(ctx, ownerEmails(emails...))
 }
 
 // statsFor is stats, splitting the history by the author emails in owner
