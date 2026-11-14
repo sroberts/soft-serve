@@ -594,7 +594,7 @@ func TestMCP(t *testing.T) {
 
 	_, out := call(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, nil)
 	tools, _ := out["result"].(map[string]any)["tools"].([]any)
-	is.Equal(len(tools), 15)
+	is.Equal(len(tools), 16)
 	for _, tl := range tools {
 		ann := tl.(map[string]any)["annotations"].(map[string]any)
 		is.Equal(ann["readOnlyHint"], true)

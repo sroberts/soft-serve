@@ -107,6 +107,10 @@ type listArgs struct {
 	Query string `json:"query,omitempty" jsonschema:"only repositories whose name or description contains this, ignoring case"`
 }
 
+type recentArgs struct {
+	Limit int `json:"limit,omitempty" jsonschema:"how many commits, up to 50; 10 when omitted"`
+}
+
 type dirArgs struct {
 	Repo        string `json:"repo" jsonschema:"repository name, as list_repositories gives it"`
 	Ref         string `json:"ref,omitempty" jsonschema:"branch, tag or commit hash; the default branch when omitted"`
@@ -171,11 +175,25 @@ func newMCPServer(b *browser, outpostUser string, cache *mcp.SchemaCache) *mcp.S
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "list_repositories",
-		Description: "List the repositories you can read, with their descriptions, default branches, clone URLs and your access to each. Give a query to filter by name or description.",
+		Description: "List the repositories you can read, with their descriptions, default branches, clone URLs, newest commit and your access to each. Give a query to filter by name or description.",
 		Annotations: readOnly("List repositories"),
 	}, tool(func(ctx context.Context, in listArgs) (repoList, error) {
 		rs, err := b.repos(ctx)
-		return repoList{Repositories: filterRepos(rs, in.Query)}, err
+		rs = filterRepos(rs, in.Query)
+		b.withRecent(ctx, rs, 1)
+		return repoList{Repositories: rs}, err
+	}))
+
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "recent_activity",
+		Description: "List the newest commits across every repository you can read, on any branch, newest first: what was worked on last, and where. Each gives the repository, branch, commit, author and time.",
+		Annotations: readOnly("Recent activity"),
+	}, tool(func(ctx context.Context, in recentArgs) (Recent, error) {
+		rs, err := b.repos(ctx)
+		if err != nil {
+			return Recent{}, err
+		}
+		return b.withRecent(ctx, rs, in.Limit), nil
 	}))
 
 	mcp.AddTool(s, &mcp.Tool{

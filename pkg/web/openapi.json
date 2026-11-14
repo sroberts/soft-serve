@@ -13,10 +13,11 @@
         "description": "Hidden repositories are left out unless asked for; they can still be fetched by name.",
         "parameters": [
           {"name": "q", "in": "query", "description": "Only repositories whose name, project name or description contains this, ignoring case", "schema": {"type": "string"}},
-          {"name": "hidden", "in": "query", "description": "`true` to include hidden repositories, as `repo list --all` does", "schema": {"type": "boolean"}}
+          {"name": "hidden", "in": "query", "description": "`true` to include hidden repositories, as `repo list --all` does", "schema": {"type": "boolean"}},
+          {"name": "sort", "in": "query", "description": "`recent` to list the repositories with the newest commit first, and ones with no commits last", "schema": {"type": "string", "enum": ["name", "recent"]}}
         ],
         "responses": {
-          "200": {"description": "Repositories, by name", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Repo"}}}}},
+          "200": {"description": "Repositories, by name unless sorted otherwise", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Repo"}}}}},
           "401": {"$ref": "#/components/responses/Error"}
         }
       },
@@ -488,6 +489,20 @@
         }
       }
     },
+    "/v1/recent": {
+      "get": {
+        "operationId": "recentActivity",
+        "summary": "The newest commits across every repository the caller can read",
+        "description": "On any branch, newest first. A commit on several branches is listed once, under the branch most recently updated. Hidden repositories are left out.",
+        "parameters": [
+          {"name": "limit", "in": "query", "description": "How many commits, up to 50; 10 when omitted", "schema": {"type": "integer", "minimum": 1, "maximum": 50}}
+        ],
+        "responses": {
+          "200": {"description": "Recent commits", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Recent"}}}},
+          "401": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
     "/v1/me": {
       "get": {
         "operationId": "whoami",
@@ -726,7 +741,8 @@
           "clone": {"type": "object", "description": "How to clone. `https` is left out behind Outpost's login gateway, where git over HTTPS can't sign in; use SSH there.", "properties": {"ssh": {"type": "string"}, "https": {"type": "string"}}},
           "mirror_of": {"type": "string", "description": "Where a mirror is copied from, without credentials. Left out for a path on the server."},
           "mirror_synced_at": {"type": "string", "format": "date-time", "description": "When a mirror last fetched"},
-          "mirror_auto_sync": {"type": "boolean", "description": "Whether a mirror syncs on the server's schedule, or only when someone runs `repo sync`. Left out for repositories that are not mirrors."}
+          "mirror_auto_sync": {"type": "boolean", "description": "Whether a mirror syncs on the server's schedule, or only when someone runs `repo sync`. Left out for repositories that are not mirrors."},
+          "last_commit": {"$ref": "#/components/schemas/LatestCommit", "description": "The newest commit on any branch. Left out for an empty repository."}
         },
         "required": ["name", "private", "mirror", "hidden", "empty", "updated_at", "clone", "access"]
       },
@@ -744,6 +760,27 @@
           "behind": {"type": "integer", "description": "Commits the default branch has that this branch doesn't"}
         },
         "required": ["name", "commit", "date", "summary"]
+      },
+      "LatestCommit": {
+        "allOf": [
+          {"$ref": "#/components/schemas/CommitBrief"},
+          {"type": "object", "properties": {"branch": {"type": "string"}}, "required": ["branch"]}
+        ]
+      },
+      "Recent": {
+        "type": "object",
+        "properties": {
+          "commits": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {"$ref": "#/components/schemas/CommitBrief"},
+                {"type": "object", "properties": {"repo": {"type": "string"}, "branch": {"type": "string"}}, "required": ["repo", "branch"]}
+              ]
+            }
+          }
+        },
+        "required": ["commits"]
       },
       "CommitBrief": {
         "type": "object",

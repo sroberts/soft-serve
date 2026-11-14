@@ -66,7 +66,16 @@
     {{if canWrite .Repo.Access}}<a href="{{repoURL .Repo.Name "access" "" ""}}"{{if eq .Tab "access"}} aria-current="page"{{end}}>Access</a>{{end}}
     {{if isAdmin .Repo.Access}}<a href="{{repoURL .Repo.Name "webhooks" "" ""}}"{{if eq .Tab "webhooks"}} aria-current="page"{{end}}>Webhooks</a>{{end}}
     {{if canWrite .Repo.Access}}<a href="{{repoURL .Repo.Name "settings" "" ""}}"{{if eq .Tab "settings"}} aria-current="page"{{end}}>Settings</a>{{end}}
-    {{if and .Ref (not .Repo.Empty)}}<span class="grow"></span><a class="ref" href="{{repoURL .Repo.Name "refs" "" ""}}" title="Switch branch or tag">{{.Ref}}</a>{{end}}
+    {{if and .Ref (not .Repo.Empty)}}<span class="grow"></span>{{with .RefMenu}}<details class="refmenu">
+      <summary class="ref" title="Switch branch or tag"><span class="visually-hidden">Branch or tag: </span>{{$.Ref}}</summary>
+      <div class="menu">
+        {{if .Branches}}<p class="label" id="refmenu-branches">Branches</p>
+        <ul aria-labelledby="refmenu-branches">{{range .Branches}}<li><a href="{{.URL}}"{{if .Current}} aria-current="true"{{end}}>{{.Name}}</a></li>{{end}}</ul>{{end}}
+        {{if .Tags}}<p class="label" id="refmenu-tags">Tags</p>
+        <ul aria-labelledby="refmenu-tags">{{range .Tags}}<li><a href="{{.URL}}"{{if .Current}} aria-current="true"{{end}}>{{.Name}}</a></li>{{end}}</ul>{{end}}
+        <a class="all" href="{{.AllURL}}">{{if .More}}All branches and tags{{else}}Branches and tags, in detail{{end}}</a>
+      </div>
+    </details>{{else}}<a class="ref" href="{{repoURL .Repo.Name "refs" "" ""}}" title="Switch branch or tag">{{.Ref}}</a>{{end}}{{end}}
   </nav>
 {{end}}
 

@@ -127,6 +127,8 @@ type RepoInfo struct {
 	// MirrorAutoSync says whether a mirror syncs on the server's schedule
 	// or only when someone runs "repo sync". Unset for other repositories.
 	MirrorAutoSync *bool `json:"mirror_auto_sync,omitempty"`
+	// LastCommit is the newest commit on any branch, and its branch.
+	LastCommit *LatestCommit `json:"last_commit,omitempty"`
 }
 
 // CloneURLs are the ways to clone a repository.
@@ -337,6 +339,11 @@ func (b *browser) repo(ctx context.Context, name string) (RepoInfo, error) {
 		return RepoInfo{}, err
 	}
 	info := b.info(r, gr, level)
+	if !info.Empty {
+		one := []RepoInfo{info}
+		b.withRecent(ctx, one, 1)
+		info = one[0]
+	}
 	if info.Mirror {
 		info.MirrorOf, info.MirrorSyncedAt = mirrorDetails(ctx, gr)
 		autoSync := backend.MirrorAutoSyncOf(gr)

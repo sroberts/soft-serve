@@ -930,7 +930,8 @@ Flags:
 Soft Serve's HTTP port also serves its repositories three ways, each showing
 exactly what the caller may read and allowing what they may change:
 
-- **Web pages** at `/`: repositories (with a filter), files with syntax
+- **Web pages** at `/`: your most recent commits across every repository
+  and branch, then the repositories, newest first (with a filter), files with syntax
   highlighting and each one's latest commit, rendered READMEs, history of
   the repository or of one file or folder, commits with their diffs, blame,
   branches and tags with their dates and release notes, comparing two
@@ -991,6 +992,8 @@ exactly what the caller may read and allowing what they may change:
 
   ```sh
   curl http://localhost:23232/v1/repos
+  curl "http://localhost:23232/v1/repos?sort=recent"
+  curl "http://localhost:23232/v1/recent?limit=20"
   curl "http://localhost:23232/v1/repos/icecream/-/tree?ref=main&path=docs"
   curl http://localhost:23232/v1/repos/icecream/-/blob?path=README.md
   curl http://localhost:23232/v1/repos/icecream/-/commits?per_page=10
@@ -1043,7 +1046,8 @@ exactly what the caller may read and allowing what they may change:
   ```
 
 - **MCP** at `/mcp` (Streamable HTTP), with read-only tools to list
-  repositories, branches, tags and commits (or search them by message or
+  repositories and the newest commits across them (`recent_activity`),
+  branches, tags and commits (or search them by message or
   author), read a README, list a directory, find files by name, read and
   blame a file, get a commit's diff and signature, compare two refs, search
   the files, get a repository's stats, say who you are (`whoami`), and (for
