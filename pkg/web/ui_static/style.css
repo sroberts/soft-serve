@@ -582,8 +582,19 @@ form.history .author { flex: 0 1 12rem; }
 .activity { margin: 0; padding: 14px 14px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .activity svg { display: block; width: 100%; height: 72px; overflow: visible; }
 .activity .bar { fill: var(--accent); }
+/* Split by who: yours in the accent, everyone else's in a quieter tone. */
+.activity .bar.others { fill: var(--field-border); }
+.activity .bar.mine { fill: var(--accent); }
+.activity .legend { display: inline-flex; align-items: center; gap: 6px; }
+.activity .key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.activity .key.mine { background: var(--accent); }
+.activity .key.others { background: var(--field-border); margin-left: 8px; }
+.figures .yours { border-color: var(--accent); }
+.figures .since { font-size: 0.75rem; font-weight: 400; color: var(--muted); }
 .activity .hit { fill: transparent; }
 .activity g:hover .bar { fill: var(--hunk); }
+.activity g:hover .bar.others { fill: var(--muted); }
+.activity g:hover .bar.mine { fill: var(--hunk); }
 .activity g:hover .hit { fill: var(--accent-soft); }
 .activity .base { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .weeks { margin-top: 8px; font-size: 0.8125rem; }

@@ -88,9 +88,21 @@ var errNoIdentity = errors.New("no outpost identity")
 
 // verify checks r's identity token and returns the Outpost username.
 func (v *outpostVerifier) verify(r *http.Request) (string, error) {
+	id, err := v.verifyIdentity(r)
+	return id.name, err
+}
+
+// outpostIdentity is who a verified identity token names.
+type outpostIdentity struct {
+	name  string
+	email string
+}
+
+// verifyIdentity checks r's identity token and returns who it names.
+func (v *outpostVerifier) verifyIdentity(r *http.Request) (outpostIdentity, error) {
 	tok := r.Header.Get(outpostIdentityHeader)
 	if tok == "" {
-		return "", errNoIdentity
+		return outpostIdentity{}, errNoIdentity
 	}
 	claims := &outpostClaims{}
 	_, err := jwt.ParseWithClaims(tok, claims, func(t *jwt.Token) (any, error) {
@@ -104,18 +116,18 @@ func (v *outpostVerifier) verify(r *http.Request) (string, error) {
 		jwt.WithTimeFunc(v.now),
 	)
 	if err != nil {
-		return "", err
+		return outpostIdentity{}, err
 	}
 	// The audience is the host the request came to; Host is preserved
 	// through the gateway. X-Forwarded-Host is the client's to set, so it
 	// must not count, or a token minted for another host would pass.
 	if !audienceMatches(claims.Audience, requestHosts(r)) {
-		return "", errors.New("identity token is for another host")
+		return outpostIdentity{}, errors.New("identity token is for another host")
 	}
 	if claims.Subject == "" {
-		return "", errors.New("identity token names no user")
+		return outpostIdentity{}, errors.New("identity token names no user")
 	}
-	return claims.Subject, nil
+	return outpostIdentity{name: claims.Subject, email: strings.TrimSpace(claims.Email)}, nil
 }
 
 // requestHosts is the name r was addressed to, without a port.

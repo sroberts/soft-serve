@@ -23,7 +23,9 @@ func mcpHandler(v *outpostVerifier) http.Handler {
 	cache := mcp.NewSchemaCache()
 	stream := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		c, _ := r.Context().Value(callerKey{}).(caller)
-		return newMCPServer(newBrowser(r.Context(), c.user, cloneBase(r, v)), c.outpostUser, cache)
+		b := newBrowser(r.Context(), c.user, cloneBase(r, v))
+		b.owner = ownerFor(r.Context(), c.outpostEmail)
+		return newMCPServer(b, c.outpostUser, cache)
 	}, &mcp.StreamableHTTPOptions{
 		// Each request stands alone, so a restart loses nothing, and there
 		// is no session state for a portal that drops cookies to break.
@@ -93,6 +95,12 @@ type commitArgs struct {
 	SHA              string `json:"sha" jsonschema:"full or abbreviated commit hash"`
 	Path             string `json:"path,omitempty" jsonschema:"only this file's diff, in full rather than cut at 1000 lines"`
 	IgnoreWhitespace bool   `json:"ignore_whitespace,omitempty" jsonschema:"leave out changes in whitespace"`
+}
+
+type statsArgs struct {
+	Repo       string `json:"repo" jsonschema:"repository name, as list_repositories gives it"`
+	Ref        string `json:"ref,omitempty" jsonschema:"branch, tag or commit hash; the default branch when omitted"`
+	OwnerEmail string `json:"owner_email,omitempty" jsonschema:"author emails, comma-separated (up to 5), whose commits to count apart from everyone else's; your Outpost sign-in email when omitted; addresses the server groups with these as aliases count too"`
 }
 
 type listArgs struct {
@@ -278,10 +286,14 @@ func newMCPServer(b *browser, outpostUser string, cache *mcp.SchemaCache) *mcp.S
 
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "get_repository_stats",
-		Description: "Describe a repository at a ref: its languages by size, its number of files and commits, its most frequent authors, and its commits in each of the last 52 weeks.",
+		Description: "Describe a repository at a ref: its languages by size, its number of files and commits, its most frequent authors, and its commits in each of the last 52 weeks. Given your author emails (your Outpost sign-in email by default), it also splits the commits into yours and everyone else's, overall and in each week.",
 		Annotations: readOnly("Get repository stats"),
-	}, tool(func(ctx context.Context, in refArgs) (Stats, error) {
-		return b.stats(ctx, in.Repo, in.Ref)
+	}, tool(func(ctx context.Context, in statsArgs) (Stats, error) {
+		owner := b.owner
+		if in.OwnerEmail != "" {
+			owner = ownerFor(ctx, in.OwnerEmail)
+		}
+		return b.statsFor(ctx, in.Repo, in.Ref, owner)
 	}))
 
 	mcp.AddTool(s, &mcp.Tool{

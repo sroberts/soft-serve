@@ -380,6 +380,8 @@ func TestMCPNewTools(t *testing.T) {
 	is.True(l["repositories"].([]any)[0].(map[string]any)["last_commit"] != nil)
 	rc := call("recent_activity", `{"limit":5}`)
 	is.True(len(rc["commits"].([]any)) >= 2) // main and feature
+	st := call("get_repository_stats", `{"repo":"group/open","owner_email":"a@example.com"}`)
+	is.True(st["owner"].(map[string]any)["commits"].(float64) >= 1)
 	d := call("list_directory", `{"repo":"group/open","last_commits":true}`)
 	is.True(d["last_commit"] != nil)
 }

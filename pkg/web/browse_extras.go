@@ -18,6 +18,7 @@ import (
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/charmbracelet/soft-serve/git"
 	"github.com/charmbracelet/soft-serve/pkg/access"
+	"github.com/charmbracelet/soft-serve/pkg/config"
 	"github.com/charmbracelet/soft-serve/pkg/ops"
 )
 
@@ -390,6 +391,19 @@ type Contributor struct {
 type WeekCount struct {
 	Week    time.Time `json:"week"`
 	Commits int       `json:"commits"`
+	// Owner is how many of them are the caller's; see Stats.Owner.
+	Owner int `json:"owner_commits,omitempty"`
+}
+
+// OwnerShare splits a history between the caller's commits, by author
+// email, and everyone else's.
+type OwnerShare struct {
+	Commits int64 `json:"commits"`
+	Others  int64 `json:"other_commits"`
+	// First and Last are when the caller's first and newest commits here
+	// were made; left out when there are none.
+	First *time.Time `json:"first,omitempty"`
+	Last  *time.Time `json:"last,omitempty"`
 }
 
 // Stats describe a repository at a revision.
@@ -408,6 +422,10 @@ type Stats struct {
 	TotalContributors int           `json:"total_contributors"`
 	// Weekly is the commits in each of the last 52 weeks, oldest first.
 	Weekly []WeekCount `json:"weekly"`
+	// Owner splits the history between the caller's commits and everyone
+	// else's, and each week's in Weekly. It is left out when the caller's
+	// email isn't known.
+	Owner *OwnerShare `json:"owner,omitempty"`
 	// Partial is set when a time limit cut a count short.
 	Partial bool `json:"partial"`
 }
@@ -457,6 +475,71 @@ func languageOf(p string, cache map[string]string) string {
 }
 
 func (b *browser) stats(ctx context.Context, name, rev string) (Stats, error) {
+	return b.statsFor(ctx, name, rev, b.owner)
+}
+
+// ownerEmails cleans a list of author emails: trimmed, lower case, at most
+// five, and only ones that look like an address.
+func ownerEmails(in ...string) []string {
+	return ownerEmailsUpTo(5, in...)
+}
+
+func ownerEmailsUpTo(limit int, in ...string) []string {
+	var out []string
+	for _, e := range in {
+		for _, one := range strings.Split(e, ",") {
+			one = strings.ToLower(strings.TrimSpace(one))
+			if one == "" || !strings.Contains(one, "@") || len(one) > 254 || slices.Contains(out, one) {
+				continue
+			}
+			out = append(out, one)
+			if len(out) == limit {
+				return out
+			}
+		}
+	}
+	return out
+}
+
+// maxOwnerEmails bounds the emails one person's commits are counted under,
+// with their aliases.
+const maxOwnerEmails = 20
+
+// withAliases adds to emails every address the server's author_aliases
+// group with any of them, so commits made under an old or machine-default
+// address count as the same person's.
+func withAliases(ctx context.Context, emails []string) []string {
+	if len(emails) == 0 {
+		return emails
+	}
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return emails
+	}
+	out := slices.Clone(emails)
+	for _, group := range cfg.HTTP.AuthorAliases {
+		members := ownerEmailsUpTo(maxOwnerEmails, group)
+		if !slices.ContainsFunc(members, func(m string) bool { return slices.Contains(emails, m) }) {
+			continue
+		}
+		for _, m := range members {
+			if len(out) < maxOwnerEmails && !slices.Contains(out, m) {
+				out = append(out, m)
+			}
+		}
+	}
+	return out
+}
+
+// ownerFor is whose commits Insights tells apart: the given emails, cleaned,
+// with their aliases.
+func ownerFor(ctx context.Context, emails ...string) []string {
+	return withAliases(ctx, ownerEmails(emails...))
+}
+
+// statsFor is stats, splitting the history by the author emails in owner
+// when there are any.
+func (b *browser) statsFor(ctx context.Context, name, rev string, owner []string) (Stats, error) {
 	_, gr, err := b.open(ctx, name)
 	if err != nil {
 		return Stats{}, err
@@ -553,17 +636,44 @@ func (b *browser) stats(ctx context.Context, name, rev string) (Stats, error) {
 	}
 	wctx, cancel3 := context.WithTimeout(ctx, statsBudget)
 	defer cancel3()
+	// With an owner, the whole history is read, to split it; without, only
+	// the year the chart shows.
+	args := []string{"log", "--format=%ct%x1f%ae", sha, "--"}
+	if len(owner) == 0 {
+		args = []string{"log", "--format=%ct%x1f%ae", "--since=" + first.Format(time.RFC3339), sha, "--"}
+	} else {
+		out.Owner = &OwnerShare{}
+	}
 	err = scanGit(wctx, gr.Path, func(line string) error {
-		secs, err := strconv.ParseInt(strings.TrimSpace(line), 10, 64)
+		at, email, _ := strings.Cut(strings.TrimSpace(line), "\x1f")
+		secs, err := strconv.ParseInt(at, 10, 64)
 		if err != nil {
 			return nil
 		}
-		i := int(weekStart(time.Unix(secs, 0).UTC()).Sub(first).Hours() / (24 * 7))
+		when := time.Unix(secs, 0).UTC()
+		mine := out.Owner != nil && slices.Contains(owner, strings.ToLower(email))
+		if out.Owner != nil {
+			if mine {
+				out.Owner.Commits++
+				if out.Owner.Last == nil || when.After(*out.Owner.Last) {
+					out.Owner.Last = &when
+				}
+				if out.Owner.First == nil || when.Before(*out.Owner.First) {
+					out.Owner.First = &when
+				}
+			} else {
+				out.Owner.Others++
+			}
+		}
+		i := int(weekStart(when).Sub(first).Hours() / (24 * 7))
 		if i >= 0 && i < statsWeeks {
 			out.Weekly[i].Commits++
+			if mine {
+				out.Weekly[i].Owner++
+			}
 		}
 		return nil
-	}, "log", "--format=%ct", "--since="+first.Format(time.RFC3339), sha, "--")
+	}, args...)
 	if errors.Is(wctx.Err(), context.DeadlineExceeded) {
 		out.Partial = true
 	} else if err != nil {

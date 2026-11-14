@@ -226,6 +226,10 @@ type weekBar struct {
 	Label   string
 	Week    string // its first day, as 2 Jan 2006
 	Commits int
+	// Owner is the caller's share of Commits; OwnerY and OwnerH draw it
+	// at the foot of the bar.
+	Owner          int
+	OwnerY, OwnerH float64
 }
 
 // langRow is one language of the breakdown.
@@ -247,6 +251,12 @@ type insightsData struct {
 	BusiestN   int
 	Languages  []langRow
 	OtherShare string
+	// Split is set when the caller's commits are told apart from everyone
+	// else's; YearOwner is their share of YearTotal. NoEmail says why
+	// there's no split for a signed-in caller.
+	Split     bool
+	YearOwner int
+	NoEmail   bool
 }
 
 const (
@@ -271,10 +281,13 @@ func (h uiHandler) insights(w http.ResponseWriter, r *http.Request, b *browser, 
 	}
 	p.Ref = st.Ref
 	d := insightsData{Stats: st, ChartH: chartH, BarW: chartBarW, ChartW: float64(len(st.Weekly))*(chartBarW+chartGap) - chartGap}
+	d.Split = st.Owner != nil
+	d.NoEmail = !d.Split && p.SignedIn != ""
 
 	peak := 0
 	for _, wk := range st.Weekly {
 		d.YearTotal += wk.Commits
+		d.YearOwner += wk.Owner
 		if wk.Commits > peak {
 			peak = wk.Commits
 			d.BusiestN = wk.Commits
@@ -291,13 +304,22 @@ func (h uiHandler) insights(w http.ResponseWriter, r *http.Request, b *browser, 
 		if wk.Commits == 1 {
 			plural = ""
 		}
+		label := fmt.Sprintf("%d commit%s in the week of %s", wk.Commits, plural, wk.Week.Format("2 Jan 2006"))
+		oh := 0.0
+		if d.Split && wk.Owner > 0 {
+			label += fmt.Sprintf(", %d yours", wk.Owner)
+			oh = math.Max(3, bh*float64(wk.Owner)/float64(wk.Commits))
+		}
 		d.Bars = append(d.Bars, weekBar{
 			X:       float64(i) * (chartBarW + chartGap),
 			Y:       chartH - bh,
 			H:       bh,
-			Label:   fmt.Sprintf("%d commit%s in the week of %s", wk.Commits, plural, wk.Week.Format("2 Jan 2006")),
+			Label:   label,
 			Week:    wk.Week.Format("2 Jan 2006"),
 			Commits: wk.Commits,
+			Owner:   wk.Owner,
+			OwnerY:  chartH - oh,
+			OwnerH:  oh,
 		})
 	}
 
