@@ -114,6 +114,8 @@ type page struct {
 	// Notice says what the change that led here did.
 	Notice string
 	Data   any
+	// refMenu builds the branch and tag switcher; see RefMenu.
+	refMenu func(current string) *RefMenu
 }
 
 func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -193,6 +195,9 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.Title = info.Name
 	q := r.URL.Query()
 	p.Ref = q.Get("ref")
+	if !info.Empty {
+		p.refMenu = refMenuFor(ctx, b, info.Name, r.URL)
+	}
 
 	switch {
 	case action == "":
@@ -326,11 +331,17 @@ func (h uiHandler) tree(w http.ResponseWriter, r *http.Request, b *browser, p pa
 		return
 	}
 	if err != nil {
+		if statusFor(err) == http.StatusNotFound && nearestDir(w, r, b, p.Repo.Name, p.Ref, path) {
+			return
+		}
 		h.fail(w, r, p, err)
 		return
 	}
 	p.Ref = t.Ref
 	p.Title = t.Path + " · " + p.Repo.Name
+	if n := missingNotice(r, p.Ref, t.Path); n != "" {
+		p.Notice = n
+	}
 	p.Data = summaryData{Tree: &t}
 	h.render(w, r, "tree", p)
 }
@@ -359,6 +370,9 @@ func (h uiHandler) blob(w http.ResponseWriter, r *http.Request, b *browser, p pa
 		return
 	}
 	if err != nil {
+		if statusFor(err) == http.StatusNotFound && nearestDir(w, r, b, p.Repo.Name, p.Ref, path) {
+			return
+		}
 		h.fail(w, r, p, err)
 		return
 	}
@@ -477,7 +491,7 @@ func (h uiHandler) refs(w http.ResponseWriter, r *http.Request, b *browser, p pa
 		return
 	}
 	p.Title = "Branches and tags · " + p.Repo.Name
-	p.Data = refs
+	p.Data = refsData{Refs: refs, repo: p.Repo.Name, back: backURL(p.Repo.Name, r.URL.Query().Get("back"))}
 	h.render(w, r, "refs", p)
 }
 

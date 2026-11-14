@@ -155,11 +155,12 @@ git push -u origin main</pre>{{end}}
 <h1 class="visually-hidden">Branches and tags</h1>
 {{with .Data}}
 <section class="refs">
+  {{if .Back}}<p class="note backnote">Choosing a branch or tag takes you back to the page you came from, on that branch or tag.</p>{{end}}
   <h2>Branches</h2>
   <ul>
     {{range .Branches}}<li>
       <div class="refmain">
-        <a class="refname" href="{{repoURL $.Repo.Name "tree" .Name ""}}">{{.Name}}</a>{{if eq .Name $.Data.DefaultBranch}} <span class="badge">default</span>{{end}}
+        <a class="refname" href="{{$.Data.Link .Name}}">{{.Name}}</a>{{if eq .Name $.Data.DefaultBranch}} <span class="badge">default</span>{{end}}
         <p class="meta"><a href="{{repoURL $.Repo.Name (printf "commit/%s" .Commit) "" ""}}">{{.Summary}}</a> · <time datetime="{{.Date.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .Date}}</time>{{with distance . $.Data.DefaultBranch}} · <span class="distance">{{.}}</span>{{end}}</p>
       </div>
       <span class="refactions">{{if ne .Name $.Data.DefaultBranch}}<a href="{{compareURL $.Repo.Name "" .Name}}">Compare</a> · {{end}}<a href="{{archiveURL $.Repo.Name .Name "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .Name "zip"}}" download>.zip</a>{{if and (canWrite $.Repo.Access) (ne .Name $.Data.DefaultBranch)}} · <a class="danger" href="{{deleteRefURL $.Repo.Name "branch" .Name}}">Delete</a>{{end}}</span>
@@ -170,7 +171,7 @@ git push -u origin main</pre>{{end}}
   <ul>
     {{range .Tags}}<li>
       <div class="refmain">
-        <a class="refname" href="{{repoURL $.Repo.Name "tree" .Name ""}}">{{.Name}}</a>
+        <a class="refname" href="{{$.Data.Link .Name}}">{{.Name}}</a>
         <p class="meta">{{if .Tagger}}Tagged by {{.Tagger.Name}} · {{end}}<time datetime="{{.Date.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .Date}}</time> · <a class="sha" href="{{repoURL $.Repo.Name (printf "commit/%s" .Commit) "" ""}}">{{short .Commit}}</a></p>
         {{if .Message}}<details class="notes"><summary>Release notes</summary><pre class="message">{{.Message}}</pre></details>{{end}}
       </div>
