@@ -46,6 +46,17 @@ var (
 	errNotDir     = errors.New("path is not a directory")
 )
 
+// missingError is a ref, commit or path that isn't there. It is
+// errNotFound, and says which, so a page can say so too.
+type missingError struct {
+	kind string // "ref", "commit" or "path"
+	name string
+}
+
+func (e *missingError) Error() string { return fmt.Sprintf("%v: %s %q", errNotFound, e.kind, e.name) }
+
+func (e *missingError) Is(target error) bool { return target == errNotFound }
+
 // badRequest wraps errBadRequest with what was wrong.
 func badRequest(format string, v ...any) error {
 	return fmt.Errorf("%w: %s", errBadRequest, fmt.Sprintf(format, v...))
@@ -400,11 +411,11 @@ func resolve(gr *git.Repository, rev string) (string, *git.Commit, error) {
 		rev = head.Name().Short()
 	}
 	if len(rev) > 256 || !revPattern.MatchString(rev) || strings.Contains(rev, "..") {
-		return "", nil, badRequest("invalid ref %q", rev)
+		return "", nil, badRequest("%q isn't a valid branch, tag or commit name", rev)
 	}
 	c, err := gr.CatFileCommit(rev)
 	if err != nil {
-		return "", nil, fmt.Errorf("%w: ref %q", errNotFound, rev)
+		return "", nil, &missingError{"ref", rev}
 	}
 	return rev, c, nil
 }
@@ -418,7 +429,7 @@ func cleanPath(p string) (string, error) {
 	}
 	for _, seg := range strings.Split(p, "/") {
 		if seg == ".." || strings.ContainsAny(seg, "\x00\n\r") {
-			return "", badRequest("invalid path %q", p)
+			return "", badRequest("%q isn't a valid path", p)
 		}
 	}
 	p = gopath.Clean(p)
@@ -515,11 +526,11 @@ func (b *browser) commit(ctx context.Context, name, sha string, o diffOpts) (Com
 		return CommitDetail{}, err
 	}
 	if !shaPattern.MatchString(sha) {
-		return CommitDetail{}, badRequest("invalid commit %q", sha)
+		return CommitDetail{}, badRequest("%q isn't a commit hash", sha)
 	}
 	c, err := gr.CatFileCommit(sha)
 	if err != nil {
-		return CommitDetail{}, fmt.Errorf("%w: commit %q", errNotFound, sha)
+		return CommitDetail{}, &missingError{"commit", sha}
 	}
 	out := CommitDetail{CommitInfo: commitInfo(c), Files: []FileChange{}, IgnoreWhitespace: o.IgnoreWhitespace}
 	if out.Path, err = cleanPath(o.Path); err != nil {
@@ -568,7 +579,7 @@ func lookup(gr *git.Repository, rev, p string) (string, *git.Commit, *git.Tree, 
 	}
 	te, err := tree.TreeEntry(p)
 	if err != nil {
-		return "", nil, nil, nil, fmt.Errorf("%w: path %q", errNotFound, p)
+		return "", nil, nil, nil, &missingError{"path", p}
 	}
 	if te.IsTree() {
 		sub, err := tree.SubTree(p)

@@ -182,7 +182,7 @@ func (h uiHandler) find(w http.ResponseWriter, r *http.Request, b *browser, p pa
 		h.fail(w, r, p, err)
 		return
 	default:
-		d.Err = publicMessage(err)
+		d.Err = pageMessage(err)
 		p.Data = d
 		h.renderStatus(w, r, statusFor(err), "find", p)
 		return
