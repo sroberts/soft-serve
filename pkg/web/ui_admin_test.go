@@ -194,14 +194,21 @@ func TestUIAdminDelete(t *testing.T) {
 		t.Fatal("deleted on GET")
 	}
 	wantStatus(t, f.do(req{path: "/-/admin/users/ghost/delete", auth: auth}), http.StatusNotFound, "confirm ghost")
-	seeOther(t, f.post("/-/admin/users/stranger/delete", auth, url.Values{}), "/-/admin/users?done=user-deleted")
+	// The name must be typed; a wrong one deletes nothing.
+	w = f.post("/-/admin/users/stranger/delete", auth, url.Values{"confirm": {"strange"}})
+	wantStatus(t, w, http.StatusBadRequest, "wrong name")
+	has(t, w, esc("That isn't the name."), `name="confirm"`)
+	if _, err := f.be.User(f.ctx, "stranger"); err != nil {
+		t.Error("deleted with the wrong name")
+	}
+	seeOther(t, f.post("/-/admin/users/stranger/delete", auth, url.Values{"confirm": {"stranger"}}), "/-/admin/users?done=user-deleted")
 	if _, err := f.be.User(f.ctx, "stranger"); err == nil {
 		t.Error("not deleted")
 	}
 	has(t, f.do(req{path: "/-/admin/users?done=user-deleted", auth: auth}), "User deleted.")
 
 	// Someone who owns repositories can't be, and the page says which.
-	w = f.post("/-/admin/users/owner/delete", auth, url.Values{})
+	w = f.post("/-/admin/users/owner/delete", auth, url.Values{"confirm": {"owner"}})
 	wantStatus(t, w, http.StatusConflict, "repo owner")
 	has(t, w, "still own these repositories", `href="/group/open"`, `href="/secret"`)
 	if _, err := f.be.User(f.ctx, "owner"); err != nil {

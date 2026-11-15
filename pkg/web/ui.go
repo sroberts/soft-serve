@@ -79,6 +79,7 @@ var uiTemplates = template.Must(template.New("").Funcs(template.FuncMap{
 	"accessText":   accessText,
 	"mark":         markMatches,
 	"breakable":    breakable,
+	"eventLabel":   eventLabel,
 	"isAdmin":      func(level string) bool { return level == access.AdminAccess.String() },
 	"canWrite":     canWrite,
 	"levels":       func() []string { return accessLevels },

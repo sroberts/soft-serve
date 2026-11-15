@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/soft-serve/pkg/proto"
 	"github.com/charmbracelet/soft-serve/pkg/ssrf"
 	"github.com/charmbracelet/soft-serve/pkg/utils"
+	"github.com/charmbracelet/soft-serve/pkg/webhook"
 )
 
 // post submits a form as a browser on the same site would.
@@ -169,7 +170,11 @@ func TestUISettings(t *testing.T) {
 	if _, err := f.be.Repository(f.ctx, "group/moved"); err != nil {
 		t.Fatal("the confirmation page deleted it")
 	}
-	seeOther(t, f.post("/group/moved/-/delete", auth, url.Values{}), "/?done=deleted")
+	has(t, w, "Type <code>group/moved</code> to confirm</span>", "this server holds the only copy")
+	w = f.post("/group/moved/-/delete", auth, url.Values{})
+	wantStatus(t, w, http.StatusBadRequest, "delete without the name")
+	has(t, w, esc("That isn't the name."))
+	seeOther(t, f.post("/group/moved/-/delete", auth, url.Values{"confirm": {"group/moved"}}), "/?done=deleted")
 	if _, err := f.be.Repository(f.ctx, "group/moved"); err == nil {
 		t.Error("repository still there after delete")
 	}
@@ -333,6 +338,15 @@ func TestPlainWords(t *testing.T) {
 	} {
 		if plainMessage(err) == sentence(err.Error()) {
 			t.Errorf("%q has no plain words", err)
+		}
+	}
+}
+
+// Every webhook event has words of its own on the form.
+func TestEventLabels(t *testing.T) {
+	for _, e := range webhook.Events() {
+		if eventLabel(e.String()) == e.String() {
+			t.Errorf("event %q has no label", e)
 		}
 	}
 }

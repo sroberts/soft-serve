@@ -14,11 +14,11 @@
     <label class="check"><input type="radio" name="source" value=""{{if eq .Source ""}} checked{{end}}> <span>Nothing: an empty repository</span></label>
     <label class="check"><input type="radio" name="source" value="fork"{{if eq .Source "fork"}} checked{{end}}> <span>Fork a remote: copy it once, then it's yours and never pulls from there again</span></label>
     <label class="check"><input type="radio" name="source" value="mirror"{{if eq .Source "mirror"}} checked{{end}}> <span>Mirror a remote: keep following it, read-only here</span></label>
-    <label class="field">Remote URL <span class="hint">for a fork or mirror</span>
+    <label class="field importonly">Remote URL
       <input type="url" name="remote" value="{{.Remote}}" placeholder="https://github.com/owner/project.git" inputmode="url" autocomplete="off" spellcheck="false">
     </label>
-    <label class="check"><input type="checkbox" name="auto_sync"{{if .AutoSync}} checked{{end}}> <span>Mirror only: sync on the server's schedule. Unchecked, it syncs only when you ask.</span></label>
-    <label class="check"><input type="checkbox" name="lfs"{{if .LFS}} checked{{end}}> <span>Fork or mirror: fetch Git LFS objects too</span></label>
+    <label class="check mirroronly"><input type="checkbox" name="auto_sync"{{if .AutoSync}} checked{{end}}> <span>Sync on the server's schedule. Unchecked, it syncs only when you ask.</span></label>
+    <label class="check importonly"><input type="checkbox" name="lfs"{{if .LFS}} checked{{end}}> <span>Fetch Git LFS objects too</span></label>
   </fieldset>
   <fieldset>
     <legend>Repository</legend>
@@ -107,7 +107,11 @@
   <p>{{.Message}}</p>
   <form method="post" action="{{.Action}}">
     {{range $k, $v := .Fields}}<input type="hidden" name="{{$k}}" value="{{$v}}">{{end}}
-    <div class="actions"><button type="submit" class="danger">{{.Button}}</button> <a href="{{.Cancel}}">Cancel</a></div>
+    {{with .TypeName}}<label class="field"><span>Type <code>{{.}}</code> to confirm</span>
+      <input type="text" name="confirm" required autocomplete="off" autocapitalize="off" spellcheck="false"{{if $.Data.TypeErr}} aria-invalid="true" aria-describedby="confirm-error"{{end}}>
+    </label>
+    {{with $.Data.TypeErr}}<p class="formerror" id="confirm-error" role="alert">{{.}}</p>{{end}}{{end}}
+    <div class="actions"><button type="submit" class="danger">{{.Button}}</button> <a class="button secondary" href="{{.Cancel}}">Cancel</a></div>
   </form>
 </section>
 {{end}}
@@ -119,7 +123,7 @@
 </label>
 <fieldset class="events">
   <legend>Events</legend>
-  {{$f := .Form}}{{range .Events}}<label class="check"><input type="checkbox" name="events" value="{{.}}"{{if $f.Has .}} checked{{end}}> <span><code>{{.}}</code></span></label>{{end}}
+  {{$f := .Form}}{{range .Events}}<label class="check"><input type="checkbox" name="events" value="{{.}}"{{if $f.Has .}} checked{{end}}> <span>{{eventLabel .}} <code class="event">{{.}}</code></span></label>{{end}}
 </fieldset>
 <label class="field">Content type
   <select name="content_type"><option value="json"{{if eq .Form.ContentType "json"}} selected{{end}}>JSON</option><option value="form"{{if eq .Form.ContentType "form"}} selected{{end}}>Form</option></select>

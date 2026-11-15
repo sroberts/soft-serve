@@ -164,7 +164,7 @@ git push -u origin main</pre>{{end}}
         <a class="refname" href="{{$.Data.Link .Name}}">{{.Name}}</a>{{if eq .Name $.Data.DefaultBranch}} <span class="badge">default</span>{{end}}
         <p class="meta"><a href="{{repoURL $.Repo.Name (printf "commit/%s" .Commit) "" ""}}">{{.Summary}}</a> · <time datetime="{{.Date.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .Date}}</time>{{with distance . $.Data.DefaultBranch}} · <span class="distance">{{.}}</span>{{end}}</p>
       </div>
-      <span class="refactions">{{if ne .Name $.Data.DefaultBranch}}<a href="{{compareURL $.Repo.Name "" .Name}}" aria-label="Compare {{.Name}}">Compare</a> · {{end}}<a href="{{archiveURL $.Repo.Name .Name "tar.gz"}}" download aria-label="Download {{.Name}} as .tar.gz">.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .Name "zip"}}" download aria-label="Download {{.Name}} as .zip">.zip</a>{{if and (canWrite $.Repo.Access) (ne .Name $.Data.DefaultBranch)}} · <a class="danger" href="{{deleteRefURL $.Repo.Name "branch" .Name}}" aria-label="Delete branch {{.Name}}">Delete…</a>{{end}}</span>
+      <span class="refactions">{{if ne .Name $.Data.DefaultBranch}}<a href="{{compareURL $.Repo.Name "" .Name}}" aria-label="Compare {{.Name}}">Compare</a> · {{end}}<a href="{{archiveURL $.Repo.Name .Name "tar.gz"}}" download aria-label="Download {{.Name}} as .tar.gz">.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .Name "zip"}}" download aria-label="Download {{.Name}} as .zip">.zip</a>{{if and (canWrite $.Repo.Access) (ne .Name $.Data.DefaultBranch)}} <a class="danger delete" href="{{deleteRefURL $.Repo.Name "branch" .Name}}" aria-label="Delete branch {{.Name}}">Delete…</a>{{end}}</span>
     </li>
     {{else}}<li class="muted">No branches.</li>{{end}}
   </ul>
@@ -176,7 +176,7 @@ git push -u origin main</pre>{{end}}
         <p class="meta">{{if .Tagger}}Tagged by <bdi>{{.Tagger.Name}}</bdi> · {{end}}<time datetime="{{.Date.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .Date}}</time> · <a class="sha" href="{{repoURL $.Repo.Name (printf "commit/%s" .Commit) "" ""}}">{{short .Commit}}</a></p>
         {{if .Message}}<details class="notes"><summary>Release notes</summary><pre class="message">{{.Message}}</pre></details>{{end}}
       </div>
-      <span class="refactions"><a href="{{archiveURL $.Repo.Name .Name "tar.gz"}}" download aria-label="Download {{.Name}} as .tar.gz">.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .Name "zip"}}" download aria-label="Download {{.Name}} as .zip">.zip</a>{{if canWrite $.Repo.Access}} · <a class="danger" href="{{deleteRefURL $.Repo.Name "tag" .Name}}" aria-label="Delete tag {{.Name}}">Delete…</a>{{end}}</span>
+      <span class="refactions"><a href="{{archiveURL $.Repo.Name .Name "tar.gz"}}" download aria-label="Download {{.Name}} as .tar.gz">.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .Name "zip"}}" download aria-label="Download {{.Name}} as .zip">.zip</a>{{if canWrite $.Repo.Access}} <a class="danger delete" href="{{deleteRefURL $.Repo.Name "tag" .Name}}" aria-label="Delete tag {{.Name}}">Delete…</a>{{end}}</span>
     </li>
     {{else}}<li class="muted">No tags.</li>{{end}}
   </ul>
