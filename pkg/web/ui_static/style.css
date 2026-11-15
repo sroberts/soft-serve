@@ -96,6 +96,9 @@ main {
 .site a.who:hover { color: var(--text); }
 
 .grow { flex: 1; }
+/* Prose and labels don't leave one word on a line; headings balance. */
+p, label, .check span { text-wrap: pretty; }
+h1, h2 { text-wrap: balance; }
 
 /* Names, messages and descriptions come from repositories: a right-to-left
    name mustn't reorder the text around it, and one long unbroken word
@@ -127,7 +130,7 @@ button.link:hover { text-decoration: underline; }
 }
 
 .muted { color: var(--muted); }
-.note { color: var(--muted); }
+.note { color: var(--muted); max-width: 72ch; }
 .small { font-size: 0.7812rem; }
 mark { background: var(--accent-soft); color: inherit; border-radius: 2px; box-shadow: 0 0 0 1px var(--accent-soft); }
 
@@ -531,7 +534,7 @@ form.search input { flex: 1; }
 
 .file.hit { margin-top: 12px; }
 .file.hit > header a { font-family: var(--mono); color: var(--text); }
-.matches { font-family: var(--mono); font-size: 0.8125rem; }
+.matches { font-family: var(--mono); font-size: 0.8125rem; tab-size: 4; }
 .matches td { padding: 3px 0; vertical-align: top; }
 .matches .ln { width: 1%; padding: 3px 12px 3px 14px; text-align: right; white-space: nowrap; }
 .matches .ln a { color: var(--muted); }
@@ -682,10 +685,13 @@ input[type="text"], input[type="url"], input[type="password"], select {
   color: var(--text);
   min-width: 0;
   width: 100%;
+  /* One height for text fields and menus, so a row of them lines up. */
+  box-sizing: border-box;
+  height: 2.375rem;
 }
 select:focus-visible, input[type="checkbox"]:focus-visible, input[type="radio"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .actions { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; font-size: 0.875rem; }
-form.inline { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: end; margin: 0 0 8px; }
+form.inline { max-width: 40rem; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: end; margin: 0 0 8px; }
 form.inline label.field { flex: 1 1 12rem; margin: 0; }
 form.rowaction { margin: 0 0 0 4px; }
 .manage-section { max-width: 40rem; margin: 0 0 24px; padding-top: 16px; border-top: 1px solid var(--line); }
@@ -759,7 +765,6 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
   .tabs .ref { margin: 0; padding: 4px 11px; }
   .refmenu .menu { left: 0; right: 0; width: auto; }
   form.manage fieldset { padding: 10px 12px 12px; }
-  form.inline button[type="submit"] { flex: 1 1 100%; }
 }
 
 /* The end of a long file or blame, back to where the page starts. */
@@ -791,6 +796,7 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
   input[type="search"], .compareform input,
   form.find input, form.find button[type="submit"]:not(.link),
   button[type="submit"]:not(.link) { min-height: 44px; font-size: 1rem; }
+  input[type="text"], input[type="url"], input[type="password"], select { height: 44px; font-size: 1rem; }
   .compareform .dots { padding-bottom: 12px; }
 
   /* Tabs: wide screens keep the underline, so the links grow down to it. */
@@ -815,7 +821,9 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
 
   /* File and diff headers: the actions fill the header's height. */
   .readme > header, .file > header { padding-block: 0; min-height: 44px; }
-  .file > header > span:first-child { padding-block: 10px; }
+  /* The actions always wrap below at this width, and their own padding
+     spaces them from the description. */
+  .file > header > span:first-child { padding-block: 10px 0; }
   .file > header > a { padding: 12px 8px; margin-inline: -8px; }
   .file > footer a { padding-block: 12px; }
 
