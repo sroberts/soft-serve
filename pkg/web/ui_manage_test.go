@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -12,7 +13,10 @@ import (
 
 	"github.com/charmbracelet/soft-serve/pkg/access"
 	"github.com/charmbracelet/soft-serve/pkg/config"
+	"github.com/charmbracelet/soft-serve/pkg/ops"
 	"github.com/charmbracelet/soft-serve/pkg/proto"
+	"github.com/charmbracelet/soft-serve/pkg/ssrf"
+	"github.com/charmbracelet/soft-serve/pkg/utils"
 )
 
 // post submits a form as a browser on the same site would.
@@ -79,12 +83,12 @@ func TestUINewRepository(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("bad name: %d", w.Code)
 	}
-	has(t, w, `class="formerror" role="alert"`, `value="kept"`)
+	has(t, w, `class="formerror" role="alert"`, `value="kept"`, "A repository name can use only letters, numbers, -, _, . and /.")
 	w = f.post("/-/new", auth, url.Values{"name": {"made"}})
 	if w.Code != http.StatusConflict {
 		t.Errorf("existing name: %d", w.Code)
 	}
-	has(t, w, "Repository already exists.")
+	has(t, w, "There&#39;s already a repository with that name. Choose another.")
 	w = f.post("/-/new", auth, url.Values{"name": {"forked"}, "source": {"fork"}})
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("fork without remote: %d", w.Code)
@@ -210,14 +214,14 @@ func TestUICollaborators(t *testing.T) {
 	has(t, f.do(req{path: "/secret/-/access", auth: auth}), `action="/secret/-/access/add"`, "No collaborators yet.")
 	seeOther(t, f.post("/secret/-/access/add", auth, url.Values{"username": {"stranger"}, "access": {"read-only"}}), "/secret/-/access?done=collab-added")
 	w := f.do(req{path: "/secret/-/access?done=collab-added", auth: auth})
-	has(t, w, "Collaborator added.", `<span class="refname">stranger</span><span class="badge">read-only</span>`, `aria-label="Remove stranger"`)
+	has(t, w, "Collaborator added.", `<span class="refname">stranger</span><span class="badge">Read-only</span>`, `aria-label="Remove stranger"`)
 
 	// Adding them again fails on the form, which keeps what was typed.
 	w = f.post("/secret/-/access/add", auth, url.Values{"username": {"stranger"}, "access": {"admin-access"}})
 	if w.Code != http.StatusConflict {
 		t.Errorf("add twice: %d", w.Code)
 	}
-	has(t, w, "Collaborator already exists.", `value="stranger"`, `<option selected>admin-access</option>`)
+	has(t, w, "They&#39;re already a collaborator.", `value="stranger"`, `<option value="admin-access" selected>Admin</option>`)
 
 	// Anonymous callers and readers can't manage collaborators.
 	if w := f.post("/secret/-/access/add", "", url.Values{"username": {"x"}}); w.Code != http.StatusNotFound {
@@ -265,7 +269,7 @@ func TestUIWebhooks(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("private url: %d", w.Code)
 	}
-	has(t, w, "Invalid webhook URL", `value="http://127.0.0.1/hook"`)
+	has(t, w, "That address is on a private or internal network, which this server won&#39;t connect to.", `value="http://127.0.0.1/hook"`)
 	w = f.post("/group/open/-/webhooks", auth, url.Values{"url": {"https://example.com/hook"}, "content_type": {"json"}})
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("no events: %d", w.Code)
@@ -298,7 +302,35 @@ func TestUIWebhooks(t *testing.T) {
 		t.Errorf("missing webhook: %d", w.Code)
 	}
 
-	has(t, f.do(req{path: "/group/open/-/webhooks/1/delete", auth: auth}), "Remove this webhook?")
+	has(t, f.do(req{path: "/group/open/-/webhooks/1/delete", auth: auth}), "Delete this webhook?")
 	seeOther(t, f.post("/group/open/-/webhooks/1/delete", auth, url.Values{}), "/group/open/-/webhooks?done=hook-deleted")
 	has(t, f.do(req{path: "/group/open/-/webhooks", auth: auth}), "No webhooks yet.")
+}
+
+// The service's terse messages are put in plain words on pages, and every
+// phrase looked for is one the service still says.
+func TestPlainWords(t *testing.T) {
+	for _, c := range []struct {
+		err  error
+		want string
+	}{
+		{proto.ErrCollaboratorExist, "They're already a collaborator. To change their access, remove them and add them again."},
+		{fmt.Errorf("%w: %q", ssrf.ErrSSHHostNotAllowed, "example.com:22"), "The server's config doesn't allow that SSH host (client_allowed_hosts)."},
+		{ops.Invalid("invalid webhook URL: %v", fmt.Errorf("%w: cannot resolve hostname", ssrf.ErrInvalidURL)), "That address's host name couldn't be found."},
+		{ops.Invalid("%v", utils.ValidateRepo("a b")), "A repository name can use only letters, numbers, -, _, . and /."},
+		{ops.Invalid("%v", utils.ValidateUsername("1a")), "A username has to start with a letter."},
+		{ops.Invalid("give the token a name"), "Give the token a name."},
+	} {
+		if got := plainMessage(c.err); got != c.want {
+			t.Errorf("plainMessage(%q) = %q, want %q", c.err, got, c.want)
+		}
+	}
+	for _, err := range []error{
+		utils.ValidateRepo(""), utils.ValidateRepo("a b"), utils.ValidateRepo("a.git/b"),
+		utils.ValidateUsername(""), utils.ValidateUsername("1"), utils.ValidateUsername("a b"),
+	} {
+		if plainMessage(err) == sentence(err.Error()) {
+			t.Errorf("%q has no plain words", err)
+		}
+	}
 }

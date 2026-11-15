@@ -57,7 +57,7 @@ func TestUIAccountKeys(t *testing.T) {
 	// isn't a key all fail on the form, which keeps what was pasted.
 	w = f.post("/-/me/keys", auth, url.Values{"key": {key}})
 	wantStatus(t, w, http.StatusConflict, "duplicate key")
-	has(t, w, "You already have this public key.", `class="formerror" role="alert"`)
+	has(t, w, "This key is already on your account.", `class="formerror" role="alert"`)
 	other, _ := newKey(t)
 	stranger, _ := f.be.User(f.ctx, "stranger")
 	pk, _, _, _, _ := gossh.ParseAuthorizedKey([]byte(other))
@@ -66,7 +66,7 @@ func TestUIAccountKeys(t *testing.T) {
 	}
 	w = f.post("/-/me/keys", auth, url.Values{"key": {other}})
 	wantStatus(t, w, http.StatusConflict, "someone else's key")
-	has(t, w, "Public key belongs to another account.")
+	has(t, w, "This key is already on another account, and a key can be on only one.")
 	w = f.post("/-/me/keys", auth, url.Values{"key": {"not a key"}})
 	wantStatus(t, w, http.StatusBadRequest, "bad key")
 	has(t, w, "Not an SSH public key", ">not a key</textarea>")
@@ -188,10 +188,10 @@ func TestUIAccountUsername(t *testing.T) {
 
 	w := f.post("/-/me/username", auth, url.Values{"username": {"stranger"}})
 	wantStatus(t, w, http.StatusConflict, "taken name")
-	has(t, w, "Username is already taken.", `name="username" value="stranger"`)
+	has(t, w, "That username is taken. Choose another.", `name="username" value="stranger"`)
 	w = f.post("/-/me/username", auth, url.Values{"username": {"9lives"}})
 	wantStatus(t, w, http.StatusBadRequest, "bad name")
-	has(t, w, "Username must start with a letter.")
+	has(t, w, "A username has to start with a letter.")
 
 	loc := seeOther(t, f.post("/-/me/username", auth, url.Values{"username": {"boss"}}), "/-/me?done=username-changed")
 	// The token still signs them in, under the new name.

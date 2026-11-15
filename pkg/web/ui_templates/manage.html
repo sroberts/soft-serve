@@ -63,7 +63,7 @@
   <fieldset>
     <legend>Mirror</legend>
     {{with $.Repo.MirrorOf}}<p class="note">Following <code>{{.}}</code>.</p>{{end}}
-    <label class="check"><input type="checkbox" name="mirror" checked> <span>Keep following the upstream. Unchecked, it stops syncing.</span></label>
+    <label class="check"><input type="checkbox" name="mirror" checked> <span>Keep following the remote. Unchecked, it stops syncing.</span></label>
     <label class="check"><input type="checkbox" name="auto_sync"{{if and $r.AutoSync (deref $r.AutoSync)}} checked{{end}}> <span>Sync on the server's schedule. Unchecked, it syncs only when you ask.</span></label>
   </fieldset>
   {{end}}
@@ -73,7 +73,7 @@
 {{if $r.Mirror}}
 <section class="manage-section">
   <h2>Sync</h2>
-  <p class="note">Pull from the upstream now{{with $.Repo.MirrorSyncedAt}}; last synced <time datetime="{{.Format "2006-01-02T15:04:05Z07:00"}}">{{agoPtr .}}</time>{{end}}.</p>
+  <p class="note">Fetch the latest from the remote now{{with $.Repo.MirrorSyncedAt}}; last synced <time datetime="{{.Format "2006-01-02T15:04:05Z07:00"}}">{{agoPtr .}}</time>{{end}}.</p>
   <form method="post" action="{{repoURL $r.Name "sync" "" ""}}"><button type="submit">Sync now</button></form>
 </section>
 {{end}}
@@ -163,7 +163,7 @@
 {{template "formerror" .Err}}
 <form class="manage" method="post" action="{{repoURL $.Repo.Name $hookURL "" ""}}">
   {{template "hookfields" (hookForm .Form .Events .Hook.ID)}}
-  <div class="actions"><button type="submit">Save webhook</button> <a class="danger" href="{{repoURL $.Repo.Name (printf "%s/delete" $hookURL) "" ""}}">Remove…</a></div>
+  <div class="actions"><button type="submit">Save webhook</button> <a class="danger" href="{{repoURL $.Repo.Name (printf "%s/delete" $hookURL) "" ""}}">Delete webhook…</a></div>
 </form>
 <section class="refs">
   <h2>Recent deliveries</h2>

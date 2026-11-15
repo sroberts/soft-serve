@@ -14,6 +14,7 @@ import (
 	"github.com/charmbracelet/soft-serve/pkg/access"
 	"github.com/charmbracelet/soft-serve/pkg/ops"
 	"github.com/charmbracelet/soft-serve/pkg/proto"
+	"github.com/charmbracelet/soft-serve/pkg/ssrf"
 	"github.com/charmbracelet/soft-serve/pkg/webhook"
 )
 
@@ -52,14 +53,14 @@ var notices = map[string]string{
 	"saved":          "Settings saved.",
 	"renamed":        "Repository renamed.",
 	"deleted":        "Repository deleted.",
-	"synced":         "Mirror synced from its upstream.",
+	"synced":         "Mirror synced.",
 	"branch-deleted": "Branch deleted.",
 	"tag-deleted":    "Tag deleted.",
 	"collab-added":   "Collaborator added.",
 	"collab-removed": "Collaborator removed.",
 	"hook-created":   "Webhook added.",
 	"hook-saved":     "Webhook saved.",
-	"hook-deleted":   "Webhook removed.",
+	"hook-deleted":   "Webhook deleted.",
 	"redelivered":    "Delivery sent again.",
 
 	"key-added":        "SSH key added.",
@@ -121,7 +122,7 @@ func (h uiHandler) opsMessage(r *http.Request, b *browser, err error) (int, stri
 	switch {
 	case status == http.StatusInternalServerError:
 		log.FromContext(r.Context()).Error("web", "method", r.Method, "path", r.URL.Path, "err", err)
-		return status, "Something went wrong on the server."
+		return status, serverTrouble
 	case errors.Is(err, proto.ErrUnauthorized) && b.user == nil:
 		return status, "Sign in to do that."
 	case errors.Is(err, proto.ErrUnauthorized):
@@ -131,9 +132,54 @@ func (h uiHandler) opsMessage(r *http.Request, b *browser, err error) (int, stri
 	case errors.Is(err, proto.ErrImportFailed):
 		return status, "The import failed. Check the remote's address and that this server can reach it."
 	case errors.Is(err, proto.ErrMirrorSyncFailed):
-		return status, "The sync failed. The upstream may be unreachable."
+		return status, "The sync failed. The remote may be unreachable."
 	}
-	return status, sentence(err.Error())
+	return status, plainMessage(err)
+}
+
+// serverTrouble is what a page says when the server, not the request, is
+// at fault. The owner runs the server, so it says where to look.
+const serverTrouble = "Something went wrong on the server. Its log has the details."
+
+// plainWords are what pages say for the service's messages, which are
+// written for the API and SSH and stay as they are there. Each is found by
+// a phrase in the message; the first match wins.
+var plainWords = []struct{ phrase, text string }{
+	{"repo cannot be empty", "Give the repository a name."},
+	{"repo can only contain", "A repository name can use only letters, numbers, -, _, . and /."},
+	{"repo name is not in its canonical form", "A repository name can't start or end with /, or have . or .. between slashes."},
+	{"repo path segments cannot end in .git", "No part of a repository name can end in .git."},
+	{"username cannot be empty", "Give a username."},
+	{"username must start with a letter", "A username has to start with a letter."},
+	{"username can only contain", "A username can use only letters, numbers and -."},
+	{proto.ErrRepoExist.Error(), "There's already a repository with that name. Choose another."},
+	{proto.ErrUserExist.Error(), "That username is taken. Choose another."},
+	{proto.ErrPublicKeyExist.Error(), "This key is already on your account."},
+	{proto.ErrPublicKeyInUse.Error(), "This key is already on another account, and a key can be on only one."},
+	{proto.ErrCollaboratorExist.Error(), "They're already a collaborator. To change their access, remove them and add them again."},
+	{proto.ErrExceedsAccessLevel.Error(), "You can't give more access than you have."},
+	{"cannot delete the default branch", "This is the default branch, so it can't be deleted. Make another branch the default in Settings first."},
+	{proto.ErrImportsDisabled.Error(), "Importing is turned off on this server."},
+	{proto.ErrMirrorSyncInProgress.Error(), "A sync is already running."},
+	{proto.ErrInvalidRemote.Error(), "The remote has to be a network address, like https://github.com/owner/project.git. Local paths can't be used."},
+	{ssrf.ErrUnsupportedRemoteScheme.Error(), "The remote has to start with https://, http://, ssh:// or git://."},
+	{ssrf.ErrSSHRequiresAdmin.Error(), "Only an admin can use an SSH remote here, because the server's config allows no SSH hosts (client_allowed_hosts)."},
+	{ssrf.ErrSSHHostNotAllowed.Error(), "The server's config doesn't allow that SSH host (client_allowed_hosts)."},
+	{ssrf.ErrPrivateIP.Error(), "That address is on a private or internal network, which this server won't connect to."},
+	{ssrf.ErrInvalidScheme.Error(), "The address has to start with https:// or http://."},
+	{"cannot resolve hostname", "That address's host name couldn't be found."},
+	{ssrf.ErrInvalidURL.Error(), "That isn't a valid address."},
+}
+
+// plainMessage is what a page says about err.
+func plainMessage(err error) string {
+	msg := err.Error()
+	for _, w := range plainWords {
+		if strings.Contains(msg, w.phrase) {
+			return w.text
+		}
+	}
+	return sentence(msg)
 }
 
 // sentence makes an error message read as one: a capital and a full stop.
@@ -662,11 +708,11 @@ func (h uiHandler) webhook(w http.ResponseWriter, r *http.Request, b *browser, p
 		if r.Method != http.MethodPost {
 			p.Title = "Remove webhook · " + p.Repo.Name
 			p.Data = confirmData{
-				Heading: "Remove this webhook?",
-				Message: "Events will stop being sent to it, and its deliveries are forgotten.",
+				Heading: "Delete this webhook?",
+				Message: "Events stop being sent to it, and its record of deliveries goes with it.",
 				What:    hook.URL,
 				Action:  hookURL + "/delete",
-				Button:  "Remove webhook",
+				Button:  "Delete webhook",
 				Cancel:  hookURL,
 			}
 			h.render(w, r, "confirm", p)

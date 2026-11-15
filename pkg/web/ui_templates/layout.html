@@ -17,7 +17,7 @@
   <span class="grow"></span>
   {{if .Admin}}<a class="who" href="/-/admin"{{if eq .Tab "users" "settings"}}{{if not .Repo}} aria-current="page"{{end}}{{end}}>Admin</a>{{end}}
   {{if .SignedIn}}
-  <a class="who" href="/-/me" title="{{if .SoftServe}}Your access is Soft Serve user {{.SoftServe}}'s{{else}}No Soft Serve user is named {{.SignedIn}}, so you see public repositories only{{end}}">{{.SignedIn}}{{if not .SoftServe}} <span class="badge">public only</span>{{end}}</a>
+  <a class="who" href="/-/me" title="{{if .SoftServe}}Your account: Soft Serve user {{.SoftServe}}{{else}}No Soft Serve user is named {{.SignedIn}}, so you see public repositories only{{end}}">{{.SignedIn}}{{if not .SoftServe}} <span class="badge">public only</span>{{end}}</a>
   <form method="post" action="/.outpost/logout"><button type="submit" class="link">Sign out</button></form>
   {{else if .SoftServe}}<a class="who" href="/-/me">{{.SoftServe}}</a>{{end}}
 </header>

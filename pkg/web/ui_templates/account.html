@@ -15,7 +15,7 @@
   <h2 id="new-token">Your new token: {{.Name}}</h2>
   <p><strong>Copy it now. It won't be shown again.</strong></p>
   <code class="token">{{.Token}}</code>
-  <p class="note small">Sign in with it as the password, with your username, or send it as <code>Authorization: Token …</code>.</p>
+  <p class="note small">Use it as the password, with your username, or send it in an <code>Authorization: Token …</code> header.</p>
 </section>
 {{end}}
 
@@ -48,7 +48,7 @@
   <h2>Access tokens</h2>
   <ul>
     {{range .Tokens}}<li>
-      <div class="refmain"><span class="refname">{{.Name}}</span><p class="meta">Made {{ago .CreatedAt}} · {{if .ExpiresAt}}{{if .Expired}}expired{{else}}expires{{end}} <time datetime="{{.ExpiresAt.Format "2006-01-02T15:04:05Z07:00"}}">{{agoPtr .ExpiresAt}}</time>{{else}}never expires{{end}} · ID {{.ID}}</p></div>
+      <div class="refmain"><span class="refname">{{.Name}}</span><p class="meta">Created {{ago .CreatedAt}} · {{if .ExpiresAt}}{{if .Expired}}expired{{else}}expires{{end}} <time datetime="{{.ExpiresAt.Format "2006-01-02T15:04:05Z07:00"}}">{{agoPtr .ExpiresAt}}</time>{{else}}never expires{{end}} · ID {{.ID}}</p></div>
       {{if .Expired}}<span class="badge bad">expired</span>{{end}}
       <form class="rowaction" method="post" action="/-/me/tokens/delete"><input type="hidden" name="id" value="{{.ID}}"><button type="submit" class="link danger" aria-label="Delete token {{.Name}}">Delete</button></form>
     </li>
@@ -56,7 +56,7 @@
   </ul>
 </section>
 <section class="manage-section">
-  <h2 id="make-token">Make an access token</h2>
+  <h2 id="make-token">Create an access token</h2>
   {{template "formerror" .TokenErr}}
   <form class="inline" method="post" action="/-/me/tokens" aria-labelledby="make-token">
     <label class="field">Name <span class="hint">what it's for</span>
@@ -65,9 +65,9 @@
     <label class="field">Expires
       <select name="expires">{{$exp := .TokenExpiry}}{{range .Expiries}}<option value="{{.Value}}"{{if eq .Value $exp}} selected{{end}}>{{.Label}}</option>{{end}}</select>
     </label>
-    <button type="submit">Make token</button>
+    <button type="submit">Create token</button>
   </form>
-  <p class="note small">A token works like your password for git over HTTPS, the API and these pages. It's shown once, when it's made.</p>
+  <p class="note small">A token works like your password for git over HTTPS, the API and these pages. It's shown once, when it's created.</p>
 </section>
 
 <section class="manage-section">
@@ -90,7 +90,7 @@
 <section class="refs">
   <h2>Repositories you can push to</h2>
   <ul>
-    {{range .Repos}}<li><a class="refname" href="{{repoURL .Name "" "" ""}}">{{.Name}}</a>{{if .Private}} <span class="badge">private</span>{{end}}{{if .Hidden}} <span class="badge">hidden</span>{{end}}<span class="badge">{{.Access}}</span></li>
+    {{range .Repos}}<li><a class="refname" href="{{repoURL .Name "" "" ""}}">{{.Name}}</a>{{if .Private}} <span class="badge">private</span>{{end}}{{if .Hidden}} <span class="badge">hidden</span>{{end}}<span class="badge">{{accessLabel .Access}}</span></li>
     {{else}}<li class="muted">None yet.</li>{{end}}
   </ul>
 </section>

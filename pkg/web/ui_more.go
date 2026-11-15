@@ -227,6 +227,22 @@ func markMatches(text, q string) template.HTML {
 	return template.HTML(b.String()) //nolint:gosec // escaped
 }
 
+// accessLabel names an access level in words, for lists and menus; the
+// API and SSH use the level's own name, such as "admin-access".
+func accessLabel(level string) string {
+	switch level {
+	case access.AdminAccess.String():
+		return "Admin"
+	case access.ReadWriteAccess.String():
+		return "Read-write"
+	case access.ReadOnlyAccess.String():
+		return "Read-only"
+	case access.NoAccess.String():
+		return "No access"
+	}
+	return level
+}
+
 // accessText says what an access level lets the caller do.
 func accessText(level string) string {
 	switch level {
