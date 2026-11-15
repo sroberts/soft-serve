@@ -43,6 +43,7 @@
 {{define "settings"}}{{template "head" .}}
 {{template "repohead" .}}
 {{with .Data}}{{$r := .Repo}}
+<h1 class="visually-hidden">{{$r.Name}}: settings</h1>
 {{template "formerror" .Err}}
 <form class="manage" method="post" action="{{repoURL $r.Name "settings" "" ""}}">
   <fieldset>
@@ -74,7 +75,7 @@
 <section class="manage-section">
   <h2>Sync</h2>
   <p class="note">Fetch the latest from the remote now{{with $.Repo.MirrorSyncedAt}}; last synced <time datetime="{{.Format "2006-01-02T15:04:05Z07:00"}}">{{agoPtr .}}</time>{{end}}.</p>
-  <form method="post" action="{{repoURL $r.Name "sync" "" ""}}"><button type="submit">Sync now</button></form>
+  <form method="post" action="{{repoURL $r.Name "sync" "" ""}}"><button type="submit" class="secondary">Sync now</button></form>
 </section>
 {{end}}
 
@@ -84,7 +85,7 @@
     <label class="field">New name
       <input type="text" name="name" value="{{$r.Name}}" required maxlength="200" autocomplete="off" spellcheck="false">
     </label>
-    <button type="submit">Rename</button>
+    <button type="submit" class="secondary">Rename</button>
   </form>
   <p class="note small">Clones will need the new address.</p>
 </section>
@@ -101,7 +102,7 @@
 {{if .Repo}}{{template "repohead" .}}{{end}}
 {{with .Data}}
 <section class="card confirm">
-  <h2>{{.Heading}}</h2>
+  <h1>{{.Heading}}</h1>
   <p><code class="what">{{.What}}</code></p>
   <p>{{.Message}}</p>
   <form method="post" action="{{.Action}}">
@@ -131,6 +132,7 @@
 
 {{define "webhooks"}}{{template "head" .}}
 {{template "repohead" .}}
+<h1 class="visually-hidden">{{.Repo.Name}}: webhooks</h1>
 {{with .Data}}
 <section class="refs">
   <h2>Webhooks</h2>
@@ -159,7 +161,7 @@
 {{define "webhook"}}{{template "head" .}}
 {{template "repohead" .}}
 {{with .Data}}{{$hookURL := printf "webhooks/%d" .Hook.ID}}
-<p class="pathbar"><a href="{{repoURL $.Repo.Name "webhooks" "" ""}}">Webhooks</a><span class="sep" aria-hidden="true">/</span>{{.Hook.ID}}</p>
+<h1 class="pathbar"><a href="{{repoURL $.Repo.Name "webhooks" "" ""}}">Webhooks</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">{{.Hook.URL}}</span></h1>
 {{template "formerror" .Err}}
 <form class="manage" method="post" action="{{repoURL $.Repo.Name $hookURL "" ""}}">
   {{template "hookfields" (hookForm .Form .Events .Hook.ID)}}
@@ -184,7 +186,7 @@
 {{define "delivery"}}{{template "head" .}}
 {{template "repohead" .}}
 {{with .Data}}{{$hookURL := printf "webhooks/%d" .Hook.ID}}{{$d := .Delivery}}
-<p class="pathbar"><a href="{{repoURL $.Repo.Name "webhooks" "" ""}}">Webhooks</a><span class="sep" aria-hidden="true">/</span><a href="{{repoURL $.Repo.Name $hookURL "" ""}}">{{.Hook.ID}}</a><span class="sep" aria-hidden="true">/</span>{{short $d.ID}}</p>
+<h1 class="pathbar"><a href="{{repoURL $.Repo.Name "webhooks" "" ""}}">Webhooks</a><span class="sep" aria-hidden="true">/</span><a href="{{repoURL $.Repo.Name $hookURL "" ""}}">{{.Hook.URL}}</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">{{short $d.ID}}</span></h1>
 <section class="commit delivery">
   <h2>{{$d.Event}} <span class="badge {{if $d.OK}}ok{{else}}bad{{end}}">{{if $d.ResponseStatus}}{{$d.ResponseStatus}}{{else}}failed{{end}}</span></h2>
   <dl class="meta">
@@ -193,7 +195,7 @@
     <dt>Request</dt><dd><code>{{$d.RequestMethod}} {{$d.RequestURL}}</code></dd>
     {{if $d.RequestError}}<dt>Error</dt><dd>{{$d.RequestError}}</dd>{{end}}
   </dl>
-  <form method="post" action="{{repoURL $.Repo.Name (printf "%s/deliveries/%s/redeliver" $hookURL $d.ID) "" ""}}"><button type="submit">Send again</button></form>
+  <form method="post" action="{{repoURL $.Repo.Name (printf "%s/deliveries/%s/redeliver" $hookURL $d.ID) "" ""}}"><button type="submit" class="secondary">Send again</button></form>
   <h3>Request headers</h3>
   <pre class="payload">{{$d.RequestHeaders}}</pre>
   <h3>Request body</h3>

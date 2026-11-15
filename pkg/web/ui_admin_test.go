@@ -128,7 +128,8 @@ func TestUIAdminUserKeys(t *testing.T) {
 	has(t, f.do(req{path: "/-/admin/users/stranger", auth: auth}), "No SSH keys.", `action="/-/admin/users/stranger/keys"`)
 	seeOther(t, f.post("/-/admin/users/stranger/keys", auth, url.Values{"key": {key}}), "/-/admin/users/stranger?done=key-added")
 	w := f.do(req{path: "/-/admin/users/stranger?done=key-added", auth: auth})
-	has(t, w, "SSH key added.", `name="fingerprint" value="`+esc(fp)+`"`)
+	has(t, w, "SSH key added.", `aria-label="Remove key `+esc(fp)+`"`)
+	has(t, f.do(req{path: "/-/admin/users/stranger/keys/remove?fingerprint=" + url.QueryEscape(fp), auth: auth}), "Remove this SSH key?", "They can no longer sign in with it")
 
 	w = f.post("/-/admin/users/stranger/keys", auth, url.Values{"key": {key}})
 	wantStatus(t, w, http.StatusConflict, "same key again")

@@ -332,8 +332,11 @@ func TestAccessAndCollaborators(t *testing.T) {
 	is.Equal(f.do(req{path: "/v1/repos/secret/-/collaborators"}).Code, http.StatusUnauthorized)
 	is.Equal(f.do(req{path: "/v1/repos/secret/-/collaborators", identity: stranger}).Code, http.StatusNotFound)
 
-	w = f.do(req{path: "/group/open", auth: ownerAuth})
+	// Access is a page under Manage.
+	w = f.do(req{path: "/group/open/-/settings", auth: ownerAuth})
 	is.True(strings.Contains(w.Body.String(), `/group/open/-/access`))
+	w = f.do(req{path: "/group/open", auth: ownerAuth})
+	is.True(strings.Contains(w.Body.String(), `/group/open/-/settings">Manage</a>`))
 	is.True(strings.Contains(w.Body.String(), "You&#39;re an admin of this repository."))
 	w = f.do(req{path: "/group/open", identity: stranger})
 	is.True(!strings.Contains(w.Body.String(), `/group/open/-/access`))

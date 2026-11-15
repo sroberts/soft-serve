@@ -183,6 +183,10 @@ func (h uiHandler) adminUser(w http.ResponseWriter, r *http.Request, b *browser,
 		return
 	}
 	if r.Method != http.MethodPost {
+		if action == "keys/remove" {
+			h.adminConfirmKey(w, r, b, p, name)
+			return
+		}
 		http.Redirect(w, r, adminUserURL(name, ""), http.StatusSeeOther)
 		return
 	}
@@ -368,4 +372,22 @@ func (h uiHandler) adminSettings(w http.ResponseWriter, r *http.Request, b *brow
 		d.Settings = now
 	}
 	h.renderForm(w, r, b, p, "admin-settings", err, func(m string) { d.Err = m })
+}
+
+// adminConfirmKey asks before one of a user's keys is removed.
+func (h uiHandler) adminConfirmKey(w http.ResponseWriter, r *http.Request, b *browser, p page, name string) {
+	d, ok := h.adminUserPage(w, r, b, &p, name)
+	if !ok {
+		return
+	}
+	fp := r.URL.Query().Get("fingerprint")
+	for _, k := range d.PublicKeys {
+		if k.Fingerprint == fp {
+			p.Title = "Remove key · " + d.Username
+			p.Data = keyConfirm(fp, adminUserURL(d.Username, "keys/remove"), adminUserURL(d.Username, ""), "They can no longer sign in with it, over SSH or git.")
+			h.render(w, r, "confirm", p)
+			return
+		}
+	}
+	h.renderError(w, r, &p, http.StatusNotFound, "That key isn't on this account.")
 }

@@ -257,7 +257,9 @@ func TestUIWebhooks(t *testing.T) {
 	auth := f.owner()
 	stranger := f.outpost.token(t, "stranger", viewHost, nil)
 
-	has(t, f.do(req{path: "/group/open", auth: auth}), `href="/group/open/-/webhooks"`)
+	// Webhooks are under Manage: one tab, then its own row of pages.
+	has(t, f.do(req{path: "/group/open", auth: auth}), `href="/group/open/-/settings">Manage</a>`)
+	has(t, f.do(req{path: "/group/open/-/settings", auth: auth}), `<nav class="subnav" aria-label="Manage">`, `href="/group/open/-/webhooks"`)
 	w := f.do(req{path: "/group/open/-/webhooks", auth: auth})
 	has(t, w, "No webhooks yet.", `value="push" checked`)
 	if w := f.do(req{path: "/group/open/-/webhooks", identity: stranger}); w.Code != http.StatusForbidden {

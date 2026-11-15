@@ -111,6 +111,10 @@ func (h uiHandler) accountAction(w http.ResponseWriter, r *http.Request, b *brow
 		return
 	}
 	if r.Method != http.MethodPost {
+		if action == "keys/remove" || action == "tokens/delete" {
+			h.confirmCredential(w, r, b, p, action)
+			return
+		}
 		http.Redirect(w, r, accountURL, http.StatusSeeOther)
 		return
 	}
@@ -193,6 +197,66 @@ func (h uiHandler) accountAction(w http.ResponseWriter, r *http.Request, b *brow
 	}
 	set(d, msg)
 	h.renderStatus(w, r, status, "account", p)
+}
+
+// confirmCredential asks before a key or token goes: something may depend
+// on it, and nothing brings it back. The page's own link opens this; the
+// form on it makes the change.
+func (h uiHandler) confirmCredential(w http.ResponseWriter, r *http.Request, b *browser, p page, action string) {
+	d, ok := h.accountPage(w, r, b, &p)
+	if !ok {
+		return
+	}
+	if b.user == nil {
+		h.opsFail(w, r, b, p, proto.ErrUnauthorized)
+		return
+	}
+	q := r.URL.Query()
+	switch action {
+	case "keys/remove":
+		fp := q.Get("fingerprint")
+		for _, k := range d.Keys {
+			if k.Fingerprint == fp {
+				p.Title = "Remove key"
+				p.Data = keyConfirm(fp, accountURL+"/keys/remove", accountURL, "Anything that signs in with this key, over SSH or git, stops working.")
+				h.render(w, r, "confirm", p)
+				return
+			}
+		}
+		h.renderError(w, r, &p, http.StatusNotFound, "That key isn't on your account.")
+	case "tokens/delete":
+		id := q.Get("id")
+		for _, t := range d.Tokens {
+			if strconv.FormatInt(t.ID, 10) == id {
+				p.Title = "Delete token " + t.Name
+				p.Data = confirmData{
+					Heading: "Delete this access token?",
+					Message: "Anything using it, such as a script, a git remote or an AI tool, stops working. This can't be undone.",
+					What:    t.Name,
+					Action:  accountURL + "/tokens/delete",
+					Fields:  map[string]string{"id": id},
+					Button:  "Delete token",
+					Cancel:  accountURL,
+				}
+				h.render(w, r, "confirm", p)
+				return
+			}
+		}
+		h.renderError(w, r, &p, http.StatusNotFound, "That token doesn't exist, or isn't yours.")
+	}
+}
+
+// keyConfirm is the question before an SSH key is removed.
+func keyConfirm(fingerprint, action, cancel, consequence string) confirmData {
+	return confirmData{
+		Heading: "Remove this SSH key?",
+		Message: consequence + " It can be added again from its public key.",
+		What:    fingerprint,
+		Action:  action,
+		Fields:  map[string]string{"fingerprint": fingerprint},
+		Button:  "Remove key",
+		Cancel:  cancel,
+	}
 }
 
 // createToken makes an access token that expires as the form chose.

@@ -178,6 +178,11 @@ mark { background: var(--accent-soft); color: inherit; border-radius: 2px; box-s
 .repohead h1 { font-size: var(--text-display); margin: 0; overflow-wrap: anywhere; }
 /* Deeper pages: the tabs alone, straight under the site bar. */
 .repohead.compact .tabs { margin-top: 0; }
+/* The pages under Manage: a quieter row than the tabs above it. */
+.subnav { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: -4px 0 20px; font-size: var(--text-ui); }
+.subnav a { color: var(--muted); padding-block: 4px; }
+.subnav a:hover { color: var(--text); text-decoration: none; }
+.subnav a[aria-current="page"] { color: var(--text); font-weight: var(--weight-strong); box-shadow: inset 0 -2px var(--accent); }
 .repohead .desc { margin: 4px 0 0; color: var(--muted); }
 .repohead .access { margin: 4px 0 0; color: var(--muted); font-size: var(--text-meta); }
 .clone .downloads { margin: 10px 0 0; font-size: var(--text-meta); color: var(--muted); }
@@ -326,7 +331,7 @@ table { border-collapse: collapse; width: 100%; }
 }
 .files td { padding: 7px 12px; border-top: 1px solid var(--line); }
 .files .icon { width: 20px; color: var(--muted); padding-right: 0; }
-.files .name { overflow-wrap: anywhere; }
+.files .name { overflow-wrap: break-word; }
 .files .size { text-align: right; color: var(--muted); white-space: nowrap; font-size: var(--text-meta); width: 1%; }
 .files .last { color: var(--muted); font-size: var(--text-meta); max-width: 0; width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .files .last a { color: var(--muted); }
@@ -366,7 +371,9 @@ table { border-collapse: collapse; width: 100%; }
 /* A README is read, not scanned: a size up from the interface, more
    leading, and lines kept to a readable length. */
 .markdown { padding: 8px 28px 24px; overflow-wrap: break-word; font-size: var(--text-lead); line-height: 1.6; }
-.markdown :is(p, ul, ol, blockquote, h2, h3, h4, h5, h6, dl) { max-width: 72ch; }
+/* 38em is about 75 characters of this face; ch measures a "0", which
+   let lines run to 100. */
+.markdown :is(p, ul, ol, blockquote, dl) { max-width: 38em; }
 .markdown li + li { margin-top: 0.25em; }
 .markdown > :first-child { margin-top: 16px; }
 .markdown :is(h2, h3, h4, h5, h6) { line-height: 1.25; margin: 1.5em 0 0.5em; }
@@ -530,6 +537,7 @@ input[type="search"], .compareform input {
   color: var(--text);
   min-width: 0;
 }
+::placeholder { color: var(--muted); opacity: 1; }
 input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 button[type="submit"]:not(.link) {
   font: inherit;
@@ -543,6 +551,14 @@ button[type="submit"]:not(.link) {
   cursor: pointer;
 }
 button[type="submit"]:not(.link):hover { filter: brightness(1.08); }
+/* One filled button per view: the change the page is for. Running a
+   search or filter, and changes beside the main one, are outlined. */
+form[role="search"] button[type="submit"]:not(.link), button[type="submit"].secondary {
+  background: var(--surface);
+  border-color: var(--field-border);
+  color: var(--text);
+}
+form[role="search"] button[type="submit"]:not(.link):hover, button[type="submit"].secondary:hover { filter: none; border-color: var(--accent); }
 
 form.search { display: flex; gap: 8px; margin: 0 0 16px; }
 form.search input { flex: 1; }
@@ -586,6 +602,7 @@ form.search input { flex: 1; }
 .blame .who .row { display: flex; gap: 10px; min-width: 0; }
 .blame .who a { flex: 1; min-width: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .blame .who time { color: var(--muted); white-space: nowrap; }
+.blame .who a.id { display: none; color: var(--accent); font-family: var(--mono); }
 .blame .ln { width: 1%; padding: 0; text-align: right; user-select: none; }
 .blame .ln a { display: block; padding: 0 10px 0 12px; color: var(--muted); }
 .blame .ln:target, .blame .ln:target + .src { background: var(--accent-soft); }
@@ -681,7 +698,7 @@ a.button {
   white-space: nowrap;
 }
 a.button:hover { filter: brightness(1.08); text-decoration: none; }
-a.button.danger, button[type="submit"].danger:not(.link) { background: var(--del); border-color: var(--del); color: #fff; }
+a.button.danger, button[type="submit"].danger:not(.link) { background: var(--del); border-color: var(--del); color: var(--surface); }
 a.danger:not(.button), button.link.danger { color: var(--del); }
 
 form.manage { max-width: 40rem; margin: 0 0 24px; }
@@ -718,7 +735,8 @@ select:focus-visible, input[type="checkbox"]:focus-visible, input[type="radio"]:
 .actions { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; font-size: var(--text-ui); }
 form.inline { max-width: 40rem; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: end; margin: 0 0 8px; }
 form.inline label.field { flex: 1 1 12rem; margin: 0; }
-form.rowaction { margin: 0 0 0 4px; }
+.rowaction { margin: 0 0 0 4px; }
+a.rowaction { font-size: var(--text-ui); white-space: nowrap; }
 .manage-section { max-width: 40rem; margin: 0 0 24px; padding-top: 16px; border-top: 1px solid var(--line); }
 .manage-section h2, .refs h2 + .formerror { margin-top: 0; }
 .manage-section h2 { font-size: var(--text-lead); margin: 0 0 8px; }
@@ -731,7 +749,7 @@ form.rowaction { margin: 0 0 0 4px; }
 .refs + .manage-section { border-top: 0; padding-top: 0; margin-top: 20px; }
 .manage-section + .refs { padding-top: 16px; border-top: 1px solid var(--line); }
 .confirm { max-width: 36rem; }
-.confirm h2 { font-size: var(--text-heading); margin: 12px 0 8px; }
+.confirm h1 { font-size: var(--text-heading); margin: 12px 0 8px; }
 .confirm .what { font-size: var(--text-ui); overflow-wrap: anywhere; }
 .badge.ok { color: var(--add); border-color: var(--add); }
 .badge.bad { color: var(--del); border-color: var(--del); }
@@ -771,8 +789,11 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
 @media (max-width: 600px) {
   body { font-size: var(--text-ui); }
   .files .last { display: none; }
-  .blame .who { width: 9rem; max-width: 9rem; }
-  .blame .who time { display: none; }
+  /* A phone keeps the code wide: each block names its commit by id. */
+  .blame .who { width: 4.75rem; max-width: 4.75rem; }
+  .blame .who time, .blame .who a:not(.id) { display: none; }
+  .blame .who a.id { display: block; }
+  .compareform .dots { display: none; }
   .refs li { flex-wrap: wrap; }
   .refs .refactions { flex-basis: 100%; }
   main { padding: 16px 16px 48px; }

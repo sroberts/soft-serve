@@ -51,7 +51,7 @@ func TestUIAccountKeys(t *testing.T) {
 
 	loc := seeOther(t, f.post("/-/me/keys", auth, url.Values{"key": {key}}), "/-/me?done=key-added")
 	w = f.do(req{path: loc, auth: auth})
-	has(t, w, "SSH key added.", esc(fp), `name="fingerprint" value="`+esc(fp)+`"`, "ssh-ed25519 AAAAC3NzaC1l…", `title="`+esc(strings.TrimSuffix(key, " me@laptop"))+`"`)
+	has(t, w, "SSH key added.", esc(fp), `href="/-/me/keys/remove?fingerprint=`, `aria-label="Remove key `+esc(fp)+`"`, "ssh-ed25519 AAAAC3NzaC1l…", `title="`+esc(strings.TrimSuffix(key, " me@laptop"))+`"`)
 
 	// The same key again, a key someone else has, and something that
 	// isn't a key all fail on the form, which keeps what was pasted.
@@ -70,6 +70,14 @@ func TestUIAccountKeys(t *testing.T) {
 	w = f.post("/-/me/keys", auth, url.Values{"key": {"not a key"}})
 	wantStatus(t, w, http.StatusBadRequest, "bad key")
 	has(t, w, "Not an SSH public key", ">not a key</textarea>")
+
+	// The page links to a question first; opening it changes nothing.
+	w = f.do(req{path: "/-/me/keys/remove?fingerprint=" + url.QueryEscape(fp), auth: auth})
+	has(t, w, "Remove this SSH key?", `<input type="hidden" name="fingerprint" value="`+esc(fp)+`">`, "Remove key</button>")
+	if u, _ := f.be.User(f.ctx, "owner"); len(u.PublicKeys()) != 1 {
+		t.Error("asking removed the key")
+	}
+	wantStatus(t, f.do(req{path: "/-/me/keys/remove?fingerprint=SHA256:nope", auth: auth}), http.StatusNotFound, "ask about a missing key")
 
 	// Removing it by fingerprint; then it is gone.
 	seeOther(t, f.post("/-/me/keys/remove", auth, url.Values{"fingerprint": {fp}}), "/-/me?done=key-removed")
@@ -141,7 +149,7 @@ func TestUIAccountTokens(t *testing.T) {
 	// The page never shows it again.
 	w = f.do(req{path: "/-/me", auth: auth})
 	hasNot(t, w, tok, `class="token"`)
-	has(t, w, `<span class="refname">laptop</span>`, `name="id" value="`+strconv.FormatInt(made.ID, 10)+`"`)
+	has(t, w, `<span class="refname">laptop</span>`, `href="/-/me/tokens/delete?id=`+strconv.FormatInt(made.ID, 10)+`"`)
 
 	// Never expiring; a bad choice; no name.
 	w = f.post("/-/me/tokens", auth, url.Values{"name": {"ci"}, "expires": {"never"}})
@@ -172,6 +180,12 @@ func TestUIAccountTokens(t *testing.T) {
 		t.Error("deleted someone else's token")
 	}
 	wantStatus(t, f.post("/-/me/tokens/delete", auth, url.Values{"id": {"abc"}}), http.StatusNotFound, "bad token ID")
+
+	// Asking first: the question names the token, and someone else's
+	// isn't found.
+	w = f.do(req{path: "/-/me/tokens/delete?id=" + strconv.FormatInt(made.ID, 10), auth: auth})
+	has(t, w, "Delete this access token?", "Delete token</button>")
+	wantStatus(t, f.do(req{path: "/-/me/tokens/delete?id=" + strconv.FormatInt(theirs[0].ID, 10), auth: auth}), http.StatusNotFound, "ask about someone else's token")
 
 	// Deleting your own.
 	seeOther(t, f.post("/-/me/tokens/delete", auth, url.Values{"id": {strconv.FormatInt(made.ID, 10)}}), "/-/me?done=token-deleted")

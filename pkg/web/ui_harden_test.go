@@ -177,3 +177,18 @@ func TestServerErrorOffersRetry(t *testing.T) {
 	is.True(strings.Contains(w.Body.String(), `href="/x/-/tree?path=a">Try again`))
 	is.True(strings.Contains(w.Body.String(), "Something went wrong on the server."))
 }
+
+// File names wrap between their words, never before the extension.
+func TestBreakableNames(t *testing.T) {
+	for in, want := range map[string]string{
+		"api_account_test.go": "api_<wbr>account_<wbr>test.go",
+		"style.css":           "style.css",
+		".golangci.yml":       ".golangci.yml",
+		"a-b.c.tar.gz":        "a-<wbr>b.<wbr>c.<wbr>tar.gz",
+		"<x>_y":               "&lt;x&gt;_y",
+	} {
+		if got := string(breakable(in)); got != want {
+			t.Errorf("breakable(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

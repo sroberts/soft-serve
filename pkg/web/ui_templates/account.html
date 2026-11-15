@@ -28,7 +28,7 @@
         <p class="meta"><code class="key" title="{{.Key}}">{{keyShort .Key}}</code></p>
       </div>
       <span class="badge">{{.Type}}</span>
-      <form class="rowaction" method="post" action="/-/me/keys/remove"><input type="hidden" name="fingerprint" value="{{.Fingerprint}}"><button type="submit" class="link danger" aria-label="Remove key {{.Fingerprint}}">Remove</button></form>
+      <a class="rowaction danger" href="/-/me/keys/remove?fingerprint={{.Fingerprint}}" aria-label="Remove key {{.Fingerprint}}">Remove…</a>
     </li>
     {{else}}<li class="muted">No SSH keys yet.</li>{{end}}
   </ul>
@@ -50,7 +50,7 @@
     {{range .Tokens}}<li>
       <div class="refmain"><span class="refname">{{.Name}}</span><p class="meta">Created {{ago .CreatedAt}} · {{if .ExpiresAt}}{{if .Expired}}expired{{else}}expires{{end}} <time datetime="{{.ExpiresAt.Format "2006-01-02T15:04:05Z07:00"}}">{{agoPtr .ExpiresAt}}</time>{{else}}never expires{{end}} · ID {{.ID}}</p></div>
       {{if .Expired}}<span class="badge bad">expired</span>{{end}}
-      <form class="rowaction" method="post" action="/-/me/tokens/delete"><input type="hidden" name="id" value="{{.ID}}"><button type="submit" class="link danger" aria-label="Delete token {{.Name}}">Delete</button></form>
+      <a class="rowaction danger" href="/-/me/tokens/delete?id={{.ID}}" aria-label="Delete token {{.Name}}">Delete…</a>
     </li>
     {{else}}<li class="muted">No access tokens yet.</li>{{end}}
   </ul>
@@ -81,7 +81,7 @@
     <label class="field">New username <span class="hint">letters, numbers and <code>-</code>, starting with a letter</span>
       <input type="text" name="username" value="{{.NewName}}" required maxlength="100" autocomplete="off" spellcheck="false">
     </label>
-    <button type="submit">Rename</button>
+    <button type="submit" class="secondary">Rename</button>
   </form>
   <p class="note small">Your keys, tokens and repositories stay with you.</p>
   {{end}}
