@@ -46,10 +46,10 @@ func adminUserURL(name, action string) string {
 type anonLevel struct{ Value, Label string }
 
 var anonLevels = []anonLevel{
-	{access.NoAccess.String(), "No access"},
-	{access.ReadOnlyAccess.String(), "Read-only"},
-	{access.ReadWriteAccess.String(), "Read-write"},
-	{access.AdminAccess.String(), "Admin access"},
+	{access.NoAccess.String(), accessLabel(access.NoAccess.String())},
+	{access.ReadOnlyAccess.String(), accessLabel(access.ReadOnlyAccess.String())},
+	{access.ReadWriteAccess.String(), accessLabel(access.ReadWriteAccess.String())},
+	{access.AdminAccess.String(), accessLabel(access.AdminAccess.String())},
 }
 
 // admin serves /-/admin and everything under it; rest is the path after

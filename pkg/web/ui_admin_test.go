@@ -101,10 +101,10 @@ func TestUIAdminUsers(t *testing.T) {
 	// what was typed.
 	w = f.post("/-/admin/users", auth, url.Values{"username": {"nova"}})
 	wantStatus(t, w, http.StatusConflict, "duplicate")
-	has(t, w, "Username is already taken.", `name="username" value="nova"`, `class="formerror"`)
+	has(t, w, "That username is taken. Choose another.", `name="username" value="nova"`, `class="formerror"`)
 	w = f.post("/-/admin/users", auth, url.Values{"username": {"9lives"}, "admin": {"on"}})
 	wantStatus(t, w, http.StatusBadRequest, "bad name")
-	has(t, w, "Username must start with a letter.", `value="9lives"`, `name="admin" checked`)
+	has(t, w, "A username has to start with a letter.", `value="9lives"`, `name="admin" checked`)
 	w = f.post("/-/admin/users", auth, url.Values{"username": {"keyed"}, "key": {"not a key"}})
 	wantStatus(t, w, http.StatusBadRequest, "bad key")
 	has(t, w, "Not an SSH public key", ">not a key</textarea>")
@@ -135,7 +135,7 @@ func TestUIAdminUserKeys(t *testing.T) {
 	has(t, w, "They already have this key.", ">"+esc(key)+"</textarea>")
 	w = f.post("/-/admin/users/owner/keys", auth, url.Values{"key": {key}})
 	wantStatus(t, w, http.StatusConflict, "someone else's key")
-	has(t, w, "Public key belongs to another account.")
+	has(t, w, "This key is already on another account, and a key can be on only one.")
 
 	seeOther(t, f.post("/-/admin/users/stranger/keys/remove", auth, url.Values{"fingerprint": {fp}}), "/-/admin/users/stranger?done=key-removed")
 	if u, _ := f.be.User(f.ctx, "stranger"); len(u.PublicKeys()) != 0 {
@@ -169,7 +169,7 @@ func TestUIAdminSetAdminAndRename(t *testing.T) {
 	}
 	w := f.post("/-/admin/users/wanderer/rename", auth, url.Values{"username": {"owner"}})
 	wantStatus(t, w, http.StatusConflict, "taken name")
-	has(t, w, "Username is already taken.", `name="username" value="owner"`)
+	has(t, w, "That username is taken. Choose another.", `name="username" value="owner"`)
 	w = f.post("/-/admin/users/wanderer/rename", auth, url.Values{"username": {"no spaces"}})
 	wantStatus(t, w, http.StatusBadRequest, "bad name")
 

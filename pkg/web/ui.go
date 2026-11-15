@@ -81,6 +81,7 @@ var uiTemplates = template.Must(template.New("").Funcs(template.FuncMap{
 	"isAdmin":      func(level string) bool { return level == access.AdminAccess.String() },
 	"canWrite":     canWrite,
 	"levels":       func() []string { return accessLevels },
+	"accessLabel":  accessLabel,
 	"deref":        func(b *bool) bool { return b != nil && *b },
 	"hookForm":     hookFormArgs,
 	"deleteRefURL": deleteRefURL,
@@ -589,7 +590,7 @@ func pageMessage(err error) string {
 	case http.StatusBadRequest:
 		return sentence(strings.TrimPrefix(err.Error(), errBadRequest.Error()+": "))
 	}
-	return "Something went wrong on the server. It has been logged."
+	return serverTrouble
 }
 
 // errorLink is a way on from an error page.
