@@ -78,6 +78,7 @@ var uiTemplates = template.Must(template.New("").Funcs(template.FuncMap{
 	"compareURL":   compareURL,
 	"accessText":   accessText,
 	"mark":         markMatches,
+	"breakable":    breakable,
 	"isAdmin":      func(level string) bool { return level == access.AdminAccess.String() },
 	"canWrite":     canWrite,
 	"levels":       func() []string { return accessLevels },
@@ -840,4 +841,19 @@ func ago(t time.Time) string {
 		return ""
 	}
 	return humanize.Time(t)
+}
+
+// breakable is a file name that may wrap only after a "_", "-" or "."
+// inside it, so a narrow column breaks "api_account_test.go" between its
+// words, never inside one or before its extension.
+func breakable(name string) template.HTML {
+	ext := strings.LastIndexByte(name, '.')
+	var b strings.Builder
+	for i, r := range name {
+		b.WriteString(template.HTMLEscapeString(string(r)))
+		if i > 0 && i < ext && (r == '_' || r == '-' || r == '.') {
+			b.WriteString("<wbr>")
+		}
+	}
+	return template.HTML(b.String()) //nolint:gosec // escaped
 }

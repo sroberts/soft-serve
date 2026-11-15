@@ -53,6 +53,15 @@
 {{else}}
 <div class="repohead compact">{{template "tabs" .}}</div>
 {{end}}
+{{if eq .Tab "settings" "access" "webhooks"}}{{template "managenav" .}}{{end}}
+{{end}}
+
+{{define "managenav"}}{{/* Managing a repository is one tab; its pages are listed under it. */}}
+<nav class="subnav" aria-label="Manage">
+  <a href="{{repoURL .Repo.Name "settings" "" ""}}"{{if eq .Tab "settings"}} aria-current="page"{{end}}>Settings</a>
+  <a href="{{repoURL .Repo.Name "access" "" ""}}"{{if eq .Tab "access"}} aria-current="page"{{end}}>Access</a>
+  {{if isAdmin .Repo.Access}}<a href="{{repoURL .Repo.Name "webhooks" "" ""}}"{{if eq .Tab "webhooks"}} aria-current="page"{{end}}>Webhooks</a>{{end}}
+</nav>
 {{end}}
 
 {{define "tabs"}}
@@ -63,9 +72,7 @@
     <a href="{{repoURL .Repo.Name "compare" "" ""}}"{{if eq .Tab "compare"}} aria-current="page"{{end}}>Compare</a>
     <a href="{{repoURL .Repo.Name "search" .Ref ""}}"{{if eq .Tab "search"}} aria-current="page"{{end}}>Search</a>
     {{if not .Repo.Empty}}<a href="{{repoURL .Repo.Name "insights" .Ref ""}}"{{if eq .Tab "insights"}} aria-current="page"{{end}}>Insights</a>{{end}}
-    {{if canWrite .Repo.Access}}<a href="{{repoURL .Repo.Name "access" "" ""}}"{{if eq .Tab "access"}} aria-current="page"{{end}}>Access</a>{{end}}
-    {{if isAdmin .Repo.Access}}<a href="{{repoURL .Repo.Name "webhooks" "" ""}}"{{if eq .Tab "webhooks"}} aria-current="page"{{end}}>Webhooks</a>{{end}}
-    {{if canWrite .Repo.Access}}<a href="{{repoURL .Repo.Name "settings" "" ""}}"{{if eq .Tab "settings"}} aria-current="page"{{end}}>Settings</a>{{end}}
+    {{if canWrite .Repo.Access}}<a href="{{repoURL .Repo.Name "settings" "" ""}}"{{if eq .Tab "settings" "access" "webhooks"}} aria-current="page"{{end}}>Manage</a>{{end}}
     {{if and .Ref (not .Repo.Empty)}}<span class="grow"></span>{{with .RefMenu}}<details class="refmenu">
       <summary class="ref" title="Switch branch or tag"><span class="visually-hidden">Branch or tag: </span>{{$.Ref}}</summary>
       <div class="menu">
@@ -95,7 +102,7 @@
   {{range .Entries}}
   <tr>
     <td class="icon" aria-hidden="true">{{if eq .Type "dir"}}▸{{else if eq .Type "submodule"}}⇢{{else}}·{{end}}</td>
-    <td class="name">{{if eq .Type "dir"}}<a href="{{repoURL $repo "tree" $ref .Path}}">{{.Name}}/</a>{{else if eq .Type "submodule"}}{{.Name}} <span class="muted">submodule</span>{{else}}<a href="{{repoURL $repo "blob" $ref .Path}}">{{.Name}}</a>{{end}}</td>
+    <td class="name">{{if eq .Type "dir"}}<a href="{{repoURL $repo "tree" $ref .Path}}">{{breakable .Name}}/</a>{{else if eq .Type "submodule"}}{{.Name}} <span class="muted">submodule</span>{{else}}<a href="{{repoURL $repo "blob" $ref .Path}}">{{breakable .Name}}</a>{{end}}</td>
     <td class="last">{{with .LastCommit}}<a href="{{repoURL $repo (printf "commit/%s" .SHA) "" ""}}" title="{{.Summary}}">{{.Summary}}</a>{{end}}</td>
     <td class="size">{{if eq .Type "file"}}{{bytes .Size}}{{end}}</td>
     <td class="when">{{with .LastCommit}}<time datetime="{{.When.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.When.Format "2 Jan 2006 15:04 MST"}}">{{ago .When}}</time>{{end}}</td>

@@ -104,7 +104,7 @@ git push -u origin main</pre>{{end}}
 {{define "commits"}}{{template "head" .}}
 {{template "repohead" .}}
 {{with .Data}}
-{{if .Page.Path}}<h1 class="pagetitle">History of <a href="{{repoURL $.Repo.Name "blob" $.Ref .Page.Path}}"><code>{{.Page.Path}}</code></a></h1>{{else}}<h1 class="visually-hidden">Commits</h1>{{end}}
+{{if .Page.Path}}<h1 class="pagetitle">History of <a href="{{repoURL $.Repo.Name "blob" $.Ref .Page.Path}}"><code>{{.Page.Path}}</code></a></h1>{{else}}<h1 class="visually-hidden">{{$.Repo.Name}}: commits</h1>{{end}}
 <form class="search history" method="get" action="{{repoURL $.Repo.Name "commits" "" ""}}" role="search">
   <input type="search" name="q" value="{{.Page.Query}}" placeholder="Search commit messages" aria-label="Search commit messages" maxlength="200">
   <input type="search" name="author" value="{{.Page.Author}}" placeholder="Author" aria-label="Author's name or email" maxlength="100" class="author">
@@ -153,7 +153,7 @@ git push -u origin main</pre>{{end}}
 
 {{define "refs"}}{{template "head" .}}
 {{template "repohead" .}}
-<h1 class="visually-hidden">Branches and tags</h1>
+<h1 class="visually-hidden">{{.Repo.Name}}: branches and tags</h1>
 {{with .Data}}
 <section class="refs">
   {{if .Back}}<p class="note backnote">Choosing a branch or tag takes you back to the page you came from, on that branch or tag.</p>{{end}}
@@ -253,7 +253,7 @@ git push -u origin main</pre>{{end}}
   <table class="blame chroma">
     <tbody>
     {{range .Rows}}{{$row := .}}<tr{{if .Commit}} class="start"{{end}}>
-      {{with .Commit}}<td class="who" rowspan="{{$row.Span}}"><div class="row"><a href="{{repoURL $.Repo.Name (printf "commit/%s" .SHA) "" ""}}" title="{{.Summary}} — {{.Author}}">{{.Summary}}</a><time datetime="{{.When.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.Author}}, {{.When.Format "2 Jan 2006 15:04 MST"}}">{{ago .When}}</time></div></td>{{end}}
+      {{with .Commit}}<td class="who" rowspan="{{$row.Span}}"><div class="row"><a href="{{repoURL $.Repo.Name (printf "commit/%s" .SHA) "" ""}}" title="{{.Summary}} — {{.Author}}">{{.Summary}}</a><a class="id" href="{{repoURL $.Repo.Name (printf "commit/%s" .SHA) "" ""}}" aria-hidden="true" tabindex="-1">{{short .SHA}}</a><time datetime="{{.When.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.Author}}, {{.When.Format "2 Jan 2006 15:04 MST"}}">{{ago .When}}</time></div></td>{{end}}
       <td class="ln" id="L{{.Line}}"><a href="#L{{.Line}}">{{.Line}}</a></td>
       <td class="src">{{.Code}}</td>
     </tr>{{end}}
@@ -268,7 +268,7 @@ git push -u origin main</pre>{{end}}
 
 {{define "compare"}}{{template "head" .}}
 {{template "repohead" .}}
-<h1 class="visually-hidden">Compare</h1>
+<h1 class="visually-hidden">{{.Repo.Name}}: compare</h1>
 {{with .Data}}
 <form class="compareform" method="get" action="{{repoURL $.Repo.Name "compare" "" ""}}">
   <label>Base <input name="base" value="{{.Base}}" list="refnames" required autocomplete="off" spellcheck="false"></label>
@@ -305,7 +305,7 @@ git push -u origin main</pre>{{end}}
 
 {{define "search"}}{{template "head" .}}
 {{template "repohead" .}}
-<h1 class="visually-hidden">Search</h1>
+<h1 class="visually-hidden">{{.Repo.Name}}: search</h1>
 {{with .Data}}
 <form class="search" method="get" action="{{repoURL $.Repo.Name "search" "" ""}}" role="search">
   <input type="search" name="q" value="{{.Query}}" placeholder="Find text in the files" aria-label="Search the files" minlength="2" maxlength="200" required>
@@ -333,7 +333,7 @@ git push -u origin main</pre>{{end}}
 
 {{define "access"}}{{template "head" .}}
 {{template "repohead" .}}
-<h1 class="visually-hidden">Access</h1>
+<h1 class="visually-hidden">{{.Repo.Name}}: access</h1>
 {{with .Data}}
 <section class="refs">
   <h2>Collaborators</h2>
@@ -385,7 +385,7 @@ git push -u origin main</pre>{{end}}
 
 {{define "insights"}}{{template "head" .}}
 {{template "repohead" .}}
-<h1 class="visually-hidden">Insights</h1>
+<h1 class="visually-hidden">{{.Repo.Name}}: insights</h1>
 {{with .Data}}
 <section class="insights">
   <dl class="figures">
