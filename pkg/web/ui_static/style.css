@@ -514,7 +514,9 @@ table { border-collapse: collapse; width: 100%; }
 .refs .notes { margin-top: 6px; font-size: var(--text-meta); }
 .refs .notes summary { cursor: pointer; color: var(--accent); width: max-content; }
 .refs .notes .message { margin: 6px 0 0; padding: 10px 12px; background: var(--bg); border-radius: 6px; white-space: pre-wrap; font-size: var(--text-meta); }
-.refs .badge { margin-left: auto; }
+/* Badges sit together at the row's end, and never break mid-word. */
+.refs .badge { margin-left: auto; white-space: nowrap; flex-shrink: 0; }
+.refs li > .badge ~ .badge { margin-left: 0; }
 
 /* Forms */
 
@@ -722,6 +724,12 @@ form.rowaction { margin: 0 0 0 4px; }
 .manage-section h2 { font-size: var(--text-lead); margin: 0 0 8px; }
 .manage-section .note { margin: 0 0 10px; }
 .manage-section.danger h2 { color: var(--del); }
+/* A list and the form that adds to it are one group, at the form's
+   width; a rule separates one group from the next, never a list from its
+   own form. */
+.refs:has(+ .manage-section), .manage-section + .refs { max-width: 40rem; }
+.refs + .manage-section { border-top: 0; padding-top: 0; margin-top: 20px; }
+.manage-section + .refs { padding-top: 16px; border-top: 1px solid var(--line); }
 .confirm { max-width: 36rem; }
 .confirm h2 { font-size: var(--text-heading); margin: 12px 0 8px; }
 .confirm .what { font-size: var(--text-ui); overflow-wrap: anywhere; }
