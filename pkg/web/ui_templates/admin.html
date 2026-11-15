@@ -60,7 +60,7 @@
         <p class="meta"><code class="key" title="{{.Key}}">{{keyShort .Key}}</code></p>
       </div>
       <span class="badge">{{.Type}}</span>
-      <form class="rowaction" method="post" action="{{adminUserURL $name "keys/remove"}}"><input type="hidden" name="fingerprint" value="{{.Fingerprint}}"><button type="submit" class="link danger" aria-label="Remove key {{.Fingerprint}}">Remove</button></form>
+      <a class="rowaction danger" href="{{adminUserURL $name "keys/remove"}}?fingerprint={{.Fingerprint}}" aria-label="Remove key {{.Fingerprint}}">Remove…</a>
     </li>
     {{else}}<li class="muted">No SSH keys.</li>{{end}}
   </ul>

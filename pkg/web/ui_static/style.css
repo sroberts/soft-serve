@@ -718,7 +718,8 @@ select:focus-visible, input[type="checkbox"]:focus-visible, input[type="radio"]:
 .actions { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; font-size: var(--text-ui); }
 form.inline { max-width: 40rem; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: end; margin: 0 0 8px; }
 form.inline label.field { flex: 1 1 12rem; margin: 0; }
-form.rowaction { margin: 0 0 0 4px; }
+.rowaction { margin: 0 0 0 4px; }
+a.rowaction { font-size: var(--text-ui); white-space: nowrap; }
 .manage-section { max-width: 40rem; margin: 0 0 24px; padding-top: 16px; border-top: 1px solid var(--line); }
 .manage-section h2, .refs h2 + .formerror { margin-top: 0; }
 .manage-section h2 { font-size: var(--text-lead); margin: 0 0 8px; }
