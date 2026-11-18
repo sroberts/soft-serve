@@ -831,7 +831,9 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
   /* One row: the tab pills scroll sideways, fading at the edge to show
      there are more, and the branch pill stays at the end. The menu hangs
      from the nav, outside the scrolling box, so it isn't clipped. */
-  .tabs { flex-wrap: nowrap; gap: 6px; overflow: visible; border-bottom: 0; }
+  .tabs { gap: 6px; overflow: visible; border-bottom: 0; }
+  /* Only the repository's tabs scroll; other tab rows (Admin) still wrap. */
+  .tabs:has(> .tablinks) { flex-wrap: nowrap; }
   .tabs .tablinks {
     display: flex;
     gap: 6px;

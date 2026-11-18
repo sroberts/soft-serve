@@ -145,6 +145,19 @@ func TestUISettings(t *testing.T) {
 	if w := f.post("/group/open/-/settings", "", url.Values{"description": {"x"}}); w.Code != http.StatusUnauthorized {
 		t.Errorf("anonymous save: %d", w.Code)
 	}
+	// Nor can a reader delete it, even typing the right name, or see the
+	// question's branch and tag counts.
+	w = f.do(req{path: "/group/open/-/delete", identity: stranger})
+	wantStatus(t, w, http.StatusForbidden, "stranger delete page")
+	hasNot(t, w, "every commit on them")
+	w = f.do(req{
+		method: http.MethodPost, path: "/group/open/-/delete", identity: stranger, body: "confirm=group%2Fopen",
+		header: map[string]string{"Content-Type": "application/x-www-form-urlencoded", "Sec-Fetch-Site": "same-origin"},
+	})
+	wantStatus(t, w, http.StatusForbidden, "stranger delete")
+	if _, err := f.be.Repository(f.ctx, "group/open"); err != nil {
+		t.Fatal("a reader deleted the repository")
+	}
 
 	loc := seeOther(t, f.post("/group/open/-/settings", auth, url.Values{
 		"description": {"Changed"}, "project_name": {""}, "hidden": {"on"}, "default_branch": {"main"},

@@ -8,3 +8,4 @@ completions/
 manpages/
 soft_serve_ed25519*
 .impeccable/
+.claude/worktrees/
