@@ -73,8 +73,10 @@
     <a href="{{repoURL .Repo.Name "compare" "" ""}}"{{if eq .Tab "compare"}} aria-current="page"{{end}}>Compare</a>
     <a href="{{repoURL .Repo.Name "search" .Ref ""}}"{{if eq .Tab "search"}} aria-current="page"{{end}}>Search</a>
     {{if not .Repo.Empty}}<a href="{{repoURL .Repo.Name "insights" .Ref ""}}"{{if eq .Tab "insights"}} aria-current="page"{{end}}>Insights</a>{{end}}
-    {{if canWrite .Repo.Access}}<a href="{{repoURL .Repo.Name "settings" "" ""}}"{{if eq .Tab "settings" "access" "webhooks"}} aria-current="page"{{end}}>Manage</a>{{end}}
+    {{if and (canWrite .Repo.Access) (not (eq .Tab "settings" "access" "webhooks"))}}<a href="{{repoURL .Repo.Name "settings" "" ""}}">Manage</a>{{end}}
     </div>
+    {{/* While managing, Manage stands outside the scrolling row, so it stays in view on a phone. */}}
+    {{if and (canWrite .Repo.Access) (eq .Tab "settings" "access" "webhooks")}}<a href="{{repoURL .Repo.Name "settings" "" ""}}" aria-current="page">Manage</a>{{end}}
     {{if and .Ref (not .Repo.Empty)}}<span class="grow"></span>{{with .RefMenu}}<details class="refmenu">
       <summary class="ref" title="Switch branch or tag"><span class="visually-hidden">Branch or tag: </span>{{$.Ref}}</summary>
       <div class="menu">

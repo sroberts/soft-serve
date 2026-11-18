@@ -1,13 +1,16 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -433,6 +436,16 @@ type confirmData struct {
 	// TypeName, when set, must be typed to go ahead: for the deletes that
 	// take the most with them. TypeErr says it didn't match.
 	TypeName, TypeErr string
+	// Typed is what was typed, kept when it didn't match so it can be
+	// corrected rather than typed again.
+	Typed string
+}
+
+// confirmPattern is the HTML pattern a typed name must match, so the
+// browser holds back a mismatch before the server refuses it. Space
+// around the name is allowed, as the server allows it.
+func confirmPattern(name string) string {
+	return `\s*` + regexp.QuoteMeta(name) + `\s*`
 }
 
 // typedConfirm reports whether the form carries the name the question
@@ -462,7 +475,7 @@ func (h uiHandler) deleteRepo(w http.ResponseWriter, r *http.Request, b *browser
 		}
 		status := http.StatusOK
 		if r.Method == http.MethodPost {
-			d.TypeErr, status = typeMismatch, http.StatusBadRequest
+			d.TypeErr, d.Typed, status = typeMismatch, r.PostForm.Get("confirm"), http.StatusBadRequest
 		}
 		p.Data = d
 		h.renderStatus(w, r, status, "confirm", p)
@@ -504,7 +517,7 @@ func (h uiHandler) deleteRef(w http.ResponseWriter, r *http.Request, b *browser,
 		p.Title = "Delete " + kind + " " + name
 		msg := "The tag goes, but not the commits it points to."
 		if kind == "branch" {
-			msg = "Commits on it that no other branch or tag has will no longer be reachable."
+			msg = branchDeleteMessage(r.Context(), b, p.Repo.Name, name)
 		}
 		p.Data = confirmData{
 			Heading: "Delete this " + kind + "?",
@@ -813,13 +826,46 @@ func (h uiHandler) editWebhook(w http.ResponseWriter, r *http.Request, b *browse
 func (h uiHandler) repoDeleteMessage(r *http.Request, b *browser, info *RepoInfo) string {
 	what := "Its history, branches and tags"
 	if refs, err := b.listRefs(r.Context(), info.Name, false); err == nil && len(refs.Branches)+len(refs.Tags) > 0 {
-		what = fmt.Sprintf("Its %s, %s and every commit on them", english.Plural(len(refs.Branches), "branch", "branches"), english.Plural(len(refs.Tags), "tag", ""))
+		var counts []string
+		if n := len(refs.Branches); n > 0 {
+			counts = append(counts, english.Plural(n, "branch", "branches"))
+		}
+		if n := len(refs.Tags); n > 0 {
+			counts = append(counts, english.Plural(n, "tag", ""))
+		}
+		what = "Its " + strings.Join(counts, ", ") + " and every commit on them"
 	}
 	msg := what + " go, with its collaborators and webhooks. This can't be undone."
 	if info.Mirror && info.MirrorOf != "" {
 		return msg + " It's a mirror of " + info.MirrorOf + ", which isn't affected."
 	}
 	return msg + " Unless it was pushed somewhere else, this server holds the only copy."
+}
+
+// branchDeleteMessage says what deleting a branch loses: nothing when
+// every commit on it is also on another branch or tag, or how many
+// commits only it holds.
+func branchDeleteMessage(ctx context.Context, b *browser, repo, branch string) string {
+	generic := "Commits on it that no other branch or tag has will no longer be reachable."
+	_, gr, err := b.open(ctx, repo)
+	if err != nil {
+		return generic
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	ref := "refs/heads/" + branch
+	out, err := gitOutput(ctx, gr.Path, "rev-list", "--count", ref, "--not", "--exclude="+ref, "--all", "--")
+	if err != nil {
+		return generic
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	switch {
+	case err != nil:
+		return generic
+	case n == 0:
+		return "Every commit on it is also on another branch or tag, so nothing else is lost."
+	}
+	return fmt.Sprintf("%s on it, on no other branch or tag, will no longer be reachable.", english.Plural(n, "commit", ""))
 }
 
 // eventLabels say in words what each webhook event is sent for; the

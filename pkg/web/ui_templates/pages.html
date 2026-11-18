@@ -44,8 +44,7 @@
 <section class="card">
   <h2>This repository is empty</h2>
   {{with or .Repo.Clone.SSH .Repo.Clone.HTTPS}}<p>Push to it to get started:</p>
-  <pre class="plain">git remote add origin {{.}}
-git push -u origin main</pre>{{end}}
+  <pre class="plain commands"><span>git remote add origin {{.}}</span><span>git push -u origin main</span></pre>{{end}}
 </section>
 {{else}}
 <div class="pathrow"><span class="grow"></span>{{template "findform" .}}</div>

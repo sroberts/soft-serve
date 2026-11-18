@@ -34,7 +34,7 @@
     <label class="check"><input type="checkbox" name="private"{{if .Private}} checked{{end}}> <span>Private: only collaborators and admins can see it</span></label>
     <label class="check"><input type="checkbox" name="hidden"{{if .Hidden}} checked{{end}}> <span>Hidden: left out of repository lists</span></label>
   </fieldset>
-  <div class="actions"><button type="submit">Create repository</button> <a href="/">Cancel</a></div>
+  <div class="actions"><button type="submit">Create repository</button> <a class="button secondary" href="/">Cancel</a></div>
 </form>
 {{end}}
 {{end}}
@@ -99,7 +99,7 @@
 {{template "foot" .}}{{end}}
 
 {{define "confirm"}}{{template "head" .}}
-{{if .Repo}}{{template "repohead" .}}{{end}}
+{{if .Repo}}{{template "repohead" .}}{{else if eq .Tab "users"}}<section class="intro bare">{{template "adminnav" .}}</section>{{end}}
 {{with .Data}}
 <section class="card confirm">
   <h1>{{.Heading}}</h1>
@@ -108,7 +108,7 @@
   <form method="post" action="{{.Action}}">
     {{range $k, $v := .Fields}}<input type="hidden" name="{{$k}}" value="{{$v}}">{{end}}
     {{with .TypeName}}<label class="field"><span>Type <code>{{.}}</code> to confirm</span>
-      <input type="text" name="confirm" required autocomplete="off" autocapitalize="off" spellcheck="false"{{if $.Data.TypeErr}} aria-invalid="true" aria-describedby="confirm-error"{{end}}>
+      <input type="text" name="confirm" value="{{$.Data.Typed}}" required pattern="{{confirmPattern .}}" title="Type {{.}} exactly" autocomplete="off" autocapitalize="off" spellcheck="false"{{if $.Data.TypeErr}} aria-invalid="true" aria-describedby="confirm-error"{{end}}>
     </label>
     {{with $.Data.TypeErr}}<p class="formerror" id="confirm-error" role="alert">{{.}}</p>{{end}}{{end}}
     <div class="actions"><button type="submit" class="danger">{{.Button}}</button> <a class="button secondary" href="{{.Cancel}}">Cancel</a></div>
@@ -144,7 +144,7 @@
     {{range .Hooks}}<li>
       <div class="refmain">
         <a class="refname" href="{{repoURL $.Repo.Name (printf "webhooks/%d" .ID) "" ""}}">{{.URL}}</a>
-        <p class="meta">{{range $i, $e := .Events}}{{if $i}}, {{end}}{{$e}}{{end}} · {{.ContentType}} · added {{ago .CreatedAt}}</p>
+        <p class="meta">{{range $i, $e := .Events}}{{if $i}}; {{end}}{{eventLabel $e}}{{end}} · {{.ContentType}} · added {{ago .CreatedAt}}</p>
       </div>
       {{if not .Active}}<span class="badge">inactive</span>{{end}}
     </li>

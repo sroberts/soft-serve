@@ -108,6 +108,7 @@ main {
    second copy of the username beside it. */
 .site .adminlink { padding: 1px 9px; border: 1px solid var(--line); border-radius: 999px; font-size: var(--text-meta); }
 .site a.adminlink:hover, .site .adminlink[aria-current] { border-color: var(--accent); color: var(--text); text-decoration: none; }
+.site .adminlink[aria-current] { background: var(--accent-soft); font-weight: var(--weight-strong); }
 .site a.who:hover { color: var(--text); }
 
 .grow { flex: 1; }
@@ -215,7 +216,13 @@ mark { background: var(--accent-soft); color: inherit; border-radius: 2px; box-s
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   user-select: all;
+  /* A wrapped command hangs from its start, so a reader can tell where
+     each one begins. */
+  padding-left: calc(10px + 2ch);
+  text-indent: -2ch;
 }
+.clone .cloneline > span { flex: none; min-width: 3.5em; }
+pre.plain.commands > span { display: block; padding-left: 2ch; text-indent: -2ch; }
 
 .tabs {
   display: flex;
@@ -708,7 +715,12 @@ a.button {
 a.button:hover { filter: brightness(1.08); text-decoration: none; }
 a.button.secondary { background: var(--surface); border-color: var(--field-border); color: var(--text); }
 a.button.secondary:hover { filter: none; border-color: var(--accent); }
-a.button.danger, button[type="submit"].danger:not(.link) { background: var(--del); border-color: var(--del); color: var(--surface); }
+/* The way in to a delete is outlined; only the last step is filled. */
+a.button.danger { background: var(--surface); border-color: var(--del); color: var(--del); }
+a.button.danger:hover { filter: none; background: var(--del); color: var(--surface); }
+button[type="submit"].danger:not(.link) { background: var(--del); border-color: var(--del); color: var(--surface); }
+/* Until the name typed matches, the confirming button stays outlined too. */
+form:has(input[name="confirm"]:invalid) button[type="submit"].danger { background: var(--surface); color: var(--del); }
 a.danger:not(.button), button.link.danger { color: var(--del); }
 
 form.manage { max-width: 40rem; margin: 0 0 24px; }
@@ -821,6 +833,10 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
   .pathrow { flex-wrap: wrap; }
   /* The path takes its own line; "Go to file" and History share the next. */
   .pathrow .pathbar { flex-basis: 100%; }
+  /* With no path beside it (a repository's root), Go to file takes the row. */
+  .pathrow > .grow:first-child { display: none; }
+  .pathrow > .grow:first-child + form.find { flex: 1; }
+  .pathrow > .grow:first-child + form.find input { flex: 1; width: auto; min-width: 0; }
   form.find { flex: 1 1 auto; }
   form.find input { flex: 1; width: auto; }
   form.history { flex-wrap: wrap; }
@@ -846,7 +862,9 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
     mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
   }
   .tablinks::-webkit-scrollbar { display: none; }
-  .tablinks > a { flex: none; }
+  .tablinks > a, .tabs > a { flex: none; }
+  /* Where it is supported, open the row scrolled to the current tab. */
+  .tablinks > a[aria-current="page"] { scroll-initial-target: nearest; }
   :is(.tabs, .tablinks) > a { padding: 4px 11px; margin: 0; border: 1px solid var(--line); border-radius: 999px; }
   :is(.tabs, .tablinks) > a[aria-current="page"] { background: var(--accent-soft); border-color: var(--accent); }
   .tabs .grow { display: none; }
@@ -967,6 +985,7 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
 
 /* Administration */
 .intro .tabs { margin-bottom: 20px; }
+.intro.bare .tabs { margin-top: 0; }
 .adminuser { margin: 0 0 20px; }
 .adminuser h2 { font-size: var(--text-heading); margin: 0 0 6px; overflow-wrap: anywhere; }
 .adminuser .note { margin: 0; }

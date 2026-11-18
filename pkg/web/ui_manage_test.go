@@ -195,6 +195,10 @@ func TestUISettings(t *testing.T) {
 			t.Fatalf("deleted typing %q", typed)
 		}
 	}
+	// A wrong name stays in the field to be corrected, and the browser is
+	// told what matches.
+	w = f.post("/group/moved/-/delete", auth, url.Values{"confirm": {"moved"}})
+	has(t, w, `value="moved"`, `pattern="\s*group/moved\s*"`)
 	// Space around the name, as a paste brings, is fine.
 	seeOther(t, f.post("/group/moved/-/delete", auth, url.Values{"confirm": {" group/moved\n"}}), "/?done=deleted")
 	if _, err := f.be.Repository(f.ctx, "group/moved"); err == nil {
@@ -219,7 +223,21 @@ func TestUIDeleteRefs(t *testing.T) {
 	hasNot(t, f.do(req{path: "/group/open/-/refs"}), "refs/delete")
 
 	w = f.do(req{path: "/group/open/-/refs/delete?branch=topic", auth: auth})
-	has(t, w, "Delete this branch?", `name="branch" value="topic"`)
+	has(t, w, "Delete this branch?", `name="branch" value="topic"`, "so nothing else is lost")
+
+	// A branch with a commit of its own says how many go with it.
+	git := func(args ...string) string {
+		cmd := exec.CommandContext(t.Context(), "git", append([]string{"--git-dir", dir}, args...)...)
+		cmd.Env = append(cmd.Environ(), "GIT_AUTHOR_NAME=T", "GIT_AUTHOR_EMAIL=t@example.com", "GIT_COMMITTER_NAME=T", "GIT_COMMITTER_EMAIL=t@example.com")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	sha := git("commit-tree", "main^{tree}", "-p", "main", "-m", "solo")
+	git("update-ref", "refs/heads/solo", sha)
+	has(t, f.do(req{path: "/group/open/-/refs/delete?branch=solo", auth: auth}), "1 commit on it, on no other branch or tag, will no longer be reachable.")
 	seeOther(t, f.post("/group/open/-/refs/delete", auth, url.Values{"branch": {"topic"}}), "/group/open/-/refs?done=branch-deleted")
 	seeOther(t, f.post("/group/open/-/refs/delete", auth, url.Values{"tag": {"v1"}}), "/group/open/-/refs?done=tag-deleted")
 	w = f.do(req{path: "/group/open/-/refs", auth: auth})
@@ -308,7 +326,7 @@ func TestUIWebhooks(t *testing.T) {
 		"url": {"https://example.com/hook"}, "events": {"push", "repository"}, "content_type": {"form"}, "secret": {"shh"}, "active": {"on"},
 	}), "/group/open/-/webhooks?done=hook-created")
 	w = f.do(req{path: "/group/open/-/webhooks", auth: auth})
-	has(t, w, `href="/group/open/-/webhooks/1"`, "push, repository · form")
+	has(t, w, `href="/group/open/-/webhooks/1"`, "Commits are pushed; The repository is renamed or deleted · form")
 	hasNot(t, w, "shh")
 
 	w = f.do(req{path: "/group/open/-/webhooks/1", auth: auth})

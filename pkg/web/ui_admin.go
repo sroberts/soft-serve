@@ -297,7 +297,7 @@ func (h uiHandler) adminDeleteUser(w http.ResponseWriter, r *http.Request, b *br
 		}
 		status := http.StatusOK
 		if r.Method == http.MethodPost {
-			c.TypeErr, status = typeMismatch, http.StatusBadRequest
+			c.TypeErr, c.Typed, status = typeMismatch, r.PostForm.Get("confirm"), http.StatusBadRequest
 		}
 		p.Data = c
 		h.renderStatus(w, r, status, "confirm", p)
