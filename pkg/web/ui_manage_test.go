@@ -171,10 +171,19 @@ func TestUISettings(t *testing.T) {
 		t.Fatal("the confirmation page deleted it")
 	}
 	has(t, w, "Type <code>group/moved</code> to confirm</span>", "this server holds the only copy")
-	w = f.post("/group/moved/-/delete", auth, url.Values{})
-	wantStatus(t, w, http.StatusBadRequest, "delete without the name")
-	has(t, w, esc("That isn't the name."))
-	seeOther(t, f.post("/group/moved/-/delete", auth, url.Values{"confirm": {"group/moved"}}), "/?done=deleted")
+	has(t, w, "every commit on them")
+	// The name is checked on the server: missing, the old name, the last
+	// part alone or a different case delete nothing.
+	for _, typed := range []string{"", "group/open", "moved", "Group/Moved"} {
+		w = f.post("/group/moved/-/delete", auth, url.Values{"confirm": {typed}})
+		wantStatus(t, w, http.StatusBadRequest, "delete typing "+typed)
+		has(t, w, esc("That isn't the name."), `aria-invalid="true"`)
+		if _, err := f.be.Repository(f.ctx, "group/moved"); err != nil {
+			t.Fatalf("deleted typing %q", typed)
+		}
+	}
+	// Space around the name, as a paste brings, is fine.
+	seeOther(t, f.post("/group/moved/-/delete", auth, url.Values{"confirm": {" group/moved\n"}}), "/?done=deleted")
 	if _, err := f.be.Repository(f.ctx, "group/moved"); err == nil {
 		t.Error("repository still there after delete")
 	}

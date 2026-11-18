@@ -195,11 +195,14 @@ func TestUIAdminDelete(t *testing.T) {
 	}
 	wantStatus(t, f.do(req{path: "/-/admin/users/ghost/delete", auth: auth}), http.StatusNotFound, "confirm ghost")
 	// The name must be typed; a wrong one deletes nothing.
-	w = f.post("/-/admin/users/stranger/delete", auth, url.Values{"confirm": {"strange"}})
-	wantStatus(t, w, http.StatusBadRequest, "wrong name")
-	has(t, w, esc("That isn't the name."), `name="confirm"`)
-	if _, err := f.be.User(f.ctx, "stranger"); err != nil {
-		t.Error("deleted with the wrong name")
+	has(t, w, "Type <code>stranger</code> to confirm")
+	for _, typed := range []string{"", "strange", "Stranger"} {
+		w = f.post("/-/admin/users/stranger/delete", auth, url.Values{"confirm": {typed}})
+		wantStatus(t, w, http.StatusBadRequest, "wrong name "+typed)
+		has(t, w, esc("That isn't the name."), `name="confirm"`)
+		if _, err := f.be.User(f.ctx, "stranger"); err != nil {
+			t.Fatalf("deleted typing %q", typed)
+		}
 	}
 	seeOther(t, f.post("/-/admin/users/stranger/delete", auth, url.Values{"confirm": {"stranger"}}), "/-/admin/users?done=user-deleted")
 	if _, err := f.be.User(f.ctx, "stranger"); err == nil {
@@ -228,7 +231,8 @@ func TestUIAdminSelf(t *testing.T) {
 
 	// Refused if asked anyway.
 	wantStatus(t, f.do(req{path: "/-/admin/users/admin/delete", auth: auth}), http.StatusBadRequest, "confirm self-delete")
-	w = f.post("/-/admin/users/admin/delete", auth, url.Values{})
+	// Typing the name doesn't get round it.
+	w = f.post("/-/admin/users/admin/delete", auth, url.Values{"confirm": {"admin"}})
 	wantStatus(t, w, http.StatusBadRequest, "self-delete")
 	has(t, w, esc("You can't delete your own account"))
 	w = f.post("/-/admin/users/admin/admin", auth, url.Values{"admin": {"false"}})
