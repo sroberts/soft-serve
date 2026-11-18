@@ -854,7 +854,9 @@ func branchDeleteMessage(ctx context.Context, b *browser, repo, branch string) s
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	ref := "refs/heads/" + branch
-	out, err := gitOutput(ctx, gr.Path, "rev-list", "--count", ref, "--not", "--exclude="+ref, "--all", "--")
+	// --all takes HEAD too, which for the default branch is the branch
+	// itself, so it is left out with it.
+	out, err := gitOutput(ctx, gr.Path, "rev-list", "--count", ref, "--not", "--exclude="+ref, "--exclude=HEAD", "--all", "--")
 	if err != nil {
 		return generic
 	}

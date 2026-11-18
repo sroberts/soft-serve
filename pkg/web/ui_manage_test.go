@@ -238,6 +238,10 @@ func TestUIDeleteRefs(t *testing.T) {
 	sha := git("commit-tree", "main^{tree}", "-p", "main", "-m", "solo")
 	git("update-ref", "refs/heads/solo", sha)
 	has(t, f.do(req{path: "/group/open/-/refs/delete?branch=solo", auth: auth}), "1 commit on it, on no other branch or tag, will no longer be reachable.")
+	// HEAD pointing at the branch doesn't count as another ref holding it.
+	git("symbolic-ref", "HEAD", "refs/heads/solo")
+	has(t, f.do(req{path: "/group/open/-/refs/delete?branch=solo", auth: auth}), "1 commit on it, on no other branch or tag, will no longer be reachable.")
+	git("symbolic-ref", "HEAD", "refs/heads/main")
 	seeOther(t, f.post("/group/open/-/refs/delete", auth, url.Values{"branch": {"topic"}}), "/group/open/-/refs?done=branch-deleted")
 	seeOther(t, f.post("/group/open/-/refs/delete", auth, url.Values{"tag": {"v1"}}), "/group/open/-/refs?done=tag-deleted")
 	w = f.do(req{path: "/group/open/-/refs", auth: auth})
