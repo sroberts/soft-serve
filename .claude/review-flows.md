@@ -16,10 +16,11 @@ Check every flow at 1280px and at 390px (phone) wide.
 1. Open `/icecream` at 390px.
 2. Expect the repository tabs on one row that scrolls sideways, fading at the
    edge, with the branch pill at the end; no horizontal page scroll.
-3. Expect History beside **Go to file**, and the clone/push commands wrapping
-   rather than overflowing, selectable whole.
-4. Open `/icecream/-/tree?path=docs`, then `/icecream/-/blob?path=README.md`.
-   Expect the file view and its latest commit.
+3. Expect **Go to file** across the row at the repository's root, and the
+   clone/push commands wrapping with a hanging indent rather than
+   overflowing, selectable whole. The download line's ref stays inline.
+4. Open `/icecream/-/tree?path=docs`: History beside **Go to file**. Then
+   `/icecream/-/blob?path=README.md`: the file view and its latest commit.
 
 ## 3. History, commit and compare
 1. Open `/icecream/-/commits`. Expect 4 commits.
@@ -49,14 +50,15 @@ Check every flow at 1280px and at 390px (phone) wide.
 5. On `mirror-cone`, expect the question to name the mirror's remote.
 
 ## 7. Access and webhooks
-1. Open `/icecream/-/access`. Add `alice`, then remove her (Cancel first).
+1. Open `/icecream/-/access`. Add `alice`, then remove her (one step, no
+   confirmation).
 2. Open `/icecream/-/webhooks`. Expect events described in words with the
    event name in small mono beside each.
 
 ## 8. Account
 1. Open `/-/me`. Expect keys, tokens and repositories.
-2. **Remove…**/**Delete…** fill the row's height at 390px; Cancel is a button
-   as large as the red one.
+2. On touch, **Remove…**/**Delete…** are at least 44px tall; on their
+   confirmation, Cancel is a button as large as the red one.
 
 ## 9. Admin
 1. Open `/-/admin`. Expect users and settings.

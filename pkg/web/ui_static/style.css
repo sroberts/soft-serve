@@ -205,7 +205,8 @@ mark { background: var(--accent-soft); color: inherit; border-radius: 2px; box-s
   color: var(--muted);
   min-width: 0;
 }
-.clone code {
+/* The clone commands, not the ref named in the download line. */
+.clone .cloneline code {
   flex: 1;
   min-width: 0;
   padding: 6px 10px;
