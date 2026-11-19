@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -52,7 +53,7 @@ import (
 //
 // The pages that change things are in ui_manage.go, your account's forms
 // in ui_account.go, and server administration in ui_admin.go.
-//	/-/static/...                  stylesheets
+//	/-/static/...                  stylesheets, icons and the web app manifest
 
 //go:embed ui_templates/*.html ui_static/*
 var uiFS embed.FS
@@ -683,22 +684,69 @@ func (h uiHandler) write(w http.ResponseWriter, r *http.Request, name string, p 
 func setPageHeaders(w http.ResponseWriter) {
 	h := w.Header()
 	h.Set("Content-Type", "text/html; charset=utf-8")
-	h.Set("Content-Security-Policy", "default-src 'none'; style-src 'self'; img-src 'self' https: data:; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
+	h.Set("Content-Security-Policy", "default-src 'none'; style-src 'self'; img-src 'self' https: data:; manifest-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Referrer-Policy", "same-origin")
 	h.Set("Cache-Control", "no-cache")
 }
 
-// staticBody is a stylesheet's content, by name.
+// staticBody is a stylesheet's or icon's content, by name.
 func staticBody(name string) []byte {
 	switch name {
-	case "style.css":
-		b, _ := uiFS.ReadFile("ui_static/style.css")
+	case "style.css", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png":
+		b, _ := uiFS.ReadFile("ui_static/" + name)
 		return b
 	case "code.css":
 		return highlightCSS()
 	}
 	return nil
+}
+
+// staticType is the media type of a static file, by name.
+func staticType(name string) string {
+	switch gopath.Ext(name) {
+	case ".png":
+		return "image/png"
+	case ".webmanifest":
+		return "application/manifest+json"
+	}
+	return "text/css; charset=utf-8"
+}
+
+// manifestName is the web app manifest's address. Its content depends on
+// the server's name, so it isn't hashed like the stylesheets.
+const manifestName = "manifest.webmanifest"
+
+// manifestBody lets the pages be installed to a phone's home screen as an
+// app of their own, opening without the browser's address bar. The colours
+// are the dark theme's, so the launch screen doesn't flash white at night.
+func manifestBody(siteName string) []byte {
+	if siteName == "" {
+		siteName = "Soft Serve"
+	}
+	icon := func(name, sizes, purpose string) map[string]string {
+		m := map[string]string{"src": "/-/static/" + name, "sizes": sizes, "type": "image/png"}
+		if purpose != "" {
+			m["purpose"] = purpose
+		}
+		return m
+	}
+	b, _ := json.Marshal(map[string]any{
+		"id":               "/",
+		"name":             siteName,
+		"short_name":       siteName,
+		"start_url":        "/",
+		"scope":            "/",
+		"display":          "standalone",
+		"background_color": "#141311",
+		"theme_color":      "#1c1b18",
+		"icons": []map[string]string{
+			icon("icon-192.png", "192x192", ""),
+			icon("icon-512.png", "512x512", ""),
+			icon("icon-maskable-512.png", "512x512", "maskable"),
+		},
+	})
+	return b
 }
 
 var staticVersions sync.Map // name -> short content hash
@@ -715,12 +763,20 @@ func staticURL(name string) string {
 }
 
 func serveStatic(w http.ResponseWriter, r *http.Request) {
-	body := staticBody(strings.TrimPrefix(r.URL.Path, "/-/static/"))
+	name := strings.TrimPrefix(r.URL.Path, "/-/static/")
+	if name == manifestName {
+		w.Header().Set("Content-Type", staticType(name))
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		writeBody(w, r, http.StatusOK, manifestBody(config.FromContext(r.Context()).Name))
+		return
+	}
+	body := staticBody(name)
 	if body == nil {
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Content-Type", "text/css; charset=utf-8")
+	w.Header().Set("Content-Type", staticType(name))
 	if name := strings.TrimPrefix(r.URL.Path, "/-/static/"); r.URL.RawQuery != "" && staticURL(name) == r.URL.Path+"?"+r.URL.RawQuery {
 		// Pages ask for it by a hash of its content, so it never changes.
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")

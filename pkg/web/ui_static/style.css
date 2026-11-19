@@ -107,7 +107,8 @@ main {
 /* Administration is a place, not a name: a pill, so it doesn't read as a
    second copy of the username beside it. */
 .site .adminlink { padding: 1px 9px; border: 1px solid var(--line); border-radius: 999px; font-size: var(--text-meta); }
-.site a.adminlink:hover, .site .adminlink[aria-current] { border-color: var(--accent); color: var(--text); text-decoration: none; }
+.site .adminlink[aria-current] { border-color: var(--accent); color: var(--text); text-decoration: none; }
+@media (hover: hover) { .site a.adminlink:hover { border-color: var(--accent); color: var(--text); text-decoration: none; } }
 .site .adminlink[aria-current] { background: var(--accent-soft); font-weight: var(--weight-strong); }
 .site a.who:hover { color: var(--text); }
 
@@ -303,7 +304,7 @@ pre.plain.commands > span { display: block; padding-left: 2ch; text-indent: -2ch
   color: var(--text);
   overflow-wrap: anywhere;
 }
-.refmenu li a:hover { background: var(--bg); text-decoration: none; }
+@media (hover: hover) { .refmenu li a:hover { background: var(--bg); text-decoration: none; } }
 .refmenu li a[aria-current] { font-weight: var(--weight-strong); }
 .refmenu li a[aria-current]::after { content: "current"; margin-left: auto; font: 400 0.75rem var(--sans); color: var(--muted); }
 .refmenu .all { display: block; margin-top: 6px; padding: 9px 14px 5px; border-top: 1px solid var(--line); font-size: var(--text-meta); }
@@ -566,7 +567,7 @@ button[type="submit"]:not(.link) {
   color: var(--surface);
   cursor: pointer;
 }
-button[type="submit"]:not(.link):hover { filter: brightness(1.08); }
+@media (hover: hover) { button[type="submit"]:not(.link):hover { filter: brightness(1.08); } }
 /* One filled button per view: the change the page is for. Running a
    search or filter, and changes beside the main one, are outlined. */
 form[role="search"] button[type="submit"]:not(.link), button[type="submit"].secondary {
@@ -574,7 +575,7 @@ form[role="search"] button[type="submit"]:not(.link), button[type="submit"].seco
   border-color: var(--field-border);
   color: var(--text);
 }
-form[role="search"] button[type="submit"]:not(.link):hover, button[type="submit"].secondary:hover { filter: none; border-color: var(--accent); }
+@media (hover: hover) { form[role="search"] button[type="submit"]:not(.link):hover, button[type="submit"].secondary:hover { filter: none; border-color: var(--accent); } }
 
 form.search { display: flex; gap: 8px; margin: 0 0 16px; }
 form.search input { flex: 1; }
@@ -629,7 +630,7 @@ form.search input { flex: 1; }
 .found { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-family: var(--mono); font-size: var(--text-meta); }
 .found li + li { border-top: 1px solid var(--line); }
 .found a { display: block; padding: 7px 14px; color: var(--text); overflow-wrap: anywhere; }
-.found a:hover { background: var(--bg); text-decoration: none; }
+@media (hover: hover) { .found a:hover { background: var(--bg); text-decoration: none; } }
 
 /* History search */
 
@@ -713,12 +714,12 @@ a.button {
   color: var(--surface);
   white-space: nowrap;
 }
-a.button:hover { filter: brightness(1.08); text-decoration: none; }
+@media (hover: hover) { a.button:hover { filter: brightness(1.08); text-decoration: none; } }
 a.button.secondary { background: var(--surface); border-color: var(--field-border); color: var(--text); }
-a.button.secondary:hover { filter: none; border-color: var(--accent); }
+@media (hover: hover) { a.button.secondary:hover { filter: none; border-color: var(--accent); } }
 /* The way in to a delete is outlined; only the last step is filled. */
 a.button.danger { background: var(--surface); border-color: var(--del); color: var(--del); }
-a.button.danger:hover { filter: none; background: var(--del); color: var(--surface); }
+@media (hover: hover) { a.button.danger:hover { filter: none; background: var(--del); color: var(--surface); } }
 button[type="submit"].danger:not(.link) { background: var(--del); border-color: var(--del); color: var(--surface); }
 /* Until the name typed matches, the confirming button stays outlined too. */
 form:has(input[name="confirm"]:invalid) button[type="submit"].danger { background: var(--surface); color: var(--del); }
@@ -991,3 +992,35 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
 .adminuser h2 { font-size: var(--text-heading); margin: 0 0 6px; overflow-wrap: anywhere; }
 .adminuser .note { margin: 0; }
 ul.owned { margin: 0 0 10px; padding-left: 20px; font: 0.875rem/1.6 var(--mono); overflow-wrap: anywhere; }
+
+/* Installed to a phone's home screen, the pages open without the browser's
+   address bar. They should feel like an app there without losing what a
+   code browser needs: pinch-zoom and selecting text both still work. */
+
+/* No grey flash on a tap; a press shows on the control itself instead. */
+* { -webkit-tap-highlight-color: transparent; }
+:is(button, a.button, :is(.tabs, .tablinks, .subnav) > a, summary):active { opacity: 0.75; }
+
+/* A double tap on a control doesn't zoom; pinching still does. */
+a, button, input, select, textarea, label, summary { touch-action: manipulation; }
+
+/* Clear the notch, the rounded corners and the home indicator. With the
+   status bar drawn over the page, the header's own colour runs under it. */
+.site {
+  padding-top: max(12px, env(safe-area-inset-top));
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+}
+main {
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+}
+@media (max-width: 600px) { main { padding-bottom: calc(48px + env(safe-area-inset-bottom)); } }
+@media (pointer: coarse) { .site { padding-top: env(safe-area-inset-top); } }
+
+/* As an app, the page doesn't bounce past its ends or pull to refresh. In
+   a browser tab, pulling down still reloads. */
+@media (display-mode: standalone) {
+  html { overscroll-behavior: none; }
+}

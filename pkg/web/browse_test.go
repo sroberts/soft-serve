@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -543,6 +544,39 @@ func TestPages(t *testing.T) {
 	// Pages ask for the stylesheets by content, so a cached copy can't
 	// outlive an upgrade.
 	is.True(strings.Contains(f.do(req{path: "/"}).Body.String(), `href="/-/static/style.css?v=`))
+}
+
+// The pages can be installed to a home screen: a manifest, which the
+// pages' policy allows, names the server and its icons, and they're served.
+func TestInstallable(t *testing.T) {
+	is := is.New(t)
+	f := newViewFixture(t)
+	w := f.do(req{path: "/"})
+	is.True(strings.Contains(w.Header().Get("Content-Security-Policy"), "manifest-src 'self'"))
+	body := w.Body.String()
+	is.True(strings.Contains(body, `<link rel="manifest" href="/-/static/manifest.webmanifest" crossorigin="use-credentials">`))
+	is.True(strings.Contains(body, `<link rel="apple-touch-icon" href="/-/static/apple-touch-icon.png?v=`))
+	is.True(strings.Contains(body, "viewport-fit=cover"))
+
+	w = f.do(req{path: "/-/static/manifest.webmanifest"})
+	is.Equal(w.Code, http.StatusOK)
+	is.Equal(w.Header().Get("Content-Type"), "application/manifest+json")
+	var m struct {
+		Name, StartURL, Scope, Display string
+		Icons                          []struct{ Src, Sizes, Purpose string }
+	}
+	is.NoErr(json.Unmarshal(w.Body.Bytes(), &m))
+	is.Equal(m.Name, config.FromContext(f.ctx).Name)
+	is.Equal(m.Display, "standalone")
+	is.Equal(len(m.Icons), 3)
+	for _, icon := range m.Icons {
+		w := f.do(req{path: icon.Src})
+		is.Equal(w.Code, http.StatusOK)
+		is.Equal(w.Header().Get("Content-Type"), "image/png")
+		is.True(bytes.HasPrefix(w.Body.Bytes(), []byte("\x89PNG")))
+	}
+	is.Equal(f.do(req{path: "/-/static/apple-touch-icon.png"}).Code, http.StatusOK)
+	is.Equal(f.do(req{path: "/-/static/nothing.png"}).Code, http.StatusNotFound)
 }
 
 // The pages take over GETs of repository paths without breaking git or

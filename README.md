@@ -948,6 +948,11 @@ exactly what the caller may read and allowing what they may change:
     and shows and resends their deliveries. Branches and tags can be deleted
     from their page. Without Outpost's gateway, a change asks the browser to
     sign in with your username and an access token.
+  - **On a phone's home screen.** Add the pages to your home screen (Share →
+    Add to Home Screen on iOS, Install app on Android) and they open as an app
+    of their own, without the browser's address bar, clear of the notch and
+    the home indicator. They still need the server: there's no offline copy.
+    Pinch-zoom and selecting text work as in the browser.
   - **Lines and permalinks.** Click a line number to select it, then another
     to select the lines between (`?lines=10-25`). *Permalink* pins the link to
     the commit, so it keeps pointing at the same code.
