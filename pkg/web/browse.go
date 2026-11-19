@@ -92,6 +92,9 @@ type browser struct {
 	// base is the scheme and host the caller reached us at, for HTTPS clone
 	// URLs. Built from the request, never configured (no hard-coded host).
 	base string
+	// ssh is the ssh:// address the caller can clone from, or "" for none
+	// (see sshURL).
+	ssh string
 	// owner is the caller's own author emails, for telling their commits
 	// from everyone else's: the email Outpost's sign-in gives, if any.
 	owner []string
@@ -108,12 +111,13 @@ type openedRepo struct {
 	level access.AccessLevel
 }
 
-func newBrowser(ctx context.Context, user proto.User, base string) *browser {
+func newBrowser(ctx context.Context, user proto.User, base, ssh string) *browser {
 	return &browser{
 		be:   backend.FromContext(ctx),
 		cfg:  config.FromContext(ctx),
 		user: user,
 		base: base,
+		ssh:  ssh,
 	}
 }
 
@@ -146,6 +150,9 @@ type RepoInfo struct {
 type CloneURLs struct {
 	SSH   string `json:"ssh,omitempty"`
 	HTTPS string `json:"https,omitempty"`
+	// SSHHidden says the server serves SSH but no address for it is known
+	// that would work for this caller, so an admin can be told what to set.
+	SSHHidden bool `json:"-"`
 }
 
 // RefInfo is a branch or a tag.
@@ -387,8 +394,10 @@ func (b *browser) info(r proto.Repository, gr *git.Repository, level access.Acce
 
 func (b *browser) cloneURLs(name string) CloneURLs {
 	var c CloneURLs
-	if b.cfg.SSH.Enabled && b.cfg.SSH.PublicURL != "" {
-		c.SSH = b.cfg.SSH.PublicURL + "/" + name
+	if b.ssh != "" {
+		c.SSH = b.ssh + "/" + name
+	} else {
+		c.SSHHidden = b.cfg != nil && b.cfg.SSH.Enabled
 	}
 	if b.base != "" {
 		c.HTTPS = b.base + "/" + name + ".git"

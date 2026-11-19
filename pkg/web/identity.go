@@ -3,11 +3,14 @@ package web
 import (
 	"context"
 	"errors"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"charm.land/log/v2"
 	"github.com/charmbracelet/soft-serve/pkg/backend"
+	"github.com/charmbracelet/soft-serve/pkg/config"
 	"github.com/charmbracelet/soft-serve/pkg/proto"
 )
 
@@ -89,11 +92,8 @@ func cloneBase(r *http.Request, v *outpostVerifier) string {
 // the node terminates TLS and says so in X-Forwarded-Proto, and Host is
 // preserved, so nothing about our address is configured.
 func baseURL(r *http.Request) string {
-	host := r.Header.Get("X-Forwarded-Host")
+	host := requestHost(r)
 	if host == "" {
-		host = r.Host
-	}
-	if host == "" || strings.ContainsAny(host, "/\\ @") {
 		return ""
 	}
 	scheme := "http"
@@ -104,4 +104,68 @@ func baseURL(r *http.Request) string {
 		scheme = p
 	}
 	return scheme + "://" + host
+}
+
+// requestHost is the host (and port, if any) the caller reached us at, or ""
+// when the request doesn't say or says something that isn't a host.
+func requestHost(r *http.Request) string {
+	host := r.Header.Get("X-Forwarded-Host")
+	if host == "" {
+		host = r.Host
+	}
+	if strings.ContainsAny(host, "/\\ @") {
+		return ""
+	}
+	return host
+}
+
+// sshURL is the ssh:// address to show this caller for cloning and for the
+// ssh command, or "" when there's none that would work for them.
+//
+// A configured public URL is used as is, unless it points at this machine
+// (the default, ssh://localhost:23231) and the caller is somewhere else: then
+// it's wrong for them. If SSH listens on every interface, the caller can
+// reach it at the host they reached these pages at, on the SSH port. If it
+// listens only on loopback (as under Outpost), it's reachable only through a
+// forward we can't see, so nothing is shown.
+func sshURL(cfg *config.Config, r *http.Request) string {
+	if cfg == nil || !cfg.SSH.Enabled || cfg.SSH.PublicURL == "" {
+		return ""
+	}
+	u, err := url.Parse(cfg.SSH.PublicURL)
+	if err != nil || u.Hostname() == "" {
+		return ""
+	}
+	if !isLoopback(u.Hostname()) {
+		return cfg.SSH.PublicURL
+	}
+	viewHost := requestHost(r)
+	if h, _, err := net.SplitHostPort(viewHost); err == nil {
+		viewHost = h
+	}
+	viewHost = strings.Trim(viewHost, "[]")
+	if viewHost == "" || isLoopback(viewHost) {
+		return cfg.SSH.PublicURL
+	}
+	listenHost, port, err := net.SplitHostPort(cfg.SSH.ListenAddr)
+	if err != nil || isLoopback(listenHost) {
+		return ""
+	}
+	if port == "22" {
+		if strings.Contains(viewHost, ":") {
+			return "ssh://[" + viewHost + "]"
+		}
+		return "ssh://" + viewHost
+	}
+	return "ssh://" + net.JoinHostPort(viewHost, port)
+}
+
+// isLoopback says whether host names this machine only.
+func isLoopback(host string) bool {
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	if host == "localhost" || strings.HasSuffix(host, ".localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }

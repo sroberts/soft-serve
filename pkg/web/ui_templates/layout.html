@@ -50,12 +50,16 @@
   {{if .Repo.Description}}<p class="desc">{{.Repo.Description}}</p>{{end}}
   {{if .Repo.MirrorOf}}<p class="access">Mirror of <code>{{.Repo.MirrorOf}}</code>{{with .Repo.MirrorSyncedAt}} · last synced <time datetime="{{.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.Format "2 Jan 2006 15:04 MST"}}">{{agoPtr .}}</time>{{end}}{{if and .Repo.MirrorAutoSync (not (deref .Repo.MirrorAutoSync))}} · syncs only when asked{{end}}</p>{{end}}
   {{if and .SoftServe (accessText .Repo.Access)}}<p class="access">{{accessText .Repo.Access}}</p>{{end}}
+  {{$sshNote := and .Admin .Repo.Clone.SSHHidden}}
+  {{if or .Repo.Clone.SSH .Repo.Clone.HTTPS (not .Repo.Empty) $sshNote}}
   <details class="clone">
     <summary>Clone or download</summary>
     {{if .Repo.Clone.SSH}}<div class="cloneline"><span>SSH</span> <code class="copy">git clone {{.Repo.Clone.SSH}}</code></div>{{end}}
     {{if .Repo.Clone.HTTPS}}<div class="cloneline"><span>HTTPS</span> <code class="copy">git clone {{.Repo.Clone.HTTPS}}</code></div>{{end}}
+    {{if $sshNote}}<p class="note sshnote">No SSH clone command is shown because the server's SSH address isn't known. Set <code>SOFT_SERVE_SSH_PUBLIC_URL</code> (or <code>ssh.public_url</code> in <code>config.yaml</code>) to the address people reach it at, such as <code>ssh://git.example.com</code>. Only admins see this.</p>{{end}}
     {{if not .Repo.Empty}}<p class="downloads">Download {{if .Ref}}<code>{{.Ref}}</code>{{else}}the default branch{{end}}: <a href="{{archiveURL .Repo.Name .Ref "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL .Repo.Name .Ref "zip"}}" download>.zip</a></p>{{end}}
   </details>
+  {{end}}
   {{template "tabs" .}}
 </section>
 {{else}}

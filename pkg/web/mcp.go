@@ -23,7 +23,7 @@ func mcpHandler(v *outpostVerifier) http.Handler {
 	cache := mcp.NewSchemaCache()
 	stream := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		c, _ := r.Context().Value(callerKey{}).(caller)
-		b := newBrowser(r.Context(), c.user, cloneBase(r, v))
+		b := newBrowser(r.Context(), c.user, cloneBase(r, v), sshURL(config.FromContext(r.Context()), r))
 		b.owner = ownerFor(r.Context(), c.outpostEmail)
 		return newMCPServer(b, c.outpostUser, cache)
 	}, &mcp.StreamableHTTPOptions{

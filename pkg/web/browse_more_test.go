@@ -402,7 +402,7 @@ func TestBrowserReusesOpenedRepo(t *testing.T) {
 	is := is.New(t)
 	f := newViewFixture(t)
 	addBranchCommit(t, f.repoDir("group/open"), "feature", "On a branch", map[string]string{"x.txt": "x\n"})
-	b := newBrowser(f.ctx, nil, "http://"+viewHost)
+	b := newBrowser(f.ctx, nil, "http://"+viewHost, "")
 	_, gr1, err := b.open(f.ctx, "group/open")
 	is.NoErr(err)
 	_, gr2, err := b.open(f.ctx, "group/open.git")
