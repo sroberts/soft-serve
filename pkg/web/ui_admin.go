@@ -276,25 +276,31 @@ func (h uiHandler) adminUserFailed(w http.ResponseWriter, r *http.Request, b *br
 }
 
 func (h uiHandler) adminDeleteUser(w http.ResponseWriter, r *http.Request, b *browser, p page, name string) {
-	if r.Method != http.MethodPost {
-		d, ok := h.adminUserPage(w, r, b, &p, name)
-		if !ok {
-			return
-		}
-		if d.Self {
-			h.opsFail(w, r, b, p, ops.Invalid("you can't delete your own account; another admin can"))
-			return
-		}
+	d, ok := h.adminUserPage(w, r, b, &p, name)
+	if !ok {
+		return
+	}
+	if d.Self {
+		h.opsFail(w, r, b, p, ops.Invalid("you can't delete your own account; another admin can"))
+		return
+	}
+	if r.Method != http.MethodPost || !typedConfirm(r, w, d.Username) {
 		p.Title = "Delete " + d.Username
-		p.Data = confirmData{
-			Heading: "Delete this user?",
-			Message: "Their SSH keys, access tokens and collaborator access go with them. This can't be undone.",
-			What:    d.Username,
-			Action:  adminUserURL(d.Username, "delete"),
-			Button:  "Delete user",
-			Cancel:  adminUserURL(d.Username, ""),
+		c := confirmData{
+			Heading:  "Delete this user?",
+			Message:  "Their SSH keys, access tokens and collaborator access go with them. This can't be undone.",
+			What:     d.Username,
+			Action:   adminUserURL(d.Username, "delete"),
+			Button:   "Delete user",
+			Cancel:   adminUserURL(d.Username, ""),
+			TypeName: d.Username,
 		}
-		h.render(w, r, "confirm", p)
+		status := http.StatusOK
+		if r.Method == http.MethodPost {
+			c.TypeErr, c.Typed, status = typeMismatch, r.PostForm.Get("confirm"), http.StatusBadRequest
+		}
+		p.Data = c
+		h.renderStatus(w, r, status, "confirm", p)
 		return
 	}
 	err := b.service().DeleteUser(r.Context(), name)
@@ -306,7 +312,7 @@ func (h uiHandler) adminDeleteUser(w http.ResponseWriter, r *http.Request, b *br
 		h.adminUserFailed(w, r, b, p, name, err, func(d *adminUserData, m string) { d.DeleteErr = m })
 		return
 	}
-	d, ok := h.adminUserPage(w, r, b, &p, name)
+	d, ok = h.adminUserPage(w, r, b, &p, name)
 	if !ok {
 		return
 	}

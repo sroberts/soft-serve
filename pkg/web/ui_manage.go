@@ -1,12 +1,16 @@
 package web
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -16,6 +20,7 @@ import (
 	"github.com/charmbracelet/soft-serve/pkg/proto"
 	"github.com/charmbracelet/soft-serve/pkg/ssrf"
 	"github.com/charmbracelet/soft-serve/pkg/webhook"
+	"github.com/dustin/go-humanize/english"
 )
 
 // Managing repositories from the web pages: the SSH repo commands as plain
@@ -428,24 +433,52 @@ type confirmData struct {
 	Fields        map[string]string
 	Button        string
 	Cancel        string
+	// TypeName, when set, must be typed to go ahead: for the deletes that
+	// take the most with them. TypeErr says it didn't match.
+	TypeName, TypeErr string
+	// Typed is what was typed, kept when it didn't match so it can be
+	// corrected rather than typed again.
+	Typed string
 }
 
+// confirmPattern is the HTML pattern a typed name must match, so the
+// browser holds back a mismatch before the server refuses it. Space
+// around the name is allowed, as the server allows it.
+func confirmPattern(name string) string {
+	return `\s*` + regexp.QuoteMeta(name) + `\s*`
+}
+
+// typedConfirm reports whether the form carries the name the question
+// asked to be typed.
+func typedConfirm(r *http.Request, w http.ResponseWriter, name string) bool {
+	f, err := readForm(w, r)
+	return err == nil && strings.TrimSpace(f.Get("confirm")) == name
+}
+
+const typeMismatch = "That isn't the name. Type it exactly, or cancel."
+
 func (h uiHandler) deleteRepo(w http.ResponseWriter, r *http.Request, b *browser, p page) {
-	if r.Method != http.MethodPost {
-		if _, ok := h.manageRepo(w, r, b, p, access.ReadWriteAccess); !ok {
-			return
-		}
+	if _, ok := h.manageRepo(w, r, b, p, access.ReadWriteAccess); !ok {
+		return
+	}
+	if r.Method != http.MethodPost || !typedConfirm(r, w, p.Repo.Name) {
 		p.Tab = "settings"
 		p.Title = "Delete " + p.Repo.Name
-		p.Data = confirmData{
-			Heading: "Delete this repository?",
-			Message: "Its history, branches, tags, collaborators and webhooks go with it. This can't be undone.",
-			What:    p.Repo.Name,
-			Action:  repoURL(p.Repo.Name, "delete", "", ""),
-			Button:  "Delete repository",
-			Cancel:  repoURL(p.Repo.Name, "settings", "", ""),
+		d := confirmData{
+			Heading:  "Delete this repository?",
+			Message:  h.repoDeleteMessage(r, b, p.Repo),
+			What:     p.Repo.Name,
+			Action:   repoURL(p.Repo.Name, "delete", "", ""),
+			Button:   "Delete repository",
+			Cancel:   repoURL(p.Repo.Name, "settings", "", ""),
+			TypeName: p.Repo.Name,
 		}
-		h.render(w, r, "confirm", p)
+		status := http.StatusOK
+		if r.Method == http.MethodPost {
+			d.TypeErr, d.Typed, status = typeMismatch, r.PostForm.Get("confirm"), http.StatusBadRequest
+		}
+		p.Data = d
+		h.renderStatus(w, r, status, "confirm", p)
 		return
 	}
 	if err := b.service().DeleteRepo(r.Context(), p.Repo.Name); err != nil {
@@ -484,7 +517,7 @@ func (h uiHandler) deleteRef(w http.ResponseWriter, r *http.Request, b *browser,
 		p.Title = "Delete " + kind + " " + name
 		msg := "The tag goes, but not the commits it points to."
 		if kind == "branch" {
-			msg = "Commits on it that no other branch or tag has will no longer be reachable."
+			msg = branchDeleteMessage(r.Context(), b, p.Repo.Name, name)
 		}
 		p.Data = confirmData{
 			Heading: "Delete this " + kind + "?",
@@ -786,4 +819,72 @@ func (h uiHandler) editWebhook(w http.ResponseWriter, r *http.Request, b *browse
 		return
 	}
 	h.render(w, r, "webhook", p)
+}
+
+// repoDeleteMessage says what deleting a repository takes with it, and
+// whether anything else holds a copy.
+func (h uiHandler) repoDeleteMessage(r *http.Request, b *browser, info *RepoInfo) string {
+	what := "Its history, branches and tags"
+	if refs, err := b.listRefs(r.Context(), info.Name, false); err == nil && len(refs.Branches)+len(refs.Tags) > 0 {
+		var counts []string
+		if n := len(refs.Branches); n > 0 {
+			counts = append(counts, english.Plural(n, "branch", "branches"))
+		}
+		if n := len(refs.Tags); n > 0 {
+			counts = append(counts, english.Plural(n, "tag", ""))
+		}
+		what = "Its " + strings.Join(counts, ", ") + " and every commit on them"
+	}
+	msg := what + " go, with its collaborators and webhooks. This can't be undone."
+	if info.Mirror && info.MirrorOf != "" {
+		return msg + " It's a mirror of " + info.MirrorOf + ", which isn't affected."
+	}
+	return msg + " Unless it was pushed somewhere else, this server holds the only copy."
+}
+
+// branchDeleteMessage says what deleting a branch loses: nothing when
+// every commit on it is also on another branch or tag, or how many
+// commits only it holds.
+func branchDeleteMessage(ctx context.Context, b *browser, repo, branch string) string {
+	generic := "Commits on it that no other branch or tag has will no longer be reachable."
+	_, gr, err := b.open(ctx, repo)
+	if err != nil {
+		return generic
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	ref := "refs/heads/" + branch
+	// --all takes HEAD too, which for the default branch is the branch
+	// itself, so it is left out with it.
+	out, err := gitOutput(ctx, gr.Path, "rev-list", "--count", ref, "--not", "--exclude="+ref, "--exclude=HEAD", "--all", "--")
+	if err != nil {
+		return generic
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(string(out)))
+	switch {
+	case err != nil:
+		return generic
+	case n == 0:
+		return "Every commit on it is also on another branch or tag, so nothing else is lost."
+	}
+	return fmt.Sprintf("%s on it, on no other branch or tag, will no longer be reachable.", english.Plural(n, "commit", ""))
+}
+
+// eventLabels say in words what each webhook event is sent for; the
+// form shows the event's own name beside it, as the API and payloads
+// use it.
+var eventLabels = map[string]string{
+	"branch_tag_create":            "A branch or tag is created",
+	"branch_tag_delete":            "A branch or tag is deleted",
+	"collaborator":                 "A collaborator is added or removed",
+	"push":                         "Commits are pushed",
+	"repository":                   "The repository is renamed or deleted",
+	"repository_visibility_change": "The repository is made public or private",
+}
+
+func eventLabel(event string) string {
+	if l, ok := eventLabels[event]; ok {
+		return l
+	}
+	return event
 }

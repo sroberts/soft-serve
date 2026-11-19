@@ -15,7 +15,7 @@
   <a class="brand" href="/">{{.SiteName}}</a>
   {{if .Repo}}<span class="sep" aria-hidden="true">/</span><a class="crumb" href="{{repoURL .Repo.Name "" "" ""}}">{{.Repo.Name}}</a>{{end}}
   <span class="grow"></span>
-  {{if .Admin}}<a class="who" href="/-/admin"{{if eq .Tab "users" "settings"}}{{if not .Repo}} aria-current="page"{{end}}{{end}}>Admin</a>{{end}}
+  {{if .Admin}}<a class="who adminlink" href="/-/admin"{{if eq .Tab "users" "settings"}}{{if not .Repo}} aria-current="page"{{end}}{{end}}>Admin</a>{{end}}
   {{if .SignedIn}}
   <a class="who" href="/-/me" title="{{if .SoftServe}}Your account: Soft Serve user {{.SoftServe}}{{else}}No Soft Serve user is named {{.SignedIn}}, so you see public repositories only{{end}}">{{.SignedIn}}{{if not .SoftServe}} <span class="badge">public only</span>{{end}}</a>
   <form method="post" action="/.outpost/logout"><button type="submit" class="link">Sign out</button></form>
@@ -66,13 +66,17 @@
 
 {{define "tabs"}}
   <nav class="tabs" aria-label="Repository">
+    <div class="tablinks">
     <a href="{{repoURL .Repo.Name "" .Ref ""}}"{{if eq .Tab "files"}} aria-current="page"{{end}}>Files</a>
     <a href="{{repoURL .Repo.Name "commits" .Ref ""}}"{{if eq .Tab "commits"}} aria-current="page"{{end}}>Commits</a>
     <a href="{{repoURL .Repo.Name "refs" "" ""}}"{{if eq .Tab "refs"}} aria-current="page"{{end}}>Branches &amp; tags</a>
     <a href="{{repoURL .Repo.Name "compare" "" ""}}"{{if eq .Tab "compare"}} aria-current="page"{{end}}>Compare</a>
     <a href="{{repoURL .Repo.Name "search" .Ref ""}}"{{if eq .Tab "search"}} aria-current="page"{{end}}>Search</a>
     {{if not .Repo.Empty}}<a href="{{repoURL .Repo.Name "insights" .Ref ""}}"{{if eq .Tab "insights"}} aria-current="page"{{end}}>Insights</a>{{end}}
-    {{if canWrite .Repo.Access}}<a href="{{repoURL .Repo.Name "settings" "" ""}}"{{if eq .Tab "settings" "access" "webhooks"}} aria-current="page"{{end}}>Manage</a>{{end}}
+    {{if and (canWrite .Repo.Access) (not (eq .Tab "settings" "access" "webhooks"))}}<a href="{{repoURL .Repo.Name "settings" "" ""}}">Manage</a>{{end}}
+    </div>
+    {{/* While managing, Manage stands outside the scrolling row, so it stays in view on a phone. */}}
+    {{if and (canWrite .Repo.Access) (eq .Tab "settings" "access" "webhooks")}}<a href="{{repoURL .Repo.Name "settings" "" ""}}" aria-current="page">Manage</a>{{end}}
     {{if and .Ref (not .Repo.Empty)}}<span class="grow"></span>{{with .RefMenu}}<details class="refmenu">
       <summary class="ref" title="Switch branch or tag"><span class="visually-hidden">Branch or tag: </span>{{$.Ref}}</summary>
       <div class="menu">

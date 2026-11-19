@@ -402,6 +402,13 @@ func TestMirrorDetails(t *testing.T) {
 	is.NoErr(err)
 	from, _ := mirrorDetails(context.Background(), gr)
 	is.Equal(from, "https://example.com/up/stream.git")
+
+	// The delete question names the remote, without its credentials.
+	w = f.do(req{path: "/group/open/-/delete", auth: f.owner()})
+	is.Equal(w.Code, http.StatusOK)
+	is.True(strings.Contains(w.Body.String(), "https://example.com/up/stream.git"))
+	is.True(!strings.Contains(w.Body.String(), "hunter2"))
+	is.True(!strings.Contains(w.Body.String(), "bot@"))
 }
 
 func TestStats(t *testing.T) {

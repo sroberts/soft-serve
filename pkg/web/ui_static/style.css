@@ -104,6 +104,11 @@ main {
 .site .sep { color: var(--muted); }
 .site form { margin: 0; }
 .site .who { color: var(--muted); font-size: var(--text-ui); white-space: nowrap; }
+/* Administration is a place, not a name: a pill, so it doesn't read as a
+   second copy of the username beside it. */
+.site .adminlink { padding: 1px 9px; border: 1px solid var(--line); border-radius: 999px; font-size: var(--text-meta); }
+.site a.adminlink:hover, .site .adminlink[aria-current] { border-color: var(--accent); color: var(--text); text-decoration: none; }
+.site .adminlink[aria-current] { background: var(--accent-soft); font-weight: var(--weight-strong); }
 .site a.who:hover { color: var(--text); }
 
 .grow { flex: 1; }
@@ -178,6 +183,8 @@ mark { background: var(--accent-soft); color: inherit; border-radius: 2px; box-s
 .repohead h1 { font-size: var(--text-display); margin: 0; overflow-wrap: anywhere; }
 /* Deeper pages: the tabs alone, straight under the site bar. */
 .repohead.compact .tabs { margin-top: 0; }
+/* The tab links are their own box only on a phone, where they scroll. */
+.tablinks { display: contents; }
 /* The pages under Manage: a quieter row than the tabs above it. */
 .subnav { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: -4px 0 20px; font-size: var(--text-ui); }
 .subnav a { color: var(--muted); padding-block: 4px; }
@@ -198,7 +205,8 @@ mark { background: var(--accent-soft); color: inherit; border-radius: 2px; box-s
   color: var(--muted);
   min-width: 0;
 }
-.clone code {
+/* The clone commands, not the ref named in the download line. */
+.clone .cloneline code {
   flex: 1;
   min-width: 0;
   padding: 6px 10px;
@@ -206,10 +214,16 @@ mark { background: var(--accent-soft); color: inherit; border-radius: 2px; box-s
   border-radius: var(--radius);
   background: var(--surface);
   color: var(--text);
-  overflow-x: auto;
-  white-space: nowrap;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   user-select: all;
+  /* A wrapped command hangs from its start, so a reader can tell where
+     each one begins. */
+  padding-left: calc(10px + 2ch);
+  text-indent: -2ch;
 }
+.clone .cloneline > span { flex: none; min-width: 3.5em; }
+pre.plain.commands > span { display: block; padding-left: 2ch; text-indent: -2ch; }
 
 .tabs {
   display: flex;
@@ -221,15 +235,15 @@ mark { background: var(--accent-soft); color: inherit; border-radius: 2px; box-s
   flex-wrap: wrap;
   position: relative;
 }
-.tabs > a {
+:is(.tabs, .tablinks) > a {
   padding: 8px 0;
   margin-bottom: -1px;
   color: var(--muted);
   border-bottom: 2px solid transparent;
   white-space: nowrap;
 }
-.tabs > a:hover { color: var(--text); text-decoration: none; }
-.tabs > a[aria-current="page"] { color: var(--text); border-bottom-color: var(--accent); font-weight: var(--weight-strong); }
+:is(.tabs, .tablinks) > a:hover { color: var(--text); text-decoration: none; }
+:is(.tabs, .tablinks) > a[aria-current="page"] { color: var(--text); border-bottom-color: var(--accent); font-weight: var(--weight-strong); }
 .tabs .ref {
   font-family: var(--mono);
   font-size: var(--text-meta);
@@ -397,6 +411,8 @@ table { border-collapse: collapse; width: 100%; }
 
 .file .code { overflow-x: auto; }
 .file .code pre, pre.plain { margin: 0; padding: 12px 14px; overflow-x: auto; }
+/* Commands to copy wrap rather than hide their end off to the side. */
+pre.plain { white-space: pre-wrap; overflow-wrap: anywhere; }
 .file .image { padding: 20px; text-align: center; }
 .file .image img { max-width: 100%; }
 .file .empty { padding: 20px 14px; margin: 0; }
@@ -698,7 +714,14 @@ a.button {
   white-space: nowrap;
 }
 a.button:hover { filter: brightness(1.08); text-decoration: none; }
-a.button.danger, button[type="submit"].danger:not(.link) { background: var(--del); border-color: var(--del); color: var(--surface); }
+a.button.secondary { background: var(--surface); border-color: var(--field-border); color: var(--text); }
+a.button.secondary:hover { filter: none; border-color: var(--accent); }
+/* The way in to a delete is outlined; only the last step is filled. */
+a.button.danger { background: var(--surface); border-color: var(--del); color: var(--del); }
+a.button.danger:hover { filter: none; background: var(--del); color: var(--surface); }
+button[type="submit"].danger:not(.link) { background: var(--del); border-color: var(--del); color: var(--surface); }
+/* Until the name typed matches, the confirming button stays outlined too. */
+form:has(input[name="confirm"]:invalid) button[type="submit"].danger { background: var(--surface); color: var(--del); }
 a.danger:not(.button), button.link.danger { color: var(--del); }
 
 form.manage { max-width: 40rem; margin: 0 0 24px; }
@@ -712,6 +735,11 @@ form.manage fieldset, fieldset.events {
 }
 form.manage legend { padding: 0 6px; font-weight: var(--weight-strong); font-size: var(--text-body); }
 fieldset.events { padding: 8px 14px 10px; }
+fieldset.events code.event { margin-left: 4px; font-size: var(--text-micro); color: var(--muted); }
+/* A new repository's import settings show only once there's something to
+   import: a fork's or mirror's remote, and a mirror's schedule. */
+form.manage:has(input[name="source"][value=""]:checked) .importonly,
+form.manage:not(:has(input[name="source"][value="mirror"]:checked)) .mirroronly { display: none; }
 fieldset.events legend { font-weight: var(--weight-label); font-size: var(--text-meta); color: var(--muted); padding: 0 4px; }
 label.field { display: grid; gap: 4px; margin: 0 0 12px; font-size: var(--text-ui); font-weight: var(--weight-label); }
 label.field .hint { font-weight: 400; color: var(--muted); font-size: var(--text-meta); }
@@ -737,6 +765,8 @@ form.inline { max-width: 40rem; display: flex; flex-wrap: wrap; gap: 8px 10px; a
 form.inline label.field { flex: 1 1 12rem; margin: 0; }
 .rowaction { margin: 0 0 0 4px; }
 a.rowaction { font-size: var(--text-ui); white-space: nowrap; }
+/* Deleting stands apart from the downloads beside it. */
+.refactions .delete { margin-left: 18px; }
 .manage-section { max-width: 40rem; margin: 0 0 24px; padding-top: 16px; border-top: 1px solid var(--line); }
 .manage-section h2, .refs h2 + .formerror { margin-top: 0; }
 .manage-section h2 { font-size: var(--text-lead); margin: 0 0 8px; }
@@ -802,17 +832,42 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
   .commits .sha { grid-column: 1; grid-row: auto; }
   .site .who .badge { display: none; }
   .pathrow { flex-wrap: wrap; }
-  form.find { flex-basis: 100%; }
+  /* The path takes its own line; "Go to file" and History share the next. */
+  .pathrow .pathbar { flex-basis: 100%; }
+  /* With no path beside it (a repository's root), Go to file takes the row. */
+  .pathrow > .grow:first-child { display: none; }
+  .pathrow > .grow:first-child + form.find { flex: 1; }
+  .pathrow > .grow:first-child + form.find input { flex: 1; width: auto; min-width: 0; }
+  form.find { flex: 1 1 auto; }
   form.find input { flex: 1; width: auto; }
   form.history { flex-wrap: wrap; }
   form.history input { flex: 1 1 100%; }
   .figures { grid-template-columns: repeat(2, 1fr); }
   .cols { grid-template-columns: 1fr; }
   .difftable.split .dl { width: auto; }
-  /* All the tabs stay in view: they wrap as pills instead of scrolling. */
-  .tabs { flex-wrap: wrap; gap: 6px; overflow: visible; border-bottom: 0; }
-  .tabs > a { padding: 4px 11px; margin: 0; border: 1px solid var(--line); border-radius: 999px; }
-  .tabs > a[aria-current="page"] { background: var(--accent-soft); border-color: var(--accent); }
+  /* One row: the tab pills scroll sideways, fading at the edge to show
+     there are more, and the branch pill stays at the end. The menu hangs
+     from the nav, outside the scrolling box, so it isn't clipped. */
+  .tabs { gap: 6px; overflow: visible; border-bottom: 0; }
+  /* Only the repository's tabs scroll; other tab rows (Admin) still wrap. */
+  .tabs:has(> .tablinks) { flex-wrap: nowrap; }
+  .tabs .tablinks {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 4px 28px 4px 0;
+    margin-block: -4px;
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+  .tablinks::-webkit-scrollbar { display: none; }
+  .tablinks > a, .tabs > a { flex: none; }
+  /* Where it is supported, open the row scrolled to the current tab. */
+  .tablinks > a[aria-current="page"] { scroll-initial-target: nearest; }
+  :is(.tabs, .tablinks) > a { padding: 4px 11px; margin: 0; border: 1px solid var(--line); border-radius: 999px; }
+  :is(.tabs, .tablinks) > a[aria-current="page"] { background: var(--accent-soft); border-color: var(--accent); }
   .tabs .grow { display: none; }
   .tabs .ref { margin: 0; padding: 4px 11px; }
   .refmenu .menu { left: 0; right: 0; width: auto; }
@@ -845,17 +900,23 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
 
   /* The site bar's links fill its height. */
   .site { padding-block: 0; }
-  .site .brand, .site .crumb, .site .who, .site button.link { padding-block: 11px; }
+  .site .brand, .site .crumb, .site .who:not(.adminlink), .site button.link { padding-block: 11px; }
+  /* The Admin pill keeps its shape; its target reaches past it. */
+  .site .adminlink { position: relative; padding-block: 3px; }
+  .site .adminlink::before { content: ""; position: absolute; inset: -10px -4px; }
 
   input[type="search"], .compareform input,
   form.find input, form.find button[type="submit"]:not(.link),
   /* 16px exactly: iOS zooms into a field set any smaller. */
   button[type="submit"]:not(.link) { min-height: 44px; font-size: 16px; }
+  a.button { display: inline-flex; align-items: center; min-height: 44px; }
+  /* A row's own action fills the row's height, not just its word. */
+  .refs li a.rowaction { padding: 12px 8px; margin: -12px -8px -12px 0; }
   input[type="text"], input[type="url"], input[type="password"], select { height: 44px; font-size: 16px; }
   .compareform .dots { padding-bottom: 12px; }
 
   /* Tabs: wide screens keep the underline, so the links grow down to it. */
-  .tabs > a { padding-block: 12px; }
+  :is(.tabs, .tablinks) > a { padding-block: 12px; }
   .tabs .ref { position: relative; padding-block: 6px; }
   .tabs .ref::before { content: ""; position: absolute; inset: -8px 0; }
   .refmenu li a { padding-block: 12px; }
@@ -919,12 +980,13 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
    4px into the gap on either side, so a row of them is 44px to the thumb. */
 @media (pointer: coarse) and (max-width: 600px) {
   .tabs { row-gap: 8px; }
-  .tabs > a, .tabs .ref { position: relative; display: inline-flex; align-items: center; min-height: 36px; padding-block: 7px; }
-  .tabs > a::before, .tabs .ref::before { content: ""; position: absolute; inset: -4px 0; }
+  :is(.tabs, .tablinks) > a, .tabs .ref { position: relative; display: inline-flex; align-items: center; min-height: 36px; padding-block: 7px; }
+  :is(.tabs, .tablinks) > a::before, .tabs .ref::before { content: ""; position: absolute; inset: -4px 0; }
 }
 
 /* Administration */
 .intro .tabs { margin-bottom: 20px; }
+.intro.bare .tabs { margin-top: 0; }
 .adminuser { margin: 0 0 20px; }
 .adminuser h2 { font-size: var(--text-heading); margin: 0 0 6px; overflow-wrap: anywhere; }
 .adminuser .note { margin: 0; }

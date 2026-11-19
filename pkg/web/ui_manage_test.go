@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/soft-serve/pkg/proto"
 	"github.com/charmbracelet/soft-serve/pkg/ssrf"
 	"github.com/charmbracelet/soft-serve/pkg/utils"
+	"github.com/charmbracelet/soft-serve/pkg/webhook"
 )
 
 // post submits a form as a browser on the same site would.
@@ -144,6 +145,19 @@ func TestUISettings(t *testing.T) {
 	if w := f.post("/group/open/-/settings", "", url.Values{"description": {"x"}}); w.Code != http.StatusUnauthorized {
 		t.Errorf("anonymous save: %d", w.Code)
 	}
+	// Nor can a reader delete it, even typing the right name, or see the
+	// question's branch and tag counts.
+	w = f.do(req{path: "/group/open/-/delete", identity: stranger})
+	wantStatus(t, w, http.StatusForbidden, "stranger delete page")
+	hasNot(t, w, "every commit on them")
+	w = f.do(req{
+		method: http.MethodPost, path: "/group/open/-/delete", identity: stranger, body: "confirm=group%2Fopen",
+		header: map[string]string{"Content-Type": "application/x-www-form-urlencoded", "Sec-Fetch-Site": "same-origin"},
+	})
+	wantStatus(t, w, http.StatusForbidden, "stranger delete")
+	if _, err := f.be.Repository(f.ctx, "group/open"); err != nil {
+		t.Fatal("a reader deleted the repository")
+	}
 
 	loc := seeOther(t, f.post("/group/open/-/settings", auth, url.Values{
 		"description": {"Changed"}, "project_name": {""}, "hidden": {"on"}, "default_branch": {"main"},
@@ -169,7 +183,24 @@ func TestUISettings(t *testing.T) {
 	if _, err := f.be.Repository(f.ctx, "group/moved"); err != nil {
 		t.Fatal("the confirmation page deleted it")
 	}
-	seeOther(t, f.post("/group/moved/-/delete", auth, url.Values{}), "/?done=deleted")
+	has(t, w, "Type <code>group/moved</code> to confirm</span>", "this server holds the only copy")
+	has(t, w, "every commit on them")
+	// The name is checked on the server: missing, the old name, the last
+	// part alone or a different case delete nothing.
+	for _, typed := range []string{"", "group/open", "moved", "Group/Moved"} {
+		w = f.post("/group/moved/-/delete", auth, url.Values{"confirm": {typed}})
+		wantStatus(t, w, http.StatusBadRequest, "delete typing "+typed)
+		has(t, w, esc("That isn't the name."), `aria-invalid="true"`)
+		if _, err := f.be.Repository(f.ctx, "group/moved"); err != nil {
+			t.Fatalf("deleted typing %q", typed)
+		}
+	}
+	// A wrong name stays in the field to be corrected, and the browser is
+	// told what matches.
+	w = f.post("/group/moved/-/delete", auth, url.Values{"confirm": {"moved"}})
+	has(t, w, `value="moved"`, `pattern="\s*group/moved\s*"`)
+	// Space around the name, as a paste brings, is fine.
+	seeOther(t, f.post("/group/moved/-/delete", auth, url.Values{"confirm": {" group/moved\n"}}), "/?done=deleted")
 	if _, err := f.be.Repository(f.ctx, "group/moved"); err == nil {
 		t.Error("repository still there after delete")
 	}
@@ -192,7 +223,25 @@ func TestUIDeleteRefs(t *testing.T) {
 	hasNot(t, f.do(req{path: "/group/open/-/refs"}), "refs/delete")
 
 	w = f.do(req{path: "/group/open/-/refs/delete?branch=topic", auth: auth})
-	has(t, w, "Delete this branch?", `name="branch" value="topic"`)
+	has(t, w, "Delete this branch?", `name="branch" value="topic"`, "so nothing else is lost")
+
+	// A branch with a commit of its own says how many go with it.
+	git := func(args ...string) string {
+		cmd := exec.CommandContext(t.Context(), "git", append([]string{"--git-dir", dir}, args...)...)
+		cmd.Env = append(cmd.Environ(), "GIT_AUTHOR_NAME=T", "GIT_AUTHOR_EMAIL=t@example.com", "GIT_COMMITTER_NAME=T", "GIT_COMMITTER_EMAIL=t@example.com")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+		return strings.TrimSpace(string(out))
+	}
+	sha := git("commit-tree", "main^{tree}", "-p", "main", "-m", "solo")
+	git("update-ref", "refs/heads/solo", sha)
+	has(t, f.do(req{path: "/group/open/-/refs/delete?branch=solo", auth: auth}), "1 commit on it, on no other branch or tag, will no longer be reachable.")
+	// HEAD pointing at the branch doesn't count as another ref holding it.
+	git("symbolic-ref", "HEAD", "refs/heads/solo")
+	has(t, f.do(req{path: "/group/open/-/refs/delete?branch=solo", auth: auth}), "1 commit on it, on no other branch or tag, will no longer be reachable.")
+	git("symbolic-ref", "HEAD", "refs/heads/main")
 	seeOther(t, f.post("/group/open/-/refs/delete", auth, url.Values{"branch": {"topic"}}), "/group/open/-/refs?done=branch-deleted")
 	seeOther(t, f.post("/group/open/-/refs/delete", auth, url.Values{"tag": {"v1"}}), "/group/open/-/refs?done=tag-deleted")
 	w = f.do(req{path: "/group/open/-/refs", auth: auth})
@@ -281,7 +330,7 @@ func TestUIWebhooks(t *testing.T) {
 		"url": {"https://example.com/hook"}, "events": {"push", "repository"}, "content_type": {"form"}, "secret": {"shh"}, "active": {"on"},
 	}), "/group/open/-/webhooks?done=hook-created")
 	w = f.do(req{path: "/group/open/-/webhooks", auth: auth})
-	has(t, w, `href="/group/open/-/webhooks/1"`, "push, repository · form")
+	has(t, w, `href="/group/open/-/webhooks/1"`, "Commits are pushed; The repository is renamed or deleted · form")
 	hasNot(t, w, "shh")
 
 	w = f.do(req{path: "/group/open/-/webhooks/1", auth: auth})
@@ -333,6 +382,15 @@ func TestPlainWords(t *testing.T) {
 	} {
 		if plainMessage(err) == sentence(err.Error()) {
 			t.Errorf("%q has no plain words", err)
+		}
+	}
+}
+
+// Every webhook event has words of its own on the form.
+func TestEventLabels(t *testing.T) {
+	for _, e := range webhook.Events() {
+		if eventLabel(e.String()) == e.String() {
+			t.Errorf("event %q has no label", e)
 		}
 	}
 }
