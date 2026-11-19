@@ -93,7 +93,7 @@ func TestBackURL(t *testing.T) {
 func TestMissingNotice(t *testing.T) {
 	is := is.New(t)
 	r := func(missing string) *http.Request {
-		req, _ := http.NewRequest(http.MethodGet, "/r/-/tree?missing="+url.QueryEscape(missing), nil)
+		req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/r/-/tree?missing="+url.QueryEscape(missing), nil)
 		return req
 	}
 	is.Equal(missingNotice(r("src/a.go"), "v1", "src"), "src/a.go isn't on v1. This is the nearest folder that is.")
