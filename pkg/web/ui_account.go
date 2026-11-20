@@ -86,7 +86,7 @@ func (h uiHandler) accountPage(w http.ResponseWriter, r *http.Request, b *browse
 	d := &accountData{
 		Account:     acct,
 		ViaOutpost:  p.SignedIn != "",
-		SSHCommand:  sshCommand(config.FromContext(r.Context())),
+		SSHCommand:  sshCommand(sshURL(config.FromContext(r.Context()), r)),
 		Expiries:    tokenExpiries,
 		TokenExpiry: defaultTokenExpiry,
 		NewName:     acct.Username,
@@ -298,13 +298,13 @@ func (h uiHandler) showNewToken(w http.ResponseWriter, r *http.Request, b *brows
 	writeBody(w, r, http.StatusOK, buf.Bytes())
 }
 
-// sshCommand is the ssh command that reaches this server, or "" when it
-// doesn't serve SSH.
-func sshCommand(cfg *config.Config) string {
-	if cfg == nil || !cfg.SSH.Enabled || cfg.SSH.PublicURL == "" {
+// sshCommand is the ssh command that reaches the server at sshURL, or ""
+// when there's none.
+func sshCommand(sshURL string) string {
+	if sshURL == "" {
 		return ""
 	}
-	u, err := url.Parse(cfg.SSH.PublicURL)
+	u, err := url.Parse(sshURL)
 	if err != nil || u.Hostname() == "" {
 		return ""
 	}

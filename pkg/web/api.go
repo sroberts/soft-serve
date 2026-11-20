@@ -13,6 +13,7 @@ import (
 
 	"charm.land/log/v2"
 	"github.com/charmbracelet/soft-serve/pkg/backend"
+	"github.com/charmbracelet/soft-serve/pkg/config"
 	"github.com/charmbracelet/soft-serve/pkg/ops"
 )
 
@@ -65,7 +66,7 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	b := newBrowser(r.Context(), c.user, cloneBase(r, h.verifier))
+	b := newBrowser(r.Context(), c.user, cloneBase(r, h.verifier), sshURL(config.FromContext(r.Context()), r))
 	b.owner = ownerFor(r.Context(), c.outpostEmail)
 	if e := r.URL.Query().Get("owner_email"); e != "" {
 		b.owner = ownerFor(r.Context(), e)

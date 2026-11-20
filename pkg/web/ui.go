@@ -143,7 +143,7 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.renderError(w, r, nil, http.StatusUnauthorized, "Those credentials aren't valid.")
 		return
 	}
-	b := newBrowser(r.Context(), c.user, cloneBase(r, h.verifier))
+	b := newBrowser(r.Context(), c.user, cloneBase(r, h.verifier), sshURL(config.FromContext(r.Context()), r))
 	b.owner = ownerFor(r.Context(), c.outpostEmail)
 	p := page{SiteName: config.FromContext(r.Context()).Name, SignedIn: c.outpostUser}
 	if c.user != nil {

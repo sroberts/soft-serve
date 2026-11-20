@@ -412,6 +412,12 @@ SOFT_SERVE_HTTP_PUBLIC_URL = "https://soft-serve.<tailnet>.ts.net"
 Then `git clone ssh://soft-serve.<tailnet>.ts.net/<repo>` and
 `ssh soft-serve.<tailnet>.ts.net` work from any device on your tailnet.
 
+Until `SOFT_SERVE_SSH_PUBLIC_URL` is set, the web view shows no SSH clone
+command, because SSH listens only on loopback and the tailnet port Outpost
+forwards to it can't be seen from inside. Admins get a note saying what to
+set. (Outside Outpost, with SSH listening on every interface, a default
+`localhost` address is replaced with the host the page was opened at.)
+
 Things to know:
 
 - **Who can reach SSH.** With Outpost's login gateway on, only devices whose
