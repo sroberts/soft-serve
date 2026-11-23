@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -206,31 +207,7 @@ func gitRunE(cmd *cobra.Command, args []string) error {
 	repo, accessLevel := be.Readable(ctx, name, user)
 	ctx = proto.WithRepositoryContext(ctx, repo)
 
-	// Environment variables to pass down to git hooks.
-	envs := []string{
-		"SOFT_SERVE_REPO_NAME=" + name,
-		"SOFT_SERVE_REPO_PATH=" + filepath.Join(reposDir, repoDir),
-		"SOFT_SERVE_PUBLIC_KEY=" + ak,
-		"SOFT_SERVE_LOG_PATH=" + filepath.Join(cfg.DataPath, "log", "hooks.log"),
-	}
-
-	if user != nil {
-		envs = append(envs,
-			"SOFT_SERVE_USERNAME="+user.Username(),
-		)
-	}
-
-	envs = append(envs, cfg.Environ()...)
-
-	// Add GIT_PROTOCOL from session.
-	if sess := sshutils.SessionFromContext(ctx); sess != nil {
-		for _, env := range sess.Environ() {
-			if strings.HasPrefix(env, "GIT_PROTOCOL=") {
-				envs = append(envs, env)
-				break
-			}
-		}
-	}
+	envs := buildGitEnv(ctx, cfg, user, name, reposDir, repoDir, ak)
 
 	repoPath := filepath.Join(reposDir, repoDir)
 	service := git.Service(cmd.Name())
@@ -349,4 +326,34 @@ func gitRunE(cmd *cobra.Command, args []string) error {
 	}
 
 	return errors.New("unsupported git service")
+}
+
+func buildGitEnv(ctx context.Context, cfg *config.Config, user proto.User, name string, reposDir string, repoDir string, ak string) []string {
+	// Environment variables to pass down to git hooks.
+	envs := []string{
+		"SOFT_SERVE_REPO_NAME=" + name,
+		"SOFT_SERVE_REPO_PATH=" + filepath.Join(reposDir, repoDir),
+		"SOFT_SERVE_PUBLIC_KEY=" + ak,
+		"SOFT_SERVE_LOG_PATH=" + filepath.Join(cfg.DataPath, "log", "hooks.log"),
+	}
+
+	if user != nil {
+		envs = append(envs,
+			"SOFT_SERVE_USERNAME="+user.Username(),
+		)
+	}
+
+	envs = append(envs, cfg.Environ()...)
+
+	// Add GIT_PROTOCOL from session.
+	if sess := sshutils.SessionFromContext(ctx); sess != nil {
+		for _, env := range sess.Environ() {
+			if strings.HasPrefix(env, "GIT_PROTOCOL=") {
+				envs = append(envs, env)
+				break
+			}
+		}
+	}
+
+	return envs
 }
