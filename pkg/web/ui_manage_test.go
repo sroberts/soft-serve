@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -327,8 +328,14 @@ func TestUIWebhooks(t *testing.T) {
 
 	// Webhooks are under Manage: one tab, then its own row of pages. Manage
 	// stands outside the tabs' scrolling row, so a phone never hides it.
-	has(t, f.do(req{path: "/group/open", auth: auth}), "</div>\n    <a href=\"/group/open/-/settings\">Manage</a>")
-	has(t, f.do(req{path: "/group/open/-/settings", auth: auth}), "</div>\n    <a href=\"/group/open/-/settings\" aria-current=\"page\">Manage</a>")
+	// (Any whitespace between: templates check out with CRLF on Windows.)
+	pinned := regexp.MustCompile(`</div>\s*<a href="/group/open/-/settings"( aria-current="page")?>Manage</a>`)
+	for path, current := range map[string]bool{"/group/open": false, "/group/open/-/settings": true} {
+		m := pinned.FindStringSubmatch(f.do(req{path: path, auth: auth}).Body.String())
+		if m == nil || (m[1] != "") != current {
+			t.Errorf("%s: Manage isn't pinned outside the tab row as expected (%q)", path, m)
+		}
+	}
 	has(t, f.do(req{path: "/group/open/-/settings", auth: auth}), `<nav class="subnav" aria-label="Manage">`, `href="/group/open/-/webhooks"`)
 	w := f.do(req{path: "/group/open/-/webhooks", auth: auth})
 	has(t, w, "No webhooks yet.", `value="push" checked`)
