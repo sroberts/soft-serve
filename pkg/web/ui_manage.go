@@ -563,15 +563,26 @@ func (h uiHandler) collab(w http.ResponseWriter, r *http.Request, b *browser, p 
 	f, err := readForm(w, r)
 	username := strings.TrimSpace(f.Get("username"))
 	if err == nil {
-		done := "collab-added"
+		dest := withDone(repoURL(p.Repo.Name, "access", "", ""), "collab-added")
 		if op == "remove" {
-			done = "collab-removed"
+			// Removing is one step, so the page it lands on offers to add
+			// them back at the level they had.
+			level := ""
+			if cs, cerr := b.collaborators(r.Context(), p.Repo.Name); cerr == nil {
+				for _, c := range cs {
+					if c.Username == username {
+						level = c.Access
+					}
+				}
+			}
 			err = b.service().RemoveCollaborator(r.Context(), p.Repo.Name, username)
+			dest = withDone(repoURL(p.Repo.Name, "access", "", ""), "collab-removed") +
+				"&removed=" + url.QueryEscape(username) + "&level=" + url.QueryEscape(level)
 		} else {
 			err = b.service().AddCollaborator(r.Context(), p.Repo.Name, username, f.Get("access"))
 		}
 		if err == nil {
-			http.Redirect(w, r, withDone(repoURL(p.Repo.Name, "access", "", ""), done), http.StatusSeeOther)
+			http.Redirect(w, r, dest, http.StatusSeeOther)
 			return
 		}
 	}
@@ -586,6 +597,39 @@ func (h uiHandler) collab(w http.ResponseWriter, r *http.Request, b *browser, p 
 	d := &accessData{Collaborators: cs, Username: username, Level: f.Get("access")}
 	p.Data = d
 	h.renderForm(w, r, b, p, "access", err, func(m string) { d.Err = m })
+}
+
+// undoForm is a one-button form shown beside a notice that reverses the
+// change it describes.
+type undoForm struct {
+	Action string
+	Fields [][2]string
+	Label  string
+}
+
+// collabUndo is the notice and undo for a collaborator just removed, named
+// in the removed and level parameters. It names them only when they're a
+// real user who isn't a collaborator now and the level is one that can be
+// given, so a link can't make the page say something of its own.
+func collabUndo(r *http.Request, b *browser, repo string, cs []Collaborator) (string, *undoForm) {
+	q := r.URL.Query()
+	name, level := q.Get("removed"), q.Get("level")
+	if q.Get("done") != "collab-removed" || name == "" || !slices.Contains(accessLevels, level) {
+		return "", nil
+	}
+	for _, c := range cs {
+		if c.Username == name {
+			return "", nil
+		}
+	}
+	if u, err := b.be.User(r.Context(), name); err != nil || u == nil {
+		return "", nil
+	}
+	return name + " is no longer a collaborator.", &undoForm{
+		Action: repoURL(repo, "access/add", "", ""),
+		Fields: [][2]string{{"username", name}, {"access", level}},
+		Label:  "Add them back (" + accessLabel(level) + ")",
+	}
 }
 
 // --- Webhooks ---

@@ -702,6 +702,8 @@ form.history .author { flex: 0 1 12rem; }
   background: var(--add-bg);
   font-size: var(--text-ui);
 }
+.notice .undo { display: inline; }
+.notice .undo .link { font-weight: var(--weight-strong); }
 .introhead { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; margin: 0 0 16px; }
 .introhead h1, .introhead h2 { margin: 0; }
 a.button {
@@ -961,7 +963,9 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
   /* Other links in a row sit above the row's own. */
   .commits .meta a, .refs .meta a, .refs .refactions, .refs .notes { position: relative; z-index: 1; }
   .refs .refactions { margin-block: -10px; }
-  .refs .refactions a { display: inline-block; padding-block: 13px; }
+  /* Wide enough to tap .zip and .tar.gz apart: each link reaches 8px past
+     its text, and the negative margin keeps the row its usual length. */
+  .refs .refactions a { display: inline-block; padding: 13px 8px; margin-inline: -4px; }
 
   .found a { padding-block: 12px; }
   .people li { padding-block: 0; align-items: center; }

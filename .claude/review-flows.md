@@ -15,7 +15,9 @@ Check every flow at 1280px and at 390px (phone) wide.
 ## 2. Repository navigation (phone layout)
 1. Open `/icecream` at 390px.
 2. Expect the repository tabs on one row that scrolls sideways, fading at the
-   edge, with the branch pill at the end; no horizontal page scroll.
+   edge, then **Manage** (owners only) and the branch pill, both always in
+   view; no horizontal page scroll. On touch, a branch's or tag's `.zip` and
+   `.tar.gz` are easy to tap apart.
 3. Expect **Go to file** across the row at the repository's root, and the
    clone/push commands wrapping with a hanging indent rather than
    overflowing, selectable whole. The download line's ref stays inline.
@@ -38,7 +40,8 @@ Check every flow at 1280px and at 390px (phone) wide.
 1. Open `/-/new`.
 2. Expect remote, Git LFS and sync options hidden until **Fork** or
    **Mirror** is chosen, then shown, with no "Mirror only:"/"Fork or mirror:"
-   prefixes.
+   prefixes; Remote URL says it's required. Submitting a mirror with no URL
+   is refused with "Give the address to import from."
 3. Create `scratch`. Expect its summary page.
 
 ## 6. Repository settings and delete
@@ -50,8 +53,9 @@ Check every flow at 1280px and at 390px (phone) wide.
 5. On `mirror-cone`, expect the question to name the mirror's remote.
 
 ## 7. Access and webhooks
-1. Open `/icecream/-/access`. Add `alice`, then remove her (one step, no
-   confirmation).
+1. Open `/icecream/-/access`. Add `alice`, then remove her: one step, no
+   confirmation, and the notice offers **Add them back** at her old level.
+   Use it: she's back.
 2. Open `/icecream/-/webhooks`. Expect events described in words with the
    event name in small mono beside each.
 

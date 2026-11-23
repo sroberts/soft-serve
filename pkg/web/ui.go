@@ -117,8 +117,10 @@ type page struct {
 	RepoHome bool
 	// Feed is an Atom feed for the page, if it has one.
 	Feed string
-	// Notice says what the change that led here did.
+	// Notice says what the change that led here did, and Undo, if set, is
+	// a one-click way to reverse it, shown beside it.
 	Notice string
+	Undo   *undoForm
 	Data   any
 	// refMenu builds the branch and tag switcher; see RefMenu.
 	refMenu func(current string) *RefMenu

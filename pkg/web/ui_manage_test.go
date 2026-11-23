@@ -73,7 +73,10 @@ func TestUINewRepository(t *testing.T) {
 	w := f.do(req{path: "/-/new"})
 	has(t, w, "Sign in to create a repository.")
 	hasNot(t, w, `<form class="manage"`)
-	has(t, f.do(req{path: "/-/new", auth: auth}), `name="source" value="mirror"`, `name="auto_sync" checked`)
+	has(t, f.do(req{path: "/-/new", auth: auth}), `name="source" value="mirror"`, `name="auto_sync" checked`,
+		`Remote URL <span class="hint">required for a fork or mirror</span>`)
+	w = f.post("/-/new", auth, url.Values{"name": {"nowhere"}, "source": {"mirror"}})
+	has(t, w, "Give the address to import from.")
 
 	loc := seeOther(t, f.post("/-/new", auth, url.Values{"name": {"made"}, "description": {"from a form"}, "private": {"on"}}), "/made?done=created")
 	w = f.do(req{path: loc, auth: auth})
@@ -284,10 +287,26 @@ func TestUICollaborators(t *testing.T) {
 		t.Errorf("reader remove: %d", wr.Code)
 	}
 
-	seeOther(t, f.post("/secret/-/access/remove", auth, url.Values{"username": {"stranger"}}), "/secret/-/access?done=collab-removed")
+	removed := "/secret/-/access?done=collab-removed&removed=stranger&level=read-only"
+	seeOther(t, f.post("/secret/-/access/remove", auth, url.Values{"username": {"stranger"}}), removed)
 	if _, ok, _ := f.be.IsCollaborator(f.ctx, "secret", "stranger"); ok {
 		t.Error("still a collaborator")
 	}
+
+	// Removing is one step, so the notice offers to add them back as they were.
+	w = f.do(req{path: removed, auth: auth})
+	has(t, w, "stranger is no longer a collaborator.", `<form class="undo" method="post" action="/secret/-/access/add">`,
+		`<input type="hidden" name="username" value="stranger"><input type="hidden" name="access" value="read-only">`, "Add them back (Read-only)")
+	// A link can't make it name someone who isn't a user, someone still a
+	// collaborator, or a level that can't be given.
+	for _, q := range []string{"done=collab-removed&removed=ghost&level=read-only", "done=collab-removed&removed=stranger&level=root", "done=saved&removed=stranger&level=read-only"} {
+		w := f.do(req{path: "/secret/-/access?" + q, auth: auth})
+		hasNot(t, w, "no longer a collaborator", `class="undo"`)
+	}
+	seeOther(t, f.post("/secret/-/access/add", auth, url.Values{"username": {"stranger"}, "access": {"read-only"}}), "/secret/-/access?done=collab-added")
+	has(t, f.do(req{path: "/secret/-/access?done=collab-added", auth: auth}), `<span class="refname">stranger</span><span class="badge">Read-only</span>`)
+	hasNot(t, f.do(req{path: removed, auth: auth}), `class="undo"`) // back, so nothing to undo
+	seeOther(t, f.post("/secret/-/access/remove", auth, url.Values{"username": {"stranger"}}), removed)
 
 	// Read-write collaborators get the page too, as over SSH.
 	owner, _ := f.be.User(f.ctx, "owner")
@@ -306,8 +325,10 @@ func TestUIWebhooks(t *testing.T) {
 	auth := f.owner()
 	stranger := f.outpost.token(t, "stranger", viewHost, nil)
 
-	// Webhooks are under Manage: one tab, then its own row of pages.
-	has(t, f.do(req{path: "/group/open", auth: auth}), `href="/group/open/-/settings">Manage</a>`)
+	// Webhooks are under Manage: one tab, then its own row of pages. Manage
+	// stands outside the tabs' scrolling row, so a phone never hides it.
+	has(t, f.do(req{path: "/group/open", auth: auth}), "</div>\n    <a href=\"/group/open/-/settings\">Manage</a>")
+	has(t, f.do(req{path: "/group/open/-/settings", auth: auth}), "</div>\n    <a href=\"/group/open/-/settings\" aria-current=\"page\">Manage</a>")
 	has(t, f.do(req{path: "/group/open/-/settings", auth: auth}), `<nav class="subnav" aria-label="Manage">`, `href="/group/open/-/webhooks"`)
 	w := f.do(req{path: "/group/open/-/webhooks", auth: auth})
 	has(t, w, "No webhooks yet.", `value="push" checked`)
