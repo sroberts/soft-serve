@@ -14,7 +14,8 @@
     <label class="check"><input type="radio" name="source" value=""{{if eq .Source ""}} checked{{end}}> <span>Nothing: an empty repository</span></label>
     <label class="check"><input type="radio" name="source" value="fork"{{if eq .Source "fork"}} checked{{end}}> <span>Fork a remote: copy it once, then it's yours and never pulls from there again</span></label>
     <label class="check"><input type="radio" name="source" value="mirror"{{if eq .Source "mirror"}} checked{{end}}> <span>Mirror a remote: keep following it, read-only here</span></label>
-    <label class="field importonly">Remote URL
+    {{/* Shown only for a fork or mirror, so it can't carry required: a hidden required field would block the empty-repository case. The hint says it instead, and the server checks. */}}
+    <label class="field importonly">Remote URL <span class="hint">required for a fork or mirror</span>
       <input type="url" name="remote" value="{{.Remote}}" placeholder="https://github.com/owner/project.git" inputmode="url" autocomplete="off" spellcheck="false">
     </label>
     <label class="check mirroronly"><input type="checkbox" name="auto_sync"{{if .AutoSync}} checked{{end}}> <span>Sync on the server's schedule. Unchecked, it syncs only when you ask.</span></label>

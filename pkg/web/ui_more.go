@@ -200,6 +200,9 @@ func (h uiHandler) access(w http.ResponseWriter, r *http.Request, b *browser, p 
 		h.fail(w, r, p, err)
 		return
 	}
+	if notice, undo := collabUndo(r, b, p.Repo.Name, cs); undo != nil {
+		p.Notice, p.Undo = notice, undo
+	}
 	p.Data = accessData{Collaborators: cs}
 	h.render(w, r, "access", p)
 }
