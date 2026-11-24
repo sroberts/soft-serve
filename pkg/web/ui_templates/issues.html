@@ -1,0 +1,295 @@
+{{define "issues"}}{{template "head" .}}
+{{if .Repo}}{{template "repohead" .}}{{end}}
+{{with .Data}}{{$colors := labelColors .Labels}}{{$global := .Global}}
+<section class="issues">
+  <div class="issuebar">
+    {{if .Global}}<h1>{{$.Title}}</h1>{{else}}<h1 class="visually-hidden">{{$.Repo.Name}}: issues</h1>{{end}}
+    <nav class="subnav" aria-label="Which issues">{{range .Scopes}}<a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{.Label}}</a>{{end}}</nav>
+    <span class="grow"></span>
+    {{if .CanWrite}}<a class="settingslink" href="{{repoURL $.Repo.Name "issues/settings" "" ""}}">Labels &amp; key</a>
+    <a class="button" href="{{repoURL $.Repo.Name "issues/new" "" ""}}">New issue</a>{{end}}
+  </div>
+  <form class="issuefilter" method="get">
+    {{if ne .Scope "open"}}<input type="hidden" name="scope" value="{{.Scope}}">{{end}}
+    <input type="search" name="q" value="{{.Query}}" aria-label="Search issues" placeholder="Search titles and descriptions{{with .Key}}, or {{.}}-1{{end}}" autocomplete="off" enterkeyhint="search">
+    <select name="assignee" aria-label="Assignee">
+      <option value=""{{if eq .Assignee ""}} selected{{end}}>Anyone</option>
+      {{if $.SoftServe}}<option value="me"{{if eq .Assignee "me"}} selected{{end}}>Assigned to me</option>{{end}}
+      <option value="none"{{if eq .Assignee "none"}} selected{{end}}>Unassigned</option>
+      {{if not (eq .Assignee "" "me" "none")}}<option value="{{.Assignee}}" selected>Assigned to {{.Assignee}}</option>{{end}}
+    </select>
+    <select name="priority" aria-label="Priority">
+      <option value="">Any priority</option>
+      {{$pr := .Priority}}{{range .Priorities}}<option value="{{.}}"{{if eq . $pr}} selected{{end}}>{{priorityLabel .}}</option>{{end}}
+    </select>
+    {{if .Labels}}<select name="label" aria-label="Label">
+      <option value="">Any label</option>
+      {{$lb := .Label}}{{range .Labels}}<option value="{{.Name}}"{{if eq .Name $lb}} selected{{end}}>{{.Name}}</option>{{end}}
+    </select>{{end}}
+    <select name="sort" aria-label="Order">
+      <option value=""{{if eq .Sort ""}} selected{{end}}>By priority</option>
+      <option value="updated"{{if eq .Sort "updated"}} selected{{end}}>Recently updated</option>
+      <option value="created"{{if eq .Sort "created"}} selected{{end}}>Newest first</option>
+      <option value="number"{{if eq .Sort "number"}} selected{{end}}>By number</option>
+    </select>
+    <button type="submit" class="secondary">Filter</button>
+    {{if .Filtered}}<a class="clear" href="{{.ClearURL}}">Clear filters</a>{{end}}
+  </form>
+
+  {{if .Groups}}
+  {{range .Groups}}
+  <section class="igroup"{{with .Status}} aria-labelledby="group-{{.}}"{{end}}>
+    {{with .Status}}<h2 class="igroup-head" id="group-{{.}}">{{statusIcon .}}<span>{{statusLabel .}}</span></h2>{{end}}
+    <ul class="ilist">
+      {{range .Issues}}<li class="irow">
+        <span class="ipri" title="{{priorityLabel .Priority}}">{{priorityIcon .Priority}}</span>
+        <span class="iid">{{.ID}}</span>
+        <span class="istat" title="{{statusLabel .Status}}">{{statusIcon .Status}}</span>
+        <a class="ititle" href="{{issueURL .Repo .Number}}"><span class="visually-hidden">{{.ID}}, {{statusLabel .Status}}, {{priorityLabel .Priority}}: </span>{{.Title}}</a>
+        <span class="imeta">
+          {{range .Labels}}<span class="ilabel">{{dotFor $colors .}}{{.}}</span>{{end}}
+          {{if $global}}<span class="irepo">{{.Repo}}</span>{{end}}
+          {{if .CommentCount}}<span class="icount" title="{{.CommentCount}} comments"><svg viewBox="0 0 14 14" width="13" height="13" aria-hidden="true"><path d="M2.5 3.5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H6l-2.5 2v-2h0a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>{{.CommentCount}}<span class="visually-hidden"> comments</span></span>{{end}}
+          {{if .Assignee}}<span class="iassignee" title="Assigned to {{.Assignee}}">{{.Assignee}}</span>{{end}}
+          <time datetime="{{.UpdatedAt.Format "2006-01-02T15:04:05Z07:00"}}" title="Updated {{.UpdatedAt.Format "2 Jan 2006 15:04 MST"}}">{{ago .UpdatedAt}}</time>
+        </span>
+      </li>{{end}}
+    </ul>
+  </section>
+  {{end}}
+  <p class="ipager">
+    <span>{{if lt .Shown .Total}}{{.Shown}} of {{.Total}}{{else}}{{.Total}} {{if eq .Total 1}}issue{{else}}issues{{end}}{{end}}</span>
+    {{with .PrevURL}}<a href="{{.}}">Previous</a>{{end}}
+    {{with .NextURL}}<a href="{{.}}">Next</a>{{end}}
+  </p>
+  {{else}}
+  <div class="empty iempty">
+    {{if .Filtered}}<p>No issues match these filters. <a href="{{.ClearURL}}">Clear them</a>.</p>
+    {{else if and .Global (eq .Assignee "me")}}<p>Nothing is assigned to you{{if ne .Scope "all"}} here{{end}}.</p><p class="note">Issues you take, or that are assigned to you in any repository, show up here.</p>
+    {{else if .Global}}<p>No issues here yet.</p>
+    {{else if eq .Scope "open" "active" "backlog"}}<p>No {{if eq .Scope "open"}}open {{else if eq .Scope "active"}}active {{else}}backlog {{end}}issues.</p>
+      {{if .CanWrite}}<p class="note"><a href="{{repoURL $.Repo.Name "issues/new" "" ""}}">Create one</a>, or name a branch after one (you/{{.Key | lower}}-1-…) and say <code>Fixes {{.Key}}-1</code> in a commit to move it along.</p>{{end}}
+    {{else}}<p>Nothing here.</p>{{end}}
+  </div>
+  {{end}}
+</section>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "issue"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}{{$i := .Issue}}{{$repo := $.Repo.Name}}{{$colors := labelColors .Labels}}{{$d := .}}
+<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $repo "issues" "" ""}}">Issues</a><span class="sep" aria-hidden="true">/</span>{{with $i.Parent}}<a href="{{idURL $repo .}}">{{.}}</a><span class="sep" aria-hidden="true">/</span>{{end}}<span aria-current="page">{{$i.ID}}</span></nav>
+<header class="issuehead">
+  <h1>{{$i.Title}}</h1>
+  {{if .CanWrite}}<a class="button secondary" href="{{issueURL $repo $i.Number "edit"}}">Edit</a>{{end}}
+</header>
+<div class="issuepage">
+  <aside class="issueside" aria-label="Properties">
+    <dl class="iprops">
+      <dt>Status</dt><dd>{{statusIcon $i.Status}} {{statusLabel $i.Status}}</dd>
+      <dt>Priority</dt><dd>{{priorityIcon $i.Priority}} {{priorityLabel $i.Priority}}</dd>
+      <dt>Assignee</dt><dd>{{if $i.Assignee}}{{$i.Assignee}}{{else}}<span class="muted">Nobody</span>{{end}}</dd>
+      <dt>Labels</dt><dd>{{range $i.Labels}}<span class="ilabel">{{dotFor $colors .}}{{.}}</span>{{else}}<span class="muted">None</span>{{end}}</dd>
+      {{with $i.Parent}}<dt>Part of</dt><dd><a href="{{idURL $repo .}}">{{.}}</a></dd>{{end}}
+      <dt>Opened</dt><dd><time datetime="{{$i.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}" title="{{$i.CreatedAt.Format "2 Jan 2006 15:04 MST"}}">{{ago $i.CreatedAt}}</time>{{with $i.Creator}} by {{.}}{{end}}</dd>
+    </dl>
+    {{if .CanWrite}}
+    <details class="editprops"{{if .Err}} open{{end}}>
+      <summary>Change properties</summary>
+      {{template "formerror" .Err}}
+      <form class="manage" method="post" action="{{issueURL $repo $i.Number}}">
+        {{template "issuepropfields" .}}
+        <div class="actions"><button type="submit">Save</button></div>
+      </form>
+    </details>
+    {{end}}
+  </aside>
+
+  <div class="issuemain">
+    {{if .Description}}<div class="markdown idesc">{{.Description}}</div>{{else}}<p class="muted idesc">No description.{{if .CanWrite}} <a href="{{issueURL $repo $i.Number "edit"}}">Add one</a>.{{end}}</p>{{end}}
+
+    {{if or $i.SubIssues .CanWrite}}
+    <section class="isub" aria-labelledby="subs">
+      <h2 id="subs">Sub-issues{{with $i.SubIssues}} <span class="count">{{len .}}</span>{{end}}</h2>
+      {{if $i.SubIssues}}<ul class="ilist">
+        {{range $i.SubIssues}}<li class="irow">
+          <span class="ipri" title="{{priorityLabel .Priority}}">{{priorityIcon .Priority}}</span>
+          <span class="iid">{{.ID}}</span>
+          <span class="istat" title="{{statusLabel .Status}}">{{statusIcon .Status}}</span>
+          <a class="ititle" href="{{issueURL .Repo .Number}}"><span class="visually-hidden">{{.ID}}, {{statusLabel .Status}}: </span>{{.Title}}</a>
+          <span class="imeta">{{if .Assignee}}<span class="iassignee">{{.Assignee}}</span>{{end}}</span>
+        </li>{{end}}
+      </ul>{{end}}
+      {{if .CanWrite}}<p class="addsub"><a href="{{repoURL $repo "issues/new" "" ""}}?parent={{$i.ID}}">Add a sub-issue</a></p>{{end}}
+    </section>
+    {{end}}
+
+    {{with $i.Commits}}
+    <section class="icommits" aria-labelledby="commits">
+      <h2 id="commits">Commits</h2>
+      <ul>
+        {{range .}}<li>
+          <a class="sha" href="{{repoURL .Repo (printf "commit/%s" .SHA) "" ""}}">{{short .SHA}}</a>
+          <span class="csum">{{.Summary}}</span>
+          {{if ne .Repo $repo}}<span class="irepo">{{.Repo}}</span>{{end}}
+          {{if .Closes}}<span class="badge ok">fixes</span>{{end}}
+        </li>{{end}}
+      </ul>
+    </section>
+    {{end}}
+
+    <section class="iactivity" aria-labelledby="activity">
+      <h2 id="activity">Activity</h2>
+      <ol class="timeline">
+        <li class="tevent"><span class="who">{{if $i.Creator}}{{$i.Creator}}{{else}}Someone{{end}}</span> opened {{$i.ID}} · <time datetime="{{$i.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{ago $i.CreatedAt}}</time></li>
+        {{range .Timeline}}
+        {{with .Event}}<li class="tevent"><span class="who">{{if .Actor}}{{.Actor}}{{else}}Someone{{end}}</span> {{eventText .}}{{if eq .Kind "commit"}} <a class="sha" href="{{repoURL .From (printf "commit/%s" .To) "" ""}}">{{short .To}}</a>{{end}} · <time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .CreatedAt}}</time></li>{{end}}
+        {{if .Comment}}<li class="tcomment" id="comment-{{.Comment.ID}}">
+          <article>
+            <header><span class="who">{{if .Comment.Author}}{{.Comment.Author}}{{else}}Someone{{end}}</span> <time datetime="{{.Comment.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .Comment.CreatedAt}}</time>{{if .Comment.Edited}} <span class="muted">· edited</span>{{end}}
+              {{if .CanEdit}}<span class="grow"></span><a href="{{commentURL $repo $i.Number .Comment.ID "edit"}}">Edit</a> <a class="danger" href="{{commentURL $repo $i.Number .Comment.ID "delete"}}">Delete…</a>{{end}}
+            </header>
+            <div class="markdown">{{.Body}}</div>
+          </article>
+        </li>{{end}}
+        {{end}}
+      </ol>
+      {{if .CanWrite}}
+      <form class="commentform" method="post" action="{{issueURL $repo $i.Number "comment"}}">
+        {{template "formerror" .CommentErr}}
+        <label class="field"><span class="visually-hidden">Comment</span>
+          <textarea name="body" rows="4" required placeholder="Leave a comment. Markdown works.">{{.CommentDraft}}</textarea>
+        </label>
+        <div class="actions"><button type="submit">Comment</button></div>
+      </form>
+      {{else if not $.SoftServe}}<p class="note">Sign in with write access to comment.</p>{{end}}
+    </section>
+
+    {{if .CanWrite}}<p class="idelete"><a class="danger delete" href="{{issueURL $repo $i.Number "delete"}}">Delete issue…</a></p>{{end}}
+  </div>
+</div>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "issuepropfields"}}{{/* . has Props, Statuses, Priorities, Labels and maybe Users */}}
+{{$p := .Props}}
+<label class="field">Status
+  <select name="status">{{range .Statuses}}<option value="{{.}}"{{if eq . $p.Status}} selected{{end}}>{{statusLabel .}}</option>{{end}}</select>
+</label>
+<label class="field">Priority
+  <select name="priority">{{range .Priorities}}<option value="{{.}}"{{if eq . $p.Priority}} selected{{end}}>{{priorityLabel .}}</option>{{end}}</select>
+</label>
+<label class="field">Assignee <span class="hint">a username, or <code>me</code>; empty for nobody</span>
+  <input type="text" name="assignee" value="{{$p.Assignee}}" list="issue-users" autocomplete="off" autocapitalize="off" spellcheck="false">
+</label>
+<datalist id="issue-users">{{with .Users}}{{range .}}<option value="{{.}}">{{end}}{{end}}</datalist>
+<fieldset class="ilabels">
+  <legend>Labels</legend>
+  {{range .Labels}}<label class="check"><input type="checkbox" name="labels" value="{{.Name}}"{{if $p.Has .Name}} checked{{end}}> <span>{{labelDot .Color}} {{.Name}}</span></label>{{end}}
+  <label class="field">{{if .Labels}}New label{{else}}Labels{{end}} <span class="hint">comma-separated; created if new</span>
+    <input type="text" name="new_label" value="{{$p.NewLabel}}" autocomplete="off">
+  </label>
+</fieldset>
+<label class="field">Part of <span class="hint">a parent issue, such as {{if .Key}}{{.Key}}-1{{else}}ICE-1{{end}}; empty for none</span>
+  <input type="text" name="parent" value="{{$p.Parent}}" autocomplete="off" autocapitalize="characters" spellcheck="false">
+</label>
+{{end}}
+
+{{define "issuenew"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}
+<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues" "" ""}}">Issues</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">New</span></nav>
+<h1 class="visually-hidden">New issue in {{$.Repo.Name}}</h1>
+{{template "formerror" .Err}}
+<form class="manage issueform" method="post" action="{{repoURL $.Repo.Name "issues/new" "" ""}}">
+  <label class="field">Title
+    <input type="text" name="title" value="{{.Title}}" required maxlength="256" autofocus autocomplete="off">
+  </label>
+  <label class="field">Description <span class="hint">optional; Markdown</span>
+    <textarea name="description" rows="10">{{.Description}}</textarea>
+  </label>
+  <fieldset class="iprops-form">
+    <legend>Properties</legend>
+    {{template "issuepropfields" .}}
+  </fieldset>
+  <div class="actions"><button type="submit">Create issue</button> <a class="button secondary" href="{{repoURL $.Repo.Name "issues" "" ""}}">Cancel</a></div>
+</form>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "issueedit"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}
+<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues" "" ""}}">Issues</a><span class="sep" aria-hidden="true">/</span><a href="{{issueURL $.Repo.Name .Number}}">{{.ID}}</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Edit</span></nav>
+<h1 class="visually-hidden">Edit {{.ID}}</h1>
+{{template "formerror" .Err}}
+<form class="manage issueform" method="post" action="{{issueURL $.Repo.Name .Number "edit"}}">
+  <label class="field">Title
+    <input type="text" name="title" value="{{.Title}}" required maxlength="256" autocomplete="off">
+  </label>
+  <label class="field">Description <span class="hint">Markdown</span>
+    <textarea name="description" rows="14">{{.Description}}</textarea>
+  </label>
+  <div class="actions"><button type="submit">Save</button> <a class="button secondary" href="{{issueURL $.Repo.Name .Number}}">Cancel</a></div>
+</form>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "commentedit"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}
+<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues" "" ""}}">Issues</a><span class="sep" aria-hidden="true">/</span><a href="{{issueURL $.Repo.Name .Number}}">{{.ID}}</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Edit comment</span></nav>
+<h1 class="visually-hidden">Edit a comment on {{.ID}}</h1>
+{{template "formerror" .Err}}
+<form class="manage issueform" method="post" action="{{commentURL $.Repo.Name .Number .Comment.ID "edit"}}">
+  <label class="field">Comment <span class="hint">Markdown</span>
+    <textarea name="body" rows="8" required autofocus>{{.Body}}</textarea>
+  </label>
+  <div class="actions"><button type="submit">Save</button> <a class="button secondary" href="{{issueURL $.Repo.Name .Number}}#comment-{{.Comment.ID}}">Cancel</a></div>
+</form>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "issuesettings"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}
+<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues" "" ""}}">Issues</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Labels &amp; key</span></nav>
+<h1 class="visually-hidden">Issue settings for {{$.Repo.Name}}</h1>
+<section class="manage-section">
+  <h2 id="key">Issue key</h2>
+  <p class="note">Issues here are named {{.Tracker.Key}}-1, {{.Tracker.Key}}-2 and so on. {{.Tracker.Open}} open, {{.Tracker.Closed}} closed.</p>
+  {{if .IsAdmin}}
+  {{template "formerror" .KeyErr}}
+  <form class="inline" method="post" action="{{repoURL $.Repo.Name "issues/settings" "" ""}}" aria-labelledby="key">
+    <input type="hidden" name="op" value="key">
+    <label class="field">Key <span class="hint">2 to 10 letters and digits; changing it renames every issue</span>
+      <input type="text" name="key" value="{{.Key}}" required pattern="[A-Za-z][A-Za-z0-9]{1,9}" title="2 to 10 letters and digits, starting with a letter" autocapitalize="characters" autocomplete="off" spellcheck="false">
+    </label>
+    <button type="submit">Change key</button>
+  </form>
+  {{end}}
+</section>
+<section class="refs ilabelset">
+  <h2 id="labels">Labels</h2>
+  {{template "formerror" .LabelErr}}
+  <ul>
+    {{range .Tracker.Labels}}<li>
+      <div class="refmain"><span class="refname">{{labelDot .Color}} {{.Name}}</span>{{with .Description}}<p class="meta">{{.}}</p>{{end}}</div>
+      {{if $.Data.CanWrite}}<form class="rowaction" method="post" action="{{repoURL $.Repo.Name "issues/settings" "" ""}}"><input type="hidden" name="op" value="delete-label"><input type="hidden" name="name" value="{{.Name}}"><button type="submit" class="link danger" aria-label="Delete label {{.Name}}" title="Takes it off every issue">Delete</button></form>{{end}}
+    </li>
+    {{else}}<li class="muted">No labels yet. They're also made when you add one to an issue.</li>{{end}}
+  </ul>
+  {{if .CanWrite}}
+  <h2 id="add-label">Add a label</h2>
+  <form class="inline" method="post" action="{{repoURL $.Repo.Name "issues/settings" "" ""}}" aria-labelledby="add-label">
+    <input type="hidden" name="op" value="label">
+    <label class="field">Name <input type="text" name="name" value="{{.Label.Name}}" required maxlength="50" autocomplete="off"></label>
+    <label class="field">Color <input type="color" name="color" value="{{if .Label.Color}}{{.Label.Color}}{{else}}#8f897f{{end}}"></label>
+    <label class="field">Description <span class="hint">optional</span><input type="text" name="description" value="{{.Label.Description}}" maxlength="256"></label>
+    <button type="submit">Add label</button>
+  </form>
+  {{end}}
+</section>
+{{end}}
+{{template "foot" .}}{{end}}

@@ -67,3 +67,18 @@ Check every flow at 1280px and at 390px (phone) wide.
 ## 9. Admin
 1. Open `/-/admin`. Expect users and settings.
 2. Delete `alice`: expect her username must be typed; a wrong name is refused.
+
+## 10. Issues
+1. Open `/icecream/-/issues`. Expect open issues grouped by status (In Review,
+   In Progress, Todo, Backlog), each row with its priority, identifier
+   (ICE-2), status, title, labels and assignee; the scope tabs, filters and
+   **New issue**.
+2. Create one from **New issue** with a label that doesn't exist yet: it's
+   created, and the issue page says so.
+3. On an issue, open **Change properties**, set a status and an unknown
+   assignee: the form stays open and says no user has that name. Fix it
+   and save: the activity records each change.
+4. Comment, edit the comment, delete it (with a confirmation).
+5. Open `/-/issues`: issues assigned to you across repositories.
+6. At 390px, rows wrap under their title and the properties sit above the
+   description.

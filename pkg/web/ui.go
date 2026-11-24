@@ -21,6 +21,7 @@ import (
 	"charm.land/log/v2"
 	"github.com/charmbracelet/soft-serve/pkg/access"
 	"github.com/charmbracelet/soft-serve/pkg/config"
+	"github.com/charmbracelet/soft-serve/pkg/issue"
 	"github.com/charmbracelet/soft-serve/pkg/utils"
 	"github.com/dustin/go-humanize"
 )
@@ -91,6 +92,20 @@ var uiTemplates = template.Must(template.New("").Funcs(template.FuncMap{
 	"deleteRefURL":   deleteRefURL,
 	"keyShort":       keyShort,
 	"adminUserURL":   adminUserURL,
+	"statusIcon":     statusIcon,
+	"priorityIcon":   priorityIcon,
+	"statusLabel":    issue.StatusLabel,
+	"priorityLabel":  func(name string) string { n, _ := issue.ParsePriority(name); return issue.PriorityLabel(n) },
+	"labelDot":       labelDot,
+	"labelColors":    labelColors,
+	"dotFor":         dotFor,
+	"eventText":      eventText,
+	"lower":          strings.ToLower,
+	"idURL":          idURL,
+	"issueURL":       func(repo string, n int64, rest ...string) string { return issueURL(repo, n, rest...) },
+	"commentURL": func(repo string, n, id int64, op string) string {
+		return issueURL(repo, n, "comments", strconv.FormatInt(id, 10), op)
+	},
 }).ParseFS(uiFS, "ui_templates/*.html"))
 
 // uiHandler serves the web pages.
@@ -174,6 +189,11 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "-/admin":
 		h.admin(w, r, b, p, "")
 		return
+	case "-/issues":
+		if !post {
+			h.myIssues(w, r, b, p)
+			return
+		}
 	}
 	if action, ok := strings.CutPrefix(rest, "-/admin/"); ok {
 		h.admin(w, r, b, p, action)
@@ -254,6 +274,8 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.deleteRepo(w, r, b, p)
 	case action == "refs/delete":
 		h.deleteRef(w, r, b, p)
+	case action == "issues" || strings.HasPrefix(action, "issues/"):
+		h.issues(w, r, b, p, strings.TrimPrefix(strings.TrimPrefix(action, "issues"), "/"))
 	case action == "webhooks":
 		h.webhooks(w, r, b, p, "")
 	case strings.HasPrefix(action, "webhooks/"):

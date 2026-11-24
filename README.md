@@ -957,6 +957,11 @@ Pushes update issues by themselves:
 - a new branch named for an issue, such as `you/ice-12-sprinkles`, moves it
   from backlog or todo to in progress.
 
+In the web view, a repository's **Issues** tab lists them by status, with
+filters and search, and each issue has a page for its properties, sub-issues,
+linked commits, activity and comments. **My issues**, in the header, lists
+what's assigned to you across repositories.
+
 Anyone who can read a repository can read its issues. Creating, changing and
 commenting need read-write access; only a comment's author or a repository
 admin can change the comment, and changing the key needs admin access. The
