@@ -2,6 +2,7 @@
 {{if .Repo}}{{template "repohead" .}}{{end}}
 {{with .Data}}{{$colors := labelColors .Labels}}{{$global := .Global}}
 <section class="issues">
+  {{if not .Global}}{{template "issuesnav" (issuesNav $.Repo.Name "issues")}}{{end}}
   <div class="issuebar">
     {{if .Global}}<h1>{{$.Title}}</h1>{{else}}<h1 class="visually-hidden">{{$.Repo.Name}}: issues</h1>{{end}}
     <nav class="subnav" aria-label="Which issues">{{range .Scopes}}<a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{.Label}}</a>{{end}}</nav>
@@ -25,6 +26,18 @@
     {{if .Labels}}<select name="label" aria-label="Label">
       <option value="">Any label</option>
       {{$lb := .Label}}{{range .Labels}}<option value="{{.Name}}"{{if eq .Name $lb}} selected{{end}}>{{.Name}}</option>{{end}}
+    </select>{{end}}
+    {{if .Projects}}<select name="project" aria-label="Project">
+      <option value="">Any project</option>
+      {{$pj := .Project}}{{range .Projects}}<option value="{{.Name}}"{{if eq .Name $pj}} selected{{end}}>{{.Name}}</option>{{end}}
+      <option value="none"{{if eq .Project "none"}} selected{{end}}>No project</option>
+    </select>{{end}}
+    {{if .Cycles}}<select name="cycle" aria-label="Cycle">
+      <option value="">Any cycle</option>
+      <option value="current"{{if eq .Cycle "current"}} selected{{end}}>Current cycle</option>
+      <option value="next"{{if eq .Cycle "next"}} selected{{end}}>Next cycle</option>
+      {{$cy := .Cycle}}{{range .Cycles}}{{$n := printf "%d" .Number}}<option value="{{$n}}"{{if eq $n $cy}} selected{{end}}>Cycle {{.Number}}{{with .Name}}: {{.}}{{end}}</option>{{end}}
+      <option value="none"{{if eq .Cycle "none"}} selected{{end}}>No cycle</option>
     </select>{{end}}
     <select name="sort" aria-label="Order">
       <option value=""{{if eq .Sort ""}} selected{{end}}>By priority</option>
@@ -92,6 +105,8 @@
       <dt>Assignee</dt><dd>{{if $i.Assignee}}{{$i.Assignee}}{{else}}<span class="muted">Nobody</span>{{end}}</dd>
       <dt>Labels</dt><dd>{{range $i.Labels}}<span class="ilabel">{{dotFor $colors .}}{{.}}</span>{{else}}<span class="muted">None</span>{{end}}</dd>
       {{with $i.Parent}}<dt>Part of</dt><dd><a href="{{idURL $repo .}}">{{.}}</a></dd>{{end}}
+      {{with $i.Project}}<dt>Project</dt><dd><a href="{{projectURL $repo .}}">{{.}}</a></dd>{{end}}
+      {{with $i.Cycle}}<dt>Cycle</dt><dd><a href="{{cycleURL $repo .}}">Cycle {{.}}</a></dd>{{end}}
       <dt>Opened</dt><dd><time datetime="{{$i.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}" title="{{$i.CreatedAt.Format "2 Jan 2006 15:04 MST"}}">{{ago $i.CreatedAt}}</time>{{with $i.Creator}} by {{.}}{{end}}</dd>
     </dl>
     {{if .CanWrite}}
@@ -191,6 +206,12 @@
     <input type="text" name="new_label" value="{{$p.NewLabel}}" autocomplete="off">
   </label>
 </fieldset>
+{{if .Projects}}<label class="field">Project
+  <select name="project"><option value="">None</option>{{range .Projects}}<option value="{{.Name}}"{{if eq .Name $p.Project}} selected{{end}}>{{.Name}}</option>{{end}}</select>
+</label>{{end}}
+{{if .Cycles}}<label class="field">Cycle
+  <select name="cycle"><option value="">None</option>{{range .Cycles}}{{$n := printf "%d" .Number}}<option value="{{$n}}"{{if eq $n $p.Cycle}} selected{{end}}>Cycle {{.Number}}{{with .Name}}: {{.}}{{end}} ({{.StartDate}} to {{.EndDate}}){{if .Current}}, current{{end}}</option>{{end}}</select>
+</label>{{end}}
 <label class="field">Part of <span class="hint">a parent issue, such as {{if .Key}}{{.Key}}-1{{else}}ICE-1{{end}}; empty for none</span>
   <input type="text" name="parent" value="{{$p.Parent}}" autocomplete="off" autocapitalize="characters" spellcheck="false">
 </label>
@@ -293,3 +314,177 @@
 </section>
 {{end}}
 {{template "foot" .}}{{end}}
+
+{{define "issuesnav"}}{{/* . is issuesNavArgs */}}
+<nav class="viewnav" aria-label="Issue views">
+  <a href="{{repoURL .Repo "issues" "" ""}}"{{if eq .Current "issues"}} aria-current="page"{{end}}>Issues</a>
+  <a href="{{repoURL .Repo "issues/projects" "" ""}}"{{if eq .Current "projects"}} aria-current="page"{{end}}>Projects</a>
+  <a href="{{repoURL .Repo "issues/cycles" "" ""}}"{{if eq .Current "cycles"}} aria-current="page"{{end}}>Cycles</a>
+</nav>
+{{end}}
+
+{{define "progress"}}{{/* . is an ops.IssueProgress */}}
+<span class="progress"><progress value="{{.Completed}}" max="{{if .Total}}{{.Total}}{{else}}1{{end}}" aria-hidden="true"></progress><span>{{.Completed}} of {{.Total}} done{{if .Total}} · {{.Percent}}%{{end}}</span></span>
+{{end}}
+
+{{define "projects"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}
+{{template "issuesnav" (issuesNav $.Repo.Name "projects")}}
+<h1 class="visually-hidden">Projects in {{$.Repo.Name}}</h1>
+{{if .Projects}}
+<ul class="projlist">
+  {{range .Projects}}<li>
+    <div class="projmain">
+      <a class="projname" href="{{projectURL $.Repo.Name .Name}}">{{.Name}}</a>
+      <p class="meta"><span class="pstatus ps-{{.Status}}">{{projectStatus .Status}}</span>{{with .Lead}} · led by {{.}}{{end}}{{with .TargetDate}} · due {{.}}{{end}}</p>
+    </div>
+    {{template "progress" .Progress}}
+  </li>{{end}}
+</ul>
+{{else}}<div class="empty iempty"><p>No projects yet.</p><p class="note">A project gathers the issues for one piece of work, and shows how far along it is.</p></div>{{end}}
+{{if .CanWrite}}
+<section class="manage-section">
+  <h2 id="add-project">Add a project</h2>
+  {{template "formerror" .Err}}
+  <form class="manage" method="post" action="{{repoURL $.Repo.Name "issues/projects" "" ""}}" aria-labelledby="add-project">
+    {{template "projectfields" .}}
+    <div class="actions"><button type="submit">Add project</button></div>
+  </form>
+</section>
+{{end}}
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "projectfields"}}{{/* . has Form and Statuses */}}
+<label class="field">Name <input type="text" name="name" value="{{.Form.Name}}" required maxlength="80" autocomplete="off"></label>
+<label class="field">Description <span class="hint">optional; Markdown</span><textarea name="description" rows="4">{{.Form.Description}}</textarea></label>
+<div class="fieldrow">
+  <label class="field">Status <select name="status">{{$st := .Form.Status}}{{range .Statuses}}<option value="{{.}}"{{if eq . $st}} selected{{end}}>{{projectStatus .}}</option>{{end}}</select></label>
+  <label class="field">Lead <span class="hint">a username, or <code>me</code></span><input type="text" name="lead" value="{{.Form.Lead}}" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+</div>
+<div class="fieldrow">
+  <label class="field">Start <input type="date" name="start_date" value="{{.Form.StartDate}}"></label>
+  <label class="field">Target <input type="date" name="target_date" value="{{.Form.TargetDate}}"></label>
+</div>
+{{end}}
+
+{{define "project"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}{{$colors := labelColors .Labels}}{{$pr := .Project}}
+<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues/projects" "" ""}}">Projects</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">{{$pr.Name}}</span></nav>
+<header class="issuehead">
+  <h1>{{$pr.Name}}</h1>
+  {{if .CanWrite}}<a class="button" href="{{repoURL $.Repo.Name "issues/new" "" ""}}?project={{$pr.Name}}">New issue</a>{{end}}
+</header>
+<div class="issuepage">
+  <aside class="issueside" aria-label="Project">
+    <dl class="iprops">
+      <dt>Status</dt><dd><span class="pstatus ps-{{$pr.Status}}">{{projectStatus $pr.Status}}</span></dd>
+      <dt>Lead</dt><dd>{{if $pr.Lead}}{{$pr.Lead}}{{else}}<span class="muted">Nobody</span>{{end}}</dd>
+      <dt>Start</dt><dd>{{if $pr.StartDate}}{{$pr.StartDate}}{{else}}<span class="muted">Not set</span>{{end}}</dd>
+      <dt>Target</dt><dd>{{if $pr.TargetDate}}{{$pr.TargetDate}}{{else}}<span class="muted">Not set</span>{{end}}</dd>
+      <dt>Progress</dt><dd>{{template "progress" $pr.Progress}}</dd>
+    </dl>
+    {{if .CanWrite}}
+    <details class="editprops"{{if .Err}} open{{end}}>
+      <summary>Change project</summary>
+      {{template "formerror" .Err}}
+      <form class="manage" method="post" action="{{projectURL $.Repo.Name $pr.Name}}">
+        {{template "projectfields" .}}
+        <div class="actions"><button type="submit">Save</button> <a class="danger" href="{{repoURL $.Repo.Name "issues/project/delete" "" ""}}?name={{$pr.Name}}">Delete project…</a></div>
+      </form>
+    </details>
+    {{end}}
+  </aside>
+  <div class="issuemain">
+    {{if .Description}}<div class="markdown idesc">{{.Description}}</div>{{end}}
+    {{template "issuegroups" (groupArgs .Groups $colors)}}
+  </div>
+</div>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "cycles"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}
+{{template "issuesnav" (issuesNav $.Repo.Name "cycles")}}
+<h1 class="visually-hidden">Cycles in {{$.Repo.Name}}</h1>
+{{if .Cycles}}
+<ul class="projlist">
+  {{range .Cycles}}<li{{if .Current}} class="current"{{end}}>
+    <div class="projmain">
+      <a class="projname" href="{{cycleURL $.Repo.Name .Number}}">Cycle {{.Number}}{{with .Name}}: {{.}}{{end}}</a>
+      <p class="meta">{{.StartDate}} to {{.EndDate}}{{if .Current}} · <strong>current</strong>{{end}}</p>
+    </div>
+    {{template "progress" .Progress}}
+  </li>{{end}}
+</ul>
+{{else}}<div class="empty iempty"><p>No cycles yet.</p><p class="note">A cycle is a stretch of time, two weeks by default, with the issues you mean to finish in it.</p></div>{{end}}
+{{if .CanWrite}}
+<section class="manage-section">
+  <h2 id="add-cycle">Add the next cycle</h2>
+  <p class="note">Leave the dates empty to start the day after the last cycle ends, or today, and run two weeks.</p>
+  {{template "formerror" .Err}}
+  <form class="inline" method="post" action="{{repoURL $.Repo.Name "issues/cycles" "" ""}}" aria-labelledby="add-cycle">
+    <label class="field">Name <span class="hint">optional</span><input type="text" name="name" value="{{.Form.Name}}" maxlength="80" autocomplete="off"></label>
+    <label class="field">Start <input type="date" name="start_date" value="{{.Form.StartDate}}"></label>
+    <label class="field">End <input type="date" name="end_date" value="{{.Form.EndDate}}"></label>
+    <button type="submit">Add cycle</button>
+  </form>
+</section>
+{{end}}
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "cycle"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}{{$colors := labelColors .Labels}}{{$c := .Cycle}}
+<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues/cycles" "" ""}}">Cycles</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Cycle {{$c.Number}}</span></nav>
+<header class="issuehead">
+  <h1>Cycle {{$c.Number}}{{with $c.Name}}: {{.}}{{end}}</h1>
+  {{if .CanWrite}}<a class="button" href="{{repoURL $.Repo.Name "issues/new" "" ""}}?cycle={{$c.Number}}">New issue</a>{{end}}
+</header>
+<div class="issuepage">
+  <aside class="issueside" aria-label="Cycle">
+    <dl class="iprops">
+      <dt>Dates</dt><dd>{{$c.StartDate}} to {{$c.EndDate}}</dd>
+      {{if $c.Current}}<dt>Now</dt><dd><strong>Current cycle</strong></dd>{{end}}
+      <dt>Progress</dt><dd>{{template "progress" $c.Progress}}</dd>
+    </dl>
+    {{if .CanWrite}}
+    <details class="editprops"{{if .Err}} open{{end}}>
+      <summary>Change cycle</summary>
+      {{template "formerror" .Err}}
+      <form class="manage" method="post" action="{{cycleURL $.Repo.Name $c.Number}}">
+        <label class="field">Name <span class="hint">optional</span><input type="text" name="name" value="{{.Form.Name}}" maxlength="80" autocomplete="off"></label>
+        <label class="field">Start <input type="date" name="start_date" value="{{.Form.StartDate}}" required></label>
+        <label class="field">End <input type="date" name="end_date" value="{{.Form.EndDate}}" required></label>
+        <div class="actions"><button type="submit">Save</button> <a class="danger" href="{{cycleURL $.Repo.Name $c.Number}}/delete">Delete cycle…</a></div>
+      </form>
+    </details>
+    {{end}}
+  </aside>
+  <div class="issuemain">
+    {{template "issuegroups" (groupArgs .Groups $colors)}}
+  </div>
+</div>
+{{end}}
+{{template "foot" .}}{{end}}
+
+{{define "issuegroups"}}{{/* . is groupArgs: Groups and Colors */}}{{$colors := .Colors}}
+{{range .Groups}}
+<section class="igroup" aria-labelledby="group-{{.Status}}">
+  <h2 class="igroup-head" id="group-{{.Status}}">{{statusIcon .Status}}<span>{{statusLabel .Status}}</span> <span class="count">{{len .Issues}}</span></h2>
+  <ul class="ilist">
+    {{range .Issues}}<li class="irow">
+      <span class="ipri" title="{{priorityLabel .Priority}}">{{priorityIcon .Priority}}</span>
+      <span class="iid">{{.ID}}</span>
+      <span class="istat" title="{{statusLabel .Status}}">{{statusIcon .Status}}</span>
+      <a class="ititle" href="{{issueURL .Repo .Number}}"><span class="visually-hidden">{{.ID}}, {{statusLabel .Status}}, {{priorityLabel .Priority}}: </span>{{.Title}}</a>
+      <span class="imeta">{{range .Labels}}<span class="ilabel">{{dotFor $colors .}}{{.}}</span>{{end}}{{if .Assignee}}<span class="iassignee">{{.Assignee}}</span>{{end}}</span>
+    </li>{{end}}
+  </ul>
+</section>
+{{else}}<div class="empty iempty"><p>No issues in it yet.</p></div>{{end}}
+{{end}}

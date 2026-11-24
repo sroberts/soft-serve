@@ -72,7 +72,10 @@ type issueListData struct {
 	ClearURL string
 	// The filters, as the form shows them.
 	Scope, Query, Assignee, Priority, Label, Sort string
+	Project, Cycle                                string
 	Labels                                        []ops.IssueLabel
+	Projects                                      []ops.IssueProject
+	Cycles                                        []ops.IssueCycle
 	Priorities                                    []string
 	CanWrite                                      bool
 	Key                                           string
@@ -93,6 +96,14 @@ func (h uiHandler) issues(w http.ResponseWriter, r *http.Request, b *browser, p 
 		h.issueNew(w, r, b, p)
 	case rest == "settings":
 		h.issueSettings(w, r, b, p)
+	case rest == "projects":
+		h.issueProjects(w, r, b, p)
+	case rest == "project" || rest == "project/delete":
+		h.issueProject(w, r, b, p, strings.TrimPrefix(strings.TrimPrefix(rest, "project"), "/"))
+	case rest == "cycles":
+		h.issueCycles(w, r, b, p)
+	case parts[0] == "cycles" && (len(parts) == 2 || (len(parts) == 3 && parts[2] == "delete")):
+		h.issueCycle(w, r, b, p, parts[1], strings.Join(parts[2:], ""))
 	default:
 		n, err := strconv.ParseInt(parts[0], 10, 64)
 		if err != nil || n < 1 {
@@ -155,6 +166,7 @@ func (h uiHandler) issueList(w http.ResponseWriter, r *http.Request, b *browser,
 	d := &issueListData{
 		Global: global, Scope: in.Get("scope"), Query: strings.TrimSpace(in.Get("q")),
 		Assignee: in.Get("assignee"), Priority: in.Get("priority"), Label: in.Get("label"), Sort: in.Get("sort"),
+		Project: in.Get("project"), Cycle: in.Get("cycle"),
 		Priorities: issue.PriorityNames,
 	}
 	if global && !in.Has("assignee") && b.user != nil {
@@ -182,6 +194,9 @@ func (h uiHandler) issueList(w http.ResponseWriter, r *http.Request, b *browser,
 	if !global {
 		repo = p.Repo.Name
 		q.Repo = repo
+		q.Project, q.Cycle = d.Project, d.Cycle
+		d.Projects, _ = svc.IssueProjects(r.Context(), repo)
+		d.Cycles, _ = svc.IssueCycles(r.Context(), repo)
 		t, err := svc.IssueTracker(r.Context(), repo)
 		if err != nil {
 			h.opsFail(w, r, b, p, err)
@@ -265,7 +280,7 @@ func (h uiHandler) issueList(w http.ResponseWriter, r *http.Request, b *browser,
 	if q.Offset+len(l.Issues) < l.Total {
 		d.NextURL = keep(func(v url.Values) { v.Set("offset", strconv.Itoa(q.Offset+issuePageSize)) })
 	}
-	d.Filtered = d.Query != "" || d.Priority != "" || d.Label != "" || (d.Assignee != "" && !(global && d.Assignee == "me"))
+	d.Filtered = d.Query != "" || d.Priority != "" || d.Label != "" || d.Project != "" || d.Cycle != "" || (d.Assignee != "" && !(global && d.Assignee == "me"))
 	d.ClearURL = issuesURL(repo, url.Values{"scope": {d.Scope}})
 	if d.Scope == "open" {
 		d.ClearURL = issuesURL(repo, nil)
@@ -320,6 +335,9 @@ type issueData struct {
 	Users []string
 	// Key is the repository's issue key, for hints.
 	Key string
+	// Projects and Cycles are the repository's, for the property form.
+	Projects []ops.IssueProject
+	Cycles   []ops.IssueCycle
 	// Props is the property form as last submitted, and Err why it failed.
 	Props        issueProps
 	Err          string
@@ -330,6 +348,7 @@ type issueData struct {
 // issueProps is the property form.
 type issueProps struct {
 	Status, Priority, Assignee, Parent string
+	Project, Cycle                     string
 	Labels                             []string
 	NewLabel                           string
 }
@@ -339,7 +358,11 @@ func (p issueProps) Has(label string) bool {
 }
 
 func propsOf(i ops.Issue) issueProps {
-	return issueProps{Status: i.Status, Priority: i.Priority, Assignee: i.Assignee, Parent: i.Parent, Labels: i.Labels}
+	cycle := ""
+	if i.Cycle != 0 {
+		cycle = strconv.FormatInt(i.Cycle, 10)
+	}
+	return issueProps{Status: i.Status, Priority: i.Priority, Assignee: i.Assignee, Parent: i.Parent, Project: i.Project, Cycle: cycle, Labels: i.Labels}
 }
 
 // markdownFor renders an issue's Markdown, with relative links into the
@@ -378,6 +401,8 @@ func (h uiHandler) issueDetail(r *http.Request, b *browser, p page, n int64) (*i
 		Priorities:  issue.PriorityNames,
 		Props:       propsOf(d.Issue),
 	}
+	out.Projects, _ = svc.IssueProjects(r.Context(), p.Repo.Name)
+	out.Cycles, _ = svc.IssueCycles(r.Context(), p.Repo.Name)
 	for i := range d.Activity {
 		e := &d.Activity[i]
 		if e.Kind == issue.EventCreated {
@@ -443,6 +468,7 @@ func (h uiHandler) issueSaveProps(w http.ResponseWriter, r *http.Request, b *bro
 			Status: f.Get("status"), Priority: f.Get("priority"),
 			Assignee: strings.TrimSpace(f.Get("assignee")), Parent: strings.TrimSpace(f.Get("parent")),
 			Labels: f["labels"], NewLabel: strings.TrimSpace(f.Get("new_label")),
+			Project: f.Get("project"), Cycle: f.Get("cycle"),
 		}
 		labels := slices.Clone(props.Labels)
 		for _, l := range strings.Split(props.NewLabel, ",") {
@@ -452,7 +478,7 @@ func (h uiHandler) issueSaveProps(w http.ResponseWriter, r *http.Request, b *bro
 		}
 		u := ops.IssueUpdate{
 			Status: &props.Status, Priority: &props.Priority, Assignee: &props.Assignee,
-			Parent: &props.Parent, Labels: &labels,
+			Parent: &props.Parent, Labels: &labels, Project: &props.Project, Cycle: &props.Cycle,
 		}
 		if _, err = b.service().UpdateIssue(r.Context(), p.Repo.Name, n, u); err == nil {
 			http.Redirect(w, r, withDone(issueURL(p.Repo.Name, n), "issue-saved"), http.StatusSeeOther)
@@ -476,6 +502,8 @@ type issueFormData struct {
 	Key, Title, Description string
 	// Users are suggestions for the assignee field.
 	Users                []string
+	Projects             []ops.IssueProject
+	Cycles               []ops.IssueCycle
 	Props                issueProps
 	Labels               []ops.IssueLabel
 	Statuses, Priorities []string
@@ -500,6 +528,10 @@ func (h uiHandler) issueNew(w http.ResponseWriter, r *http.Request, b *browser, 
 	if b.user != nil {
 		d.Users = []string{b.user.Username()}
 	}
+	d.Projects, _ = svc.IssueProjects(r.Context(), p.Repo.Name)
+	d.Cycles, _ = svc.IssueCycles(r.Context(), p.Repo.Name)
+	d.Props.Project = r.URL.Query().Get("project")
+	d.Props.Cycle = r.URL.Query().Get("cycle")
 	p.Data = d
 	if r.Method != http.MethodPost {
 		if b.user == nil || access.ParseAccessLevel(p.Repo.Access) < access.ReadWriteAccess {
@@ -520,6 +552,7 @@ func (h uiHandler) issueNew(w http.ResponseWriter, r *http.Request, b *browser, 
 		d.Props = issueProps{
 			Status: f.Get("status"), Priority: f.Get("priority"), Assignee: strings.TrimSpace(f.Get("assignee")),
 			Parent: strings.TrimSpace(f.Get("parent")), Labels: f["labels"], NewLabel: strings.TrimSpace(f.Get("new_label")),
+			Project: f.Get("project"), Cycle: f.Get("cycle"),
 		}
 		labels := slices.Clone(d.Props.Labels)
 		for _, l := range strings.Split(d.Props.NewLabel, ",") {
@@ -530,7 +563,7 @@ func (h uiHandler) issueNew(w http.ResponseWriter, r *http.Request, b *browser, 
 		var created ops.Issue
 		created, err = svc.CreateIssue(r.Context(), p.Repo.Name, ops.IssueCreate{
 			Title: d.Title, Description: d.Description, Status: d.Props.Status, Priority: d.Props.Priority,
-			Assignee: d.Props.Assignee, Labels: labels, Parent: d.Props.Parent,
+			Assignee: d.Props.Assignee, Labels: labels, Parent: d.Props.Parent, Project: d.Props.Project, Cycle: d.Props.Cycle,
 		})
 		if err == nil {
 			http.Redirect(w, r, withDone(issueURL(p.Repo.Name, created.Number), "issue-created"), http.StatusSeeOther)
@@ -839,6 +872,16 @@ func eventText(e ops.IssueEvent) string {
 			return "made it a top-level issue, no longer part of " + e.From
 		}
 		return "made it part of " + e.To
+	case issue.EventProject:
+		if e.To == "" {
+			return "took it out of project " + e.From
+		}
+		return "moved it into project " + e.To
+	case issue.EventCycle:
+		if e.To == "" {
+			return "took it out of cycle " + e.From
+		}
+		return "moved it into cycle " + e.To
 	case issue.EventBranch:
 		return "started branch " + e.To + " in " + e.From
 	case issue.EventCommit:

@@ -33,6 +33,8 @@ func issueQueryValues(q ops.IssueQuery) url.Values {
 	}
 	set("assignee", q.Assignee)
 	set("parent", q.Parent)
+	set("project", q.Project)
+	set("cycle", q.Cycle)
 	set("q", q.Query)
 	set("sort", q.Sort)
 	if q.Limit > 0 {
@@ -151,4 +153,70 @@ func (c *Client) UpdateIssueLabel(ctx context.Context, repo, name string, u ops.
 // DeleteIssueLabel implements ops.IssueService.
 func (c *Client) DeleteIssueLabel(ctx context.Context, repo, name string) error {
 	return c.do(ctx, http.MethodDelete, repoPath(repo, "labels", url.PathEscape(name)), nil, nil, nil)
+}
+
+// IssueProjects implements ops.IssueService.
+func (c *Client) IssueProjects(ctx context.Context, repo string) ([]ops.IssueProject, error) {
+	var out []ops.IssueProject
+	err := c.do(ctx, http.MethodGet, repoPath(repo, "projects"), nil, nil, &out)
+	return out, err
+}
+
+// IssueProject implements ops.IssueService.
+func (c *Client) IssueProject(ctx context.Context, repo, name string) (ops.IssueProject, error) {
+	var out ops.IssueProject
+	err := c.do(ctx, http.MethodGet, repoPath(repo, "projects", url.PathEscape(name)), nil, nil, &out)
+	return out, err
+}
+
+// CreateIssueProject implements ops.IssueService.
+func (c *Client) CreateIssueProject(ctx context.Context, repo string, in ops.IssueProjectInput) (ops.IssueProject, error) {
+	var out ops.IssueProject
+	err := c.do(ctx, http.MethodPost, repoPath(repo, "projects"), nil, in, &out)
+	return out, err
+}
+
+// UpdateIssueProject implements ops.IssueService.
+func (c *Client) UpdateIssueProject(ctx context.Context, repo, name string, u ops.IssueProjectUpdate) (ops.IssueProject, error) {
+	var out ops.IssueProject
+	err := c.do(ctx, http.MethodPatch, repoPath(repo, "projects", url.PathEscape(name)), nil, u, &out)
+	return out, err
+}
+
+// DeleteIssueProject implements ops.IssueService.
+func (c *Client) DeleteIssueProject(ctx context.Context, repo, name string) error {
+	return c.do(ctx, http.MethodDelete, repoPath(repo, "projects", url.PathEscape(name)), nil, nil, nil)
+}
+
+// IssueCycles implements ops.IssueService.
+func (c *Client) IssueCycles(ctx context.Context, repo string) ([]ops.IssueCycle, error) {
+	var out []ops.IssueCycle
+	err := c.do(ctx, http.MethodGet, repoPath(repo, "cycles"), nil, nil, &out)
+	return out, err
+}
+
+// IssueCycle implements ops.IssueService.
+func (c *Client) IssueCycle(ctx context.Context, repo, ref string) (ops.IssueCycle, error) {
+	var out ops.IssueCycle
+	err := c.do(ctx, http.MethodGet, repoPath(repo, "cycles", url.PathEscape(ref)), nil, nil, &out)
+	return out, err
+}
+
+// CreateIssueCycle implements ops.IssueService.
+func (c *Client) CreateIssueCycle(ctx context.Context, repo string, in ops.IssueCycleInput) (ops.IssueCycle, error) {
+	var out ops.IssueCycle
+	err := c.do(ctx, http.MethodPost, repoPath(repo, "cycles"), nil, in, &out)
+	return out, err
+}
+
+// UpdateIssueCycle implements ops.IssueService.
+func (c *Client) UpdateIssueCycle(ctx context.Context, repo, ref string, u ops.IssueCycleUpdate) (ops.IssueCycle, error) {
+	var out ops.IssueCycle
+	err := c.do(ctx, http.MethodPatch, repoPath(repo, "cycles", url.PathEscape(ref)), nil, u, &out)
+	return out, err
+}
+
+// DeleteIssueCycle implements ops.IssueService.
+func (c *Client) DeleteIssueCycle(ctx context.Context, repo, ref string) error {
+	return c.do(ctx, http.MethodDelete, repoPath(repo, "cycles", url.PathEscape(ref)), nil, nil, nil)
 }

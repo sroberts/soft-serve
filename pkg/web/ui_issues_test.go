@@ -100,3 +100,51 @@ func TestUIIssues(t *testing.T) {
 		t.Errorf("anonymous create: %d", w.Code)
 	}
 }
+
+func TestUIProjectsAndCycles(t *testing.T) {
+	f := newViewFixture(t)
+	auth := f.owner()
+
+	has(t, f.do(req{path: "/group/open/-/issues/projects", auth: auth}), "No projects yet.", `aria-current="page">Projects</a>`, "Add a project")
+	hasNot(t, f.do(req{path: "/group/open/-/issues/projects"}), "Add a project")
+
+	// A project with a slash in its name, and a mistake first.
+	w := f.post("/group/open/-/issues/projects", auth, url.Values{"name": {"Web/v2"}, "status": {"started"}, "start_date": {"2026-12-10"}, "target_date": {"2026-12-01"}})
+	has(t, w, "A project&#39;s target date can&#39;t be before its start.", `value="Web/v2"`)
+	seeOther(t, f.post("/group/open/-/issues/projects", auth, url.Values{"name": {"Web/v2"}, "status": {"started"}, "target_date": {"2026-12-15"}, "lead": {"me"}}),
+		"/group/open/-/issues/project?name=Web%2Fv2&done=project-created")
+	has(t, f.do(req{path: "/group/open/-/issues/projects", auth: auth}), `href="/group/open/-/issues/project?name=Web%2Fv2"`, "due 2026-12-15", "led by owner", "0 of 0 done")
+
+	// Issues go in it from the new-issue form, and its page lists them.
+	has(t, f.do(req{path: "/group/open/-/issues/new?project=Web/v2", auth: auth}), `<option value="Web/v2" selected>`)
+	seeOther(t, f.post("/group/open/-/issues/new", auth, url.Values{"title": {"Shipped"}, "status": {"done"}, "project": {"Web/v2"}}), "/group/open/-/issues/1")
+	seeOther(t, f.post("/group/open/-/issues/new", auth, url.Values{"title": {"Pending"}, "project": {"Web/v2"}}), "/group/open/-/issues/2")
+	w = f.do(req{path: "/group/open/-/issues/project?name=Web/v2", auth: auth})
+	has(t, w, "<h1>Web/v2</h1>", "1 of 2 done · 50%", "Shipped", "Pending", `id="group-done"`)
+	has(t, f.do(req{path: "/group/open/-/issues/1", auth: auth}), `<dt>Project</dt><dd><a href="/group/open/-/issues/project?name=Web%2Fv2">Web/v2</a>`)
+	has(t, f.do(req{path: "/group/open/-/issues?project=Web/v2&scope=all", auth: auth}), "Shipped", "Pending")
+	hasNot(t, f.do(req{path: "/group/open/-/issues?project=none&scope=all", auth: auth}), "Shipped")
+
+	// Rename it; deleting asks first and keeps its issues.
+	seeOther(t, f.post("/group/open/-/issues/project?name=Web/v2", auth, url.Values{"name": {"Web v2"}, "status": {"completed"}}), "/group/open/-/issues/project?name=Web+v2&done=project-saved")
+	has(t, f.do(req{path: "/group/open/-/issues/project/delete?name=Web+v2", auth: auth}), "Delete this project?", "Its 2 issues stay, in no project.")
+	seeOther(t, f.post("/group/open/-/issues/project/delete?name=Web+v2", auth, nil), "/group/open/-/issues/projects?done=project-deleted")
+	hasNot(t, f.do(req{path: "/group/open/-/issues/1", auth: auth}), "<dt>Project</dt>")
+
+	// Cycles: the next one follows the last; overlaps are refused.
+	seeOther(t, f.post("/group/open/-/issues/cycles", auth, url.Values{"start_date": {"2027-01-04"}}), "/group/open/-/issues/cycles/1?done=cycle-created")
+	seeOther(t, f.post("/group/open/-/issues/cycles", auth, url.Values{"name": {"Polish"}}), "/group/open/-/issues/cycles/2?done=cycle-created")
+	w = f.post("/group/open/-/issues/cycles", auth, url.Values{"start_date": {"2027-01-10"}, "end_date": {"2027-01-12"}})
+	has(t, w, "Those dates overlap cycle 1")
+	has(t, f.do(req{path: "/group/open/-/issues/cycles", auth: auth}), "Cycle 1", "2027-01-04 to 2027-01-17", "Cycle 2: Polish", "2027-01-18 to 2027-01-31")
+
+	// Put an issue in a cycle from its property form.
+	seeOther(t, f.post("/group/open/-/issues/2", auth, url.Values{"status": {"todo"}, "priority": {"none"}, "cycle": {"2"}}), "/group/open/-/issues/2?done=issue-saved")
+	has(t, f.do(req{path: "/group/open/-/issues/2", auth: auth}), `<dt>Cycle</dt><dd><a href="/group/open/-/issues/cycles/2">Cycle 2</a>`, "moved it into cycle 2")
+	has(t, f.do(req{path: "/group/open/-/issues/cycles/2", auth: auth}), "Cycle 2: Polish", "Pending", "0 of 1 done")
+	seeOther(t, f.post("/group/open/-/issues/cycles/2", auth, url.Values{"name": {"Polish"}, "start_date": {"2027-01-18"}, "end_date": {"2027-02-07"}}), "/group/open/-/issues/cycles/2?done=cycle-saved")
+	seeOther(t, f.post("/group/open/-/issues/cycles/2/delete", auth, nil), "/group/open/-/issues/cycles?done=cycle-deleted")
+	if w := f.do(req{path: "/group/open/-/issues/cycles/2", auth: auth}); w.Code != http.StatusNotFound {
+		t.Errorf("deleted cycle: %d", w.Code)
+	}
+}

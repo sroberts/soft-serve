@@ -949,6 +949,19 @@ ssh -p 23231 localhost repo issue comment ICE-1 Halfway there.
 ssh -p 23231 localhost repo issue view ICE-1
 ```
 
+Issues can also belong to a **project**, a named body of work with a status
+(planned, started, paused, completed, canceled), a lead, start and target dates,
+and progress counted from its issues, and to a **cycle**, a numbered,
+time-boxed sprint. Cycles follow one another: `repo issue cycle create icecream`
+starts the next one the day after the last ends and runs two weeks. Name a cycle
+by its number, or as `current`, `next` or `previous`.
+
+```sh
+ssh -p 23231 localhost repo issue project create icecream Summer --target 2027-06-01
+ssh -p 23231 localhost repo issue edit ICE-1 --project summer --cycle current
+ssh -p 23231 localhost repo issue list icecream --cycle current
+```
+
 Pushes update issues by themselves:
 
 - a commit that mentions `ICE-12` is linked to it;
@@ -1095,7 +1108,7 @@ exactly what the caller may read and allowing what they may change:
 
 - **Issues** at `/v1/issues` (across repositories; `?assignee=me` for yours),
   `/v1/issues/ICE-12`, and per repository under `/v1/repos/NAME/-/issues`,
-  `/-/labels` and `/-/issue-tracker`. Lists filter by `status`, `priority`,
+  `/-/labels`, `/-/projects`, `/-/cycles` and `/-/issue-tracker`. Lists filter by `status`, `priority`,
   `label`, `assignee`, `parent` and `q`.
 
   ```sh
@@ -1112,7 +1125,9 @@ exactly what the caller may read and allowing what they may change:
   admins) list collaborators. Its issue tools read and write as you:
   `list_issues`, `get_issue`, `get_issue_tracker`, `list_issue_labels`,
   `create_issue`, `update_issue`, `comment_on_issue`, `edit_issue_comment`,
-  `create_issue_label` and `delete_issue` (the one marked destructive). A request that reaches `/mcp` over loopback
+  `create_issue_label`, `list_issue_projects`, `create_issue_project`,
+  `update_issue_project`, `list_issue_cycles`, `create_issue_cycle`,
+  `update_issue_cycle` and `delete_issue` (the one marked destructive). A request that reaches `/mcp` over loopback
   must be addressed to `localhost`, to the host of
   `SOFT_SERVE_HTTP_PUBLIC_URL`, or come through Outpost's login gateway;
   anything else is refused, as a guard against DNS rebinding. Behind a

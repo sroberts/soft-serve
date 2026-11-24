@@ -28,9 +28,20 @@ import (
 //	POST   /v1/repos/NAME/-/labels                    add one
 //	PATCH  /v1/repos/NAME/-/labels/LABEL              change one
 //	DELETE /v1/repos/NAME/-/labels/LABEL              delete one
+//	GET    /v1/repos/NAME/-/projects                  projects, with progress
+//	POST   /v1/repos/NAME/-/projects                  add one
+//	GET    /v1/repos/NAME/-/projects/PROJECT          one, by name
+//	PATCH  /v1/repos/NAME/-/projects/PROJECT          change one
+//	DELETE /v1/repos/NAME/-/projects/PROJECT          delete one
+//	GET    /v1/repos/NAME/-/cycles                    cycles, newest first
+//	POST   /v1/repos/NAME/-/cycles                    add the next one
+//	GET    /v1/repos/NAME/-/cycles/REF                one: a number, current, next or previous
+//	PATCH  /v1/repos/NAME/-/cycles/REF                change one
+//	DELETE /v1/repos/NAME/-/cycles/REF                delete one
 //
 // Lists take status, priority and label (repeated or comma-separated),
-// assignee (a username, "me" or "none"), parent, q, sort, limit, offset,
+// assignee (a username, "me" or "none"), parent, project and cycle (in one
+// repository; "none" for issues in none), q, sort, limit, offset,
 // closed=true to include done and canceled issues, and description=true to
 // include descriptions.
 
@@ -111,6 +122,76 @@ func (c opsCall) issues(repo, action string) {
 			}
 		default:
 			c.notAllowed(http.MethodGet, http.MethodHead, http.MethodPost)
+		}
+
+	case action == "projects":
+		switch c.r.Method {
+		case http.MethodGet, http.MethodHead:
+			ps, err := svc.IssueProjects(ctx, repo)
+			c.reply(http.StatusOK, ps, err)
+		case http.MethodPost:
+			var in ops.IssueProjectInput
+			if c.decode(&in) {
+				p, err := svc.CreateIssueProject(ctx, repo, in)
+				c.reply(http.StatusCreated, p, err)
+			}
+		default:
+			c.notAllowed(http.MethodGet, http.MethodHead, http.MethodPost)
+		}
+
+	case strings.HasPrefix(action, "projects/"):
+		name, err := url.PathUnescape(strings.TrimPrefix(action, "projects/"))
+		if err != nil {
+			c.fail(ops.Invalid("invalid project name"))
+			return
+		}
+		switch c.r.Method {
+		case http.MethodGet, http.MethodHead:
+			p, err := svc.IssueProject(ctx, repo, name)
+			c.reply(http.StatusOK, p, err)
+		case http.MethodPatch:
+			var u ops.IssueProjectUpdate
+			if c.decode(&u) {
+				p, err := svc.UpdateIssueProject(ctx, repo, name, u)
+				c.reply(http.StatusOK, p, err)
+			}
+		case http.MethodDelete:
+			c.done(svc.DeleteIssueProject(ctx, repo, name))
+		default:
+			c.notAllowed(http.MethodGet, http.MethodHead, http.MethodPatch, http.MethodDelete)
+		}
+
+	case action == "cycles":
+		switch c.r.Method {
+		case http.MethodGet, http.MethodHead:
+			cs, err := svc.IssueCycles(ctx, repo)
+			c.reply(http.StatusOK, cs, err)
+		case http.MethodPost:
+			var in ops.IssueCycleInput
+			if c.decode(&in) {
+				cy, err := svc.CreateIssueCycle(ctx, repo, in)
+				c.reply(http.StatusCreated, cy, err)
+			}
+		default:
+			c.notAllowed(http.MethodGet, http.MethodHead, http.MethodPost)
+		}
+
+	case strings.HasPrefix(action, "cycles/"):
+		ref := strings.TrimPrefix(action, "cycles/")
+		switch c.r.Method {
+		case http.MethodGet, http.MethodHead:
+			cy, err := svc.IssueCycle(ctx, repo, ref)
+			c.reply(http.StatusOK, cy, err)
+		case http.MethodPatch:
+			var u ops.IssueCycleUpdate
+			if c.decode(&u) {
+				cy, err := svc.UpdateIssueCycle(ctx, repo, ref, u)
+				c.reply(http.StatusOK, cy, err)
+			}
+		case http.MethodDelete:
+			c.done(svc.DeleteIssueCycle(ctx, repo, ref))
+		default:
+			c.notAllowed(http.MethodGet, http.MethodHead, http.MethodPatch, http.MethodDelete)
 		}
 
 	case strings.HasPrefix(action, "labels/"):
@@ -228,6 +309,8 @@ func issueQuery(q url.Values) ops.IssueQuery {
 		Label:       list("label"),
 		Assignee:    q.Get("assignee"),
 		Parent:      q.Get("parent"),
+		Project:     q.Get("project"),
+		Cycle:       q.Get("cycle"),
 		Query:       q.Get("q"),
 		Sort:        q.Get("sort"),
 		Limit:       limit,

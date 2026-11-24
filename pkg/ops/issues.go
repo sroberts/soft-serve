@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -63,6 +64,28 @@ type IssueService interface {
 	UpdateIssueLabel(ctx context.Context, repo, name string, u IssueLabelUpdate) (IssueLabel, error)
 	// DeleteIssueLabel deletes a label, taking it off every issue.
 	DeleteIssueLabel(ctx context.Context, repo, name string) error
+
+	// IssueProjects lists a repository's projects, with their progress.
+	IssueProjects(ctx context.Context, repo string) ([]IssueProject, error)
+	// IssueProject is one project, by name.
+	IssueProject(ctx context.Context, repo, name string) (IssueProject, error)
+	// CreateIssueProject adds a project.
+	CreateIssueProject(ctx context.Context, repo string, p IssueProjectInput) (IssueProject, error)
+	// UpdateIssueProject changes the fields of a project set in u.
+	UpdateIssueProject(ctx context.Context, repo, name string, u IssueProjectUpdate) (IssueProject, error)
+	// DeleteIssueProject deletes a project; its issues stay, in none.
+	DeleteIssueProject(ctx context.Context, repo, name string) error
+
+	// IssueCycles lists a repository's cycles, newest first.
+	IssueCycles(ctx context.Context, repo string) ([]IssueCycle, error)
+	// IssueCycle is one cycle: a number, or current, next or previous.
+	IssueCycle(ctx context.Context, repo, ref string) (IssueCycle, error)
+	// CreateIssueCycle adds the next cycle.
+	CreateIssueCycle(ctx context.Context, repo string, c IssueCycleInput) (IssueCycle, error)
+	// UpdateIssueCycle changes a cycle's name or dates.
+	UpdateIssueCycle(ctx context.Context, repo, ref string, u IssueCycleUpdate) (IssueCycle, error)
+	// DeleteIssueCycle deletes a cycle; its issues stay, in none.
+	DeleteIssueCycle(ctx context.Context, repo, ref string) error
 }
 
 var _ IssueService = (*Local)(nil)
@@ -82,7 +105,10 @@ type Issue struct {
 	// Labels are the issue's label names.
 	Labels []string `json:"labels"`
 	// Parent is the parent issue's identifier.
-	Parent       string     `json:"parent,omitempty"`
+	Parent string `json:"parent,omitempty"`
+	// Project is the project's name, and Cycle the cycle's number.
+	Project      string     `json:"project,omitempty"`
+	Cycle        int64      `json:"cycle,omitempty"`
 	CommentCount int        `json:"comment_count"`
 	Description  string     `json:"description,omitempty"`
 	CreatedAt    time.Time  `json:"created_at"`
@@ -183,6 +209,10 @@ type IssueQuery struct {
 	Label []string `json:"label,omitempty"`
 	// Parent is an identifier whose sub-issues to list.
 	Parent string `json:"parent,omitempty"`
+	// Project is a project's name, or "none"; Cycle a cycle's number,
+	// current, next, previous or "none". Both need Repo.
+	Project string `json:"project,omitempty"`
+	Cycle   string `json:"cycle,omitempty"`
 	// Query matches the title, the description or the identifier.
 	Query string `json:"q,omitempty"`
 	// Sort is priority (the default), updated, created, number or manual.
@@ -212,6 +242,10 @@ type IssueCreate struct {
 	// Parent is the identifier or number of an issue in the same
 	// repository.
 	Parent string `json:"parent,omitempty"`
+	// Project is a project's name; Cycle a cycle's number, current or
+	// next.
+	Project string `json:"project,omitempty"`
+	Cycle   string `json:"cycle,omitempty"`
 }
 
 // IssueUpdate changes the fields of an issue that are set. Assignee and
@@ -224,6 +258,8 @@ type IssueUpdate struct {
 	Priority     *string   `json:"priority,omitempty"`
 	Assignee     *string   `json:"assignee,omitempty"`
 	Parent       *string   `json:"parent,omitempty"`
+	Project      *string   `json:"project,omitempty"`
+	Cycle        *string   `json:"cycle,omitempty"`
 	Labels       *[]string `json:"labels,omitempty"`
 	AddLabels    []string  `json:"add_labels,omitempty"`
 	RemoveLabels []string  `json:"remove_labels,omitempty"`
@@ -311,6 +347,7 @@ func issueOut(r issue.Row, labels []issue.Label, comments int, withDescription b
 	if r.ParentNumber.Valid {
 		out.Parent = issue.FormatID(r.Key, r.ParentNumber.Int64)
 	}
+	out.Project, out.Cycle = r.ProjectName.String, r.CycleNumber.Int64
 	if withDescription {
 		out.Description = r.Description
 	}
@@ -489,6 +526,37 @@ func (l *Local) ListIssues(ctx context.Context, q IssueQuery) (IssueList, error)
 			return IssueList{}, err
 		}
 		f.AssigneeID = &id
+	}
+	if (q.Project != "" || q.Cycle != "") && repo == nil {
+		return IssueList{}, Invalid("filter by project or cycle within one repository")
+	}
+	if q.Project != "" {
+		var id int64
+		if !strings.EqualFold(q.Project, "none") {
+			p, _, err := projectFor(ctx, repo, q.Project)
+			if err != nil {
+				return IssueList{}, err
+			}
+			id = p.Int64
+		}
+		f.ProjectID = &id
+		if len(q.Status) == 0 {
+			f.Closed = true
+		}
+	}
+	if q.Cycle != "" {
+		var id int64
+		if !strings.EqualFold(q.Cycle, "none") {
+			c, _, err := cycleFor(ctx, repo, q.Cycle)
+			if err != nil {
+				return IssueList{}, err
+			}
+			id = c.Int64
+		}
+		f.CycleID = &id
+		if len(q.Status) == 0 {
+			f.Closed = true
+		}
 	}
 	if q.Parent != "" {
 		p, err := l.parentRow(ctx, repo, q.Parent)
@@ -763,6 +831,12 @@ func (l *Local) CreateIssue(ctx context.Context, name string, c IssueCreate) (Is
 	if n.ParentID, _, err = l.parentFor(ctx, r, c.Parent, 0); err != nil {
 		return Issue{}, err
 	}
+	if n.ProjectID, _, err = projectFor(ctx, r, c.Project); err != nil {
+		return Issue{}, err
+	}
+	if n.CycleID, _, err = cycleFor(ctx, r, c.Cycle); err != nil {
+		return Issue{}, err
+	}
 
 	var row issue.Row
 	err = db.FromContext(ctx).TransactionContext(ctx, func(tx *db.Tx) error {
@@ -885,6 +959,34 @@ func (l *Local) UpdateIssue(ctx context.Context, name string, number int64, u Is
 			}
 			changes = append(changes, change{issue.EventParent, from, to})
 			row.ParentID = p
+		}
+	}
+
+	if u.Project != nil {
+		p, name, err := projectFor(ctx, r, *u.Project)
+		if err != nil {
+			return Issue{}, err
+		}
+		if p != row.ProjectID {
+			changes = append(changes, change{issue.EventProject, row.ProjectName.String, name})
+			row.ProjectID = p
+		}
+	}
+	if u.Cycle != nil {
+		c, num, err := cycleFor(ctx, r, *u.Cycle)
+		if err != nil {
+			return Issue{}, err
+		}
+		if c != row.CycleID {
+			from, to := "", ""
+			if row.CycleNumber.Valid {
+				from = strconv.FormatInt(row.CycleNumber.Int64, 10)
+			}
+			if c.Valid {
+				to = strconv.FormatInt(num, 10)
+			}
+			changes = append(changes, change{issue.EventCycle, from, to})
+			row.CycleID = c
 		}
 	}
 

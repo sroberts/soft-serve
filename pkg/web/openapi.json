@@ -458,6 +458,8 @@
           {"name": "assignee", "in": "query", "description": "A username, `me` or `none`", "schema": {"type": "string"}},
           {"name": "label", "in": "query", "description": "Only issues with all these labels. Repeat it or separate values with commas.", "schema": {"type": "array", "items": {"type": "string"}}, "style": "form", "explode": true},
           {"name": "parent", "in": "query", "description": "Only the sub-issues of this issue (an identifier, or a number in the repository)", "schema": {"type": "string"}},
+          {"name": "project", "in": "query", "description": "Only issues in this project, by name, or `none`. Within one repository only.", "schema": {"type": "string"}},
+          {"name": "cycle", "in": "query", "description": "Only issues in this cycle: its number, `current`, `next`, `previous`, or `none`. Within one repository only.", "schema": {"type": "string"}},
           {"name": "q", "in": "query", "description": "Matches the title, the description (ignoring case) or the identifier", "schema": {"type": "string"}},
           {"name": "sort", "in": "query", "description": "`priority` (urgent first; the default), `updated`, `created`, `number` or `manual`", "schema": {"type": "string", "enum": ["priority", "updated", "created", "number", "manual"]}},
           {"name": "limit", "in": "query", "description": "Up to 500; 50 when omitted", "schema": {"type": "integer"}},
@@ -639,6 +641,134 @@
         "description": "It comes off every issue. Needs read-write access.",
         "responses": {
           "204": {"description": "Deleted"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/projects": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}],
+      "get": {
+        "operationId": "listIssueProjects",
+        "summary": "List a repository's projects",
+        "description": "Started ones first, with their progress. Anyone who can read the repository can.",
+        "responses": {
+          "200": {"description": "Projects", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/IssueProject"}}}}},
+          "401": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "post": {
+        "operationId": "createIssueProject",
+        "summary": "Add a project",
+        "description": "Needs read-write access.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueProjectInput"}}}},
+        "responses": {
+          "201": {"description": "The project", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueProject"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/projects/{project}": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"name": "project", "in": "path", "required": true, "description": "The project's name, URL-escaped; any case", "schema": {"type": "string"}}],
+      "get": {
+        "operationId": "getIssueProject",
+        "summary": "Get a project",
+        "description": "Anyone who can read the repository can.",
+        "responses": {
+          "200": {"description": "The project", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueProject"}}}},
+          "401": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "patch": {
+        "operationId": "updateIssueProject",
+        "summary": "Change a project",
+        "description": "Only the fields sent change. Needs read-write access.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueProjectInput"}}}},
+        "responses": {
+          "200": {"description": "The project", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueProject"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "delete": {
+        "operationId": "deleteIssueProject",
+        "summary": "Delete a project",
+        "description": "Its issues stay, in no project. Needs read-write access.",
+        "responses": {
+          "204": {"description": "Deleted"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/cycles": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}],
+      "get": {
+        "operationId": "listIssueCycles",
+        "summary": "List a repository's cycles",
+        "description": "Newest first, with their progress. Anyone who can read the repository can.",
+        "responses": {
+          "200": {"description": "Cycles", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/IssueCycle"}}}}},
+          "401": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "post": {
+        "operationId": "createIssueCycle",
+        "summary": "Add the next cycle",
+        "description": "Needs read-write access.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueCycleInput"}}}},
+        "responses": {
+          "201": {"description": "The cycle", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueCycle"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/cycles/{cycle}": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"name": "cycle", "in": "path", "required": true, "description": "A cycle's number, or `current`, `next` or `previous`", "schema": {"type": "string"}}],
+      "get": {
+        "operationId": "getIssueCycle",
+        "summary": "Get a cycle",
+        "description": "Anyone who can read the repository can.",
+        "responses": {
+          "200": {"description": "The cycle", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueCycle"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "patch": {
+        "operationId": "updateIssueCycle",
+        "summary": "Change a cycle's name or dates",
+        "description": "Needs read-write access.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueCycleInput"}}}},
+        "responses": {
+          "200": {"description": "The cycle", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueCycle"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "delete": {
+        "operationId": "deleteIssueCycle",
+        "summary": "Delete a cycle",
+        "description": "Its issues stay, in no cycle. Needs read-write access.",
+        "responses": {
+          "204": {"description": "Deleted"},
+          "400": {"$ref": "#/components/responses/Error"},
           "401": {"$ref": "#/components/responses/Error"},
           "403": {"$ref": "#/components/responses/Error"},
           "404": {"$ref": "#/components/responses/Error"}
@@ -924,6 +1054,8 @@
           {"name": "assignee", "in": "query", "description": "A username, `me` or `none`", "schema": {"type": "string"}},
           {"name": "label", "in": "query", "description": "Only issues with all these labels. Repeat it or separate values with commas.", "schema": {"type": "array", "items": {"type": "string"}}, "style": "form", "explode": true},
           {"name": "parent", "in": "query", "description": "Only the sub-issues of this issue (an identifier, or a number in the repository)", "schema": {"type": "string"}},
+          {"name": "project", "in": "query", "description": "Only issues in this project, by name, or `none`. Within one repository only.", "schema": {"type": "string"}},
+          {"name": "cycle", "in": "query", "description": "Only issues in this cycle: its number, `current`, `next`, `previous`, or `none`. Within one repository only.", "schema": {"type": "string"}},
           {"name": "q", "in": "query", "description": "Matches the title, the description (ignoring case) or the identifier", "schema": {"type": "string"}},
           {"name": "sort", "in": "query", "description": "`priority` (urgent first; the default), `updated`, `created`, `number` or `manual`", "schema": {"type": "string", "enum": ["priority", "updated", "created", "number", "manual"]}},
           {"name": "limit", "in": "query", "description": "Up to 500; 50 when omitted", "schema": {"type": "integer"}},
@@ -1440,6 +1572,8 @@
           "creator": {"type": "string"},
           "labels": {"type": "array", "items": {"type": "string"}},
           "parent": {"type": "string", "description": "The parent's identifier"},
+          "project": {"type": "string", "description": "The project's name"},
+          "cycle": {"type": "integer", "description": "The cycle's number"},
           "comment_count": {"type": "integer"},
           "description": {"type": "string", "description": "Markdown; in lists only with description=true"},
           "created_at": {"type": "string", "format": "date-time"},
@@ -1510,7 +1644,9 @@
           "priority": {"type": "string", "enum": ["none", "urgent", "high", "medium", "low"]},
           "assignee": {"type": "string", "description": "A username who can read the repository, or `me`"},
           "labels": {"type": "array", "items": {"type": "string"}, "description": "Created if new"},
-          "parent": {"type": "string", "description": "An issue in the same repository: identifier or number"}
+          "parent": {"type": "string", "description": "An issue in the same repository: identifier or number"},
+          "project": {"type": "string", "description": "A project's name"},
+          "cycle": {"type": "string", "description": "A cycle: its number, `current` or `next`"}
         },
         "required": ["title"]
       },
@@ -1525,6 +1661,8 @@
           "priority": {"type": "string", "enum": ["none", "urgent", "high", "medium", "low"]},
           "assignee": {"type": "string"},
           "parent": {"type": "string"},
+          "project": {"type": "string", "description": "A project's name, or empty for none"},
+          "cycle": {"type": "string", "description": "A cycle (number, `current`, `next`), or empty for none"},
           "labels": {"type": "array", "items": {"type": "string"}, "description": "Replaces the labels"},
           "add_labels": {"type": "array", "items": {"type": "string"}},
           "remove_labels": {"type": "array", "items": {"type": "string"}}
@@ -1561,6 +1699,68 @@
           "closed": {"type": "integer"}
         },
         "required": ["repo", "key", "statuses", "priorities", "labels", "open", "closed"]
+      },
+      "IssueProgress": {
+        "type": "object",
+        "description": "Issues completed of the total; canceled ones are counted apart and left out of the total.",
+        "properties": {
+          "total": {"type": "integer"},
+          "started": {"type": "integer"},
+          "completed": {"type": "integer"},
+          "canceled": {"type": "integer"},
+          "percent": {"type": "integer"}
+        },
+        "required": ["total", "started", "completed", "canceled", "percent"]
+      },
+      "IssueProject": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "status": {"type": "string", "enum": ["planned", "started", "paused", "completed", "canceled"]},
+          "lead": {"type": "string"},
+          "start_date": {"type": "string", "format": "date"},
+          "target_date": {"type": "string", "format": "date"},
+          "progress": {"$ref": "#/components/schemas/IssueProgress"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "updated_at": {"type": "string", "format": "date-time"}
+        },
+        "required": ["name", "status", "progress", "created_at", "updated_at"]
+      },
+      "IssueProjectInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Status defaults to planned. Dates are written 2026-12-15. On a change, only the fields sent change, and an empty lead or date clears it.",
+        "properties": {
+          "name": {"type": "string", "maxLength": 80},
+          "description": {"type": "string"},
+          "status": {"type": "string", "enum": ["planned", "started", "paused", "completed", "canceled"]},
+          "lead": {"type": "string", "description": "A username, or `me`"},
+          "start_date": {"type": "string", "format": "date"},
+          "target_date": {"type": "string", "format": "date"}
+        }
+      },
+      "IssueCycle": {
+        "type": "object",
+        "properties": {
+          "number": {"type": "integer"},
+          "name": {"type": "string"},
+          "start_date": {"type": "string", "format": "date"},
+          "end_date": {"type": "string", "format": "date"},
+          "current": {"type": "boolean", "description": "Today falls in it"},
+          "progress": {"$ref": "#/components/schemas/IssueProgress"}
+        },
+        "required": ["number", "start_date", "end_date", "current", "progress"]
+      },
+      "IssueCycleInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Without dates, a new cycle starts the day after the last one ends (or today) and lasts two weeks. Cycles can't overlap.",
+        "properties": {
+          "name": {"type": "string", "maxLength": 80},
+          "start_date": {"type": "string", "format": "date"},
+          "end_date": {"type": "string", "format": "date"}
+        }
       }
     }
   }

@@ -102,7 +102,14 @@ var uiTemplates = template.Must(template.New("").Funcs(template.FuncMap{
 	"eventText":      eventText,
 	"lower":          strings.ToLower,
 	"idURL":          idURL,
-	"issueURL":       func(repo string, n int64, rest ...string) string { return issueURL(repo, n, rest...) },
+	"projectURL":     func(repo, name string) string { return projectURL(repo, name) },
+	"cycleURL":       func(repo string, n int64) string { return cycleURL(repo, n) },
+	"projectStatus":  issue.ProjectStatusLabel,
+	"groupArgs": func(gs []issueGroup, colors map[string]string) groupArgs {
+		return groupArgs{Groups: gs, Colors: colors}
+	},
+	"issuesNav": func(repo, current string) issuesNavArgs { return issuesNavArgs{Repo: repo, Current: current} },
+	"issueURL":  func(repo string, n int64, rest ...string) string { return issueURL(repo, n, rest...) },
 	"commentURL": func(repo string, n, id int64, op string) string {
 		return issueURL(repo, n, "comments", strconv.FormatInt(id, 10), op)
 	},

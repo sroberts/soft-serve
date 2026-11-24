@@ -82,3 +82,13 @@ Check every flow at 1280px and at 390px (phone) wide.
 5. Open `/-/issues`: issues assigned to you across repositories.
 6. At 390px, rows wrap under their title and the properties sit above the
    description.
+
+## 11. Projects and cycles
+1. From Issues, switch to **Projects**. Add one with a target date before
+   its start: refused, and the form keeps what was typed. Fix it and add it.
+2. Put two issues in it (one done) from their property forms. The project's
+   page lists them by status, with "1 of 2 done · 50%"; the list shows it.
+3. Switch to **Cycles**. Add a cycle, then another with no dates: it starts
+   the day after the first ends and runs two weeks. A cycle overlapping
+   another is refused.
+4. Filter the issue list by project and by **Current cycle**.

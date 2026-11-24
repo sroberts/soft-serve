@@ -756,7 +756,7 @@ label.field { display: grid; gap: 4px; margin: 0 0 12px; font-size: var(--text-u
 label.field .hint { font-weight: 400; color: var(--muted); font-size: var(--text-meta); }
 label.check { display: flex; gap: 8px; align-items: baseline; margin: 6px 0; font-size: var(--text-ui); }
 label.check input { flex: none; margin: 0; width: 16px; height: 16px; accent-color: var(--accent); transform: translateY(2px); }
-input[type="text"], input[type="url"], input[type="password"], select {
+input[type="text"], input[type="url"], input[type="password"], input[type="date"], select {
   font: inherit;
   font-size: var(--text-ui);
   padding: 7px 10px;
@@ -923,7 +923,7 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
   a.button { display: inline-flex; align-items: center; min-height: 44px; }
   /* A row's own action fills the row's height, not just its word. */
   .refs li a.rowaction { padding: 12px 8px; margin: -12px -8px -12px 0; }
-  input[type="text"], input[type="url"], input[type="password"], select { height: 44px; font-size: 16px; }
+  input[type="text"], input[type="url"], input[type="password"], input[type="date"], select { height: 44px; font-size: 16px; }
   .compareform .dots { padding-bottom: 12px; }
 
   /* Tabs: wide screens keep the underline, so the links grow down to it. */
@@ -1121,6 +1121,37 @@ main {
 .commentform textarea, .issueform textarea { width: 100%; font: var(--text-body)/1.55 var(--sans); }
 .idelete { margin: 0; font-size: var(--text-ui); }
 .ilabelset .refname { font-family: var(--sans); }
+
+.viewnav { display: flex; gap: 4px; margin: 0 0 16px; padding: 3px; width: max-content; max-width: 100%; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: var(--text-ui); }
+.viewnav a { padding: 4px 12px; border-radius: 6px; color: var(--muted); }
+.viewnav a[aria-current="page"] { background: var(--accent-soft); color: var(--text); font-weight: var(--weight-strong); }
+@media (hover: hover) { .viewnav a:hover { color: var(--text); text-decoration: none; } }
+
+.projlist { list-style: none; margin: 0 0 24px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.projlist li { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.projlist li:first-child { border-top: 0; }
+.projlist li.current { box-shadow: inset 0 0 0 1px var(--accent); border-radius: var(--radius); }
+.projmain { flex: 1 1 16rem; min-width: 0; }
+.projname { font-size: var(--text-lead); font-weight: var(--weight-strong); color: var(--text); overflow-wrap: anywhere; }
+.projname::after { content: ""; position: absolute; inset: 0; }
+@media (hover: hover) { .projlist li:hover { background: var(--bg); } .projname:hover { text-decoration: none; } }
+.projlist li:has(.projname:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
+.projname:focus-visible { outline: 0; }
+.projmain .meta { margin: 2px 0 0; color: var(--muted); font-size: var(--text-meta); }
+.progress { display: inline-flex; align-items: center; gap: 10px; color: var(--muted); font-size: var(--text-meta); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.progress progress { width: 7rem; height: 6px; appearance: none; border: 0; border-radius: 3px; background: var(--line); overflow: hidden; accent-color: var(--st-done); }
+.progress progress::-webkit-progress-bar { background: var(--line); border-radius: 3px; }
+.progress progress::-webkit-progress-value { background: var(--st-done); border-radius: 3px; }
+.progress progress::-moz-progress-bar { background: var(--st-done); border-radius: 3px; }
+/* In the narrow side panel, the bar sits above its count. */
+.iprops .progress { flex-direction: column; align-items: stretch; gap: 4px; white-space: normal; width: 100%; }
+.iprops .progress progress { width: 100%; }
+.pstatus { font-weight: var(--weight-label); color: var(--text); }
+.pstatus.ps-started { color: var(--st-progress); }
+.pstatus.ps-completed { color: var(--st-done); }
+.pstatus.ps-paused, .pstatus.ps-canceled { color: var(--muted); }
+.fieldrow { display: flex; flex-wrap: wrap; gap: 0 12px; }
+.fieldrow label.field { flex: 1 1 10rem; }
 
 @media (max-width: 720px) {
   .issuepage { grid-template-columns: minmax(0, 1fr); }
