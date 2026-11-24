@@ -44,8 +44,9 @@ import (
 // Requests that change something are refused from other origins by the
 // cross-origin protection the server wraps the API in.
 
-// maxOpsBody bounds a request body; the largest is a webhook with a secret.
-const maxOpsBody = 64 << 10
+// maxOpsBody bounds a request body; the largest is an issue with a 64 KiB
+// description, escaped as JSON.
+const maxOpsBody = 256 << 10
 
 // opsCall is one request to the management API.
 type opsCall struct {
@@ -153,6 +154,10 @@ func serveOps(w http.ResponseWriter, r *http.Request, svc ops.Service, anonymous
 
 	case strings.HasPrefix(action, "webhooks/"):
 		c.webhook(name, strings.Split(strings.TrimPrefix(action, "webhooks/"), "/"))
+
+	case action == "issues" || strings.HasPrefix(action, "issues/") || action == "issue-tracker" ||
+		action == "labels" || strings.HasPrefix(action, "labels/"):
+		c.issues(name, action)
 
 	default:
 		return false
@@ -290,7 +295,8 @@ func opsStatus(err error, anonymous bool) int {
 		errors.Is(err, proto.ErrPublicKeyNotFound),
 		errors.Is(err, proto.ErrTokenNotFound),
 		errors.Is(err, git.ErrReferenceNotExist),
-		errors.Is(err, db.ErrRecordNotFound):
+		errors.Is(err, db.ErrRecordNotFound),
+		ops.IsNotFound(err):
 		return http.StatusNotFound
 	case errors.Is(err, proto.ErrRepoExist),
 		errors.Is(err, proto.ErrCollaboratorExist),

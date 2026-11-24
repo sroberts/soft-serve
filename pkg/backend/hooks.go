@@ -78,6 +78,8 @@ func (d *Backend) Update(ctx context.Context, _ io.Writer, _ io.Writer, repo str
 			d.logger.Error("error sending branch_tag webhook", "err", err)
 		}
 	}
+	d.linkIssues(ctx, user, r, arg)
+
 	wh, err := webhook.NewPushEvent(ctx, user, r, arg.RefName, arg.OldSha, arg.NewSha)
 	if err != nil {
 		d.logger.Error("error creating push webhook", "err", err)

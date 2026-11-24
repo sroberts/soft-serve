@@ -1,0 +1,89 @@
+# vi: set ft=conf
+
+# start soft serve
+exec soft serve &
+# wait for SSH server to start
+ensureserverrunning SSH_PORT
+
+soft repo create icecream
+
+# the key comes from the name
+soft repo issue key icecream
+stdout 'ICE'
+
+# create and list
+soft repo issue create icecream 'Add sprinkles' -p high -l topping
+stdout 'ICE-1'
+soft repo issue create icecream 'Cone shape' --parent ICE-1
+stdout 'ICE-2'
+soft repo issue create icecream 'Waffle cones'
+stdout 'ICE-3'
+soft repo issue list icecream
+stdout 'ICE-1.*Todo.*High.*Add sprinkles \[topping\]'
+stdout 'ICE-2.*Todo'
+
+# edit, comment, view
+soft repo issue edit ICE-2 -s in_review --assignee me
+stdout 'ICE-2.*In Review.*Cone shape'
+soft repo issue comment icecream 2 'Round, please.'
+stdout 'Comment #1 added'
+soft repo issue view ICE-1
+stdout 'Sub-issues:'
+stdout 'ICE-2.*In Review'
+soft repo issue view ICE-2 --json
+stdout '"assignee": "admin"'
+stdout '"body": "Round, please."'
+
+# mistakes are explained
+! soft repo issue edit ICE-1 -s shipped
+stderr 'unknown status'
+! soft repo issue view ICE-99
+stderr 'not found'
+
+# a branch named for an issue starts it; a commit that fixes one on the
+# default branch completes it, and one that mentions another links it
+git clone ssh://localhost:$SSH_PORT/icecream icecream
+mkfile ./icecream/README.md 'sprinkles'
+git -C icecream add -A
+git -C icecream commit -m 'Add sprinkles' -m 'Fixes ICE-1. Part of ICE-3.'
+git -C icecream push origin HEAD
+soft repo issue view ICE-1
+stdout 'Status:    Done'
+stdout 'Add sprinkles \(fixes\)'
+soft repo issue view ICE-3
+stdout 'Status:    Todo'
+stdout 'Commits:'
+
+git -C icecream checkout -b admin/ice-3-waffles
+mkfile ./icecream/waffle.txt 'waffle'
+git -C icecream add -A
+git -C icecream commit -m 'Waffles for ICE-3, closes ICE-3'
+git -C icecream push origin HEAD
+# not on the default branch: started, not closed
+soft repo issue view ICE-3
+stdout 'Status:    In Progress'
+
+# closed issues are left out unless asked for
+soft repo issue list icecream
+! stdout 'ICE-1'
+soft repo issue list icecream --all
+stdout 'ICE-1.*Done'
+
+# a new key renames every issue
+soft repo issue key icecream CREAM
+soft repo issue view CREAM-2
+stdout 'CREAM-2  Cone shape'
+
+# labels
+soft repo issue label list icecream
+stdout 'topping'
+soft repo issue label create icecream bug -c '#e5484d'
+soft repo issue label list icecream
+stdout 'bug.*#e5484d'
+
+# delete
+soft repo issue delete CREAM-3
+! soft repo issue view CREAM-3
+
+# stop the server
+[windows] stopserver

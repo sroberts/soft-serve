@@ -445,6 +445,206 @@
         }
       }
     },
+    "/v1/repos/{repo}/-/issues": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}],
+      "get": {
+        "operationId": "listIssues",
+        "summary": "List a repository's issues",
+        "description": "Anyone who can read the repository can.",
+        "parameters": [
+          {"name": "status", "in": "query", "description": "Only these statuses. Without it, only open issues are listed. Repeat it or separate values with commas.", "schema": {"type": "array", "items": {"type": "string", "enum": ["backlog", "todo", "in_progress", "in_review", "done", "canceled"]}}, "style": "form", "explode": true},
+          {"name": "closed", "in": "query", "description": "With no status, include done and canceled issues", "schema": {"type": "boolean"}},
+          {"name": "priority", "in": "query", "description": "Only these priorities. Repeat it or separate values with commas.", "schema": {"type": "array", "items": {"type": "string", "enum": ["none", "urgent", "high", "medium", "low"]}}, "style": "form", "explode": true},
+          {"name": "assignee", "in": "query", "description": "A username, `me` or `none`", "schema": {"type": "string"}},
+          {"name": "label", "in": "query", "description": "Only issues with all these labels. Repeat it or separate values with commas.", "schema": {"type": "array", "items": {"type": "string"}}, "style": "form", "explode": true},
+          {"name": "parent", "in": "query", "description": "Only the sub-issues of this issue (an identifier, or a number in the repository)", "schema": {"type": "string"}},
+          {"name": "q", "in": "query", "description": "Matches the title, the description (ignoring case) or the identifier", "schema": {"type": "string"}},
+          {"name": "sort", "in": "query", "description": "`priority` (urgent first; the default), `updated`, `created`, `number` or `manual`", "schema": {"type": "string", "enum": ["priority", "updated", "created", "number", "manual"]}},
+          {"name": "limit", "in": "query", "description": "Up to 500; 50 when omitted", "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "schema": {"type": "integer"}},
+          {"name": "description", "in": "query", "description": "Include each issue's description", "schema": {"type": "boolean"}}
+        ],
+        "responses": {
+          "200": {"description": "A page of issues", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueList"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "post": {
+        "operationId": "createIssue",
+        "summary": "Create an issue",
+        "description": "It takes the repository's next number. Needs read-write access.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueCreate"}}}},
+        "responses": {
+          "201": {"description": "The new issue", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Issue"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/issues/{number}": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/IssueNumber"}],
+      "get": {
+        "operationId": "getIssue",
+        "summary": "Get an issue in full",
+        "description": "With its sub-issues, comments, activity and linked commits. Anyone who can read the repository can.",
+        "responses": {
+          "200": {"description": "The issue", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueDetail"}}}},
+          "401": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "patch": {
+        "operationId": "updateIssue",
+        "summary": "Change an issue",
+        "description": "Only the fields sent change, and each change is logged. Needs read-write access.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueUpdate"}}}},
+        "responses": {
+          "200": {"description": "The issue as it is now", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Issue"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "delete": {
+        "operationId": "deleteIssue",
+        "summary": "Delete an issue",
+        "description": "For good, with its comments and activity; its sub-issues lose their parent. Needs read-write access.",
+        "responses": {
+          "204": {"description": "Deleted"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/issues/{number}/comments": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/IssueNumber"}],
+      "post": {
+        "operationId": "commentOnIssue",
+        "summary": "Comment on an issue",
+        "description": "Needs read-write access.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "properties": {"body": {"type": "string", "description": "Markdown"}}, "required": ["body"]}}}},
+        "responses": {
+          "201": {"description": "The comment", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueComment"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/issues/{number}/comments/{comment}": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/IssueNumber"}, {"$ref": "#/components/parameters/CommentID"}],
+      "patch": {
+        "operationId": "updateIssueComment",
+        "summary": "Change a comment",
+        "description": "Only its author or a repository admin can.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "properties": {"body": {"type": "string", "description": "Markdown"}}, "required": ["body"]}}}},
+        "responses": {
+          "200": {"description": "The comment", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueComment"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "delete": {
+        "operationId": "deleteIssueComment",
+        "summary": "Delete a comment",
+        "description": "Only its author or a repository admin can.",
+        "responses": {
+          "204": {"description": "Deleted"},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/issue-tracker": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}],
+      "get": {
+        "operationId": "getIssueTracker",
+        "summary": "Describe a repository's issue tracking",
+        "description": "Its key, the workflow, priorities, labels and counts. Anyone who can read the repository can.",
+        "responses": {
+          "200": {"description": "The tracker", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueTracker"}}}},
+          "401": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "patch": {
+        "operationId": "setIssueKey",
+        "summary": "Change the issue key",
+        "description": "Every issue takes the new key: ICE-12 becomes NEW-12. Needs admin access.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "properties": {"key": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]{1,9}$"}}, "required": ["key"]}}}},
+        "responses": {
+          "200": {"description": "The tracker", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueTracker"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/labels": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}],
+      "get": {
+        "operationId": "listIssueLabels",
+        "summary": "List a repository's labels",
+        "description": "Anyone who can read the repository can.",
+        "responses": {
+          "200": {"description": "Labels", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/IssueLabel"}}}}},
+          "401": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "post": {
+        "operationId": "createIssueLabel",
+        "summary": "Add a label",
+        "description": "Needs read-write access.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueLabel"}}}},
+        "responses": {
+          "201": {"description": "The label", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueLabel"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/repos/{repo}/-/labels/{label}": {
+      "parameters": [{"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/LabelName"}],
+      "patch": {
+        "operationId": "updateIssueLabel",
+        "summary": "Change a label",
+        "description": "Needs read-write access.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueLabelUpdate"}}}},
+        "responses": {
+          "200": {"description": "The label", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueLabel"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "delete": {
+        "operationId": "deleteIssueLabel",
+        "summary": "Delete a label",
+        "description": "It comes off every issue. Needs read-write access.",
+        "responses": {
+          "204": {"description": "Deleted"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
     "/v1/repos/{repo}/-/readme": {
       "parameters": [{"$ref": "#/components/parameters/Repo"}, {"$ref": "#/components/parameters/Ref"}],
       "get": {
@@ -711,6 +911,112 @@
           "403": {"$ref": "#/components/responses/Error"}
         }
       }
+    },
+    "/v1/issues": {
+      "get": {
+        "operationId": "listAllIssues",
+        "summary": "List issues across repositories",
+        "description": "Issues in every repository the caller can read, most urgent first. `assignee=me` lists the caller's own.",
+        "parameters": [
+          {"name": "status", "in": "query", "description": "Only these statuses. Without it, only open issues are listed. Repeat it or separate values with commas.", "schema": {"type": "array", "items": {"type": "string", "enum": ["backlog", "todo", "in_progress", "in_review", "done", "canceled"]}}, "style": "form", "explode": true},
+          {"name": "closed", "in": "query", "description": "With no status, include done and canceled issues", "schema": {"type": "boolean"}},
+          {"name": "priority", "in": "query", "description": "Only these priorities. Repeat it or separate values with commas.", "schema": {"type": "array", "items": {"type": "string", "enum": ["none", "urgent", "high", "medium", "low"]}}, "style": "form", "explode": true},
+          {"name": "assignee", "in": "query", "description": "A username, `me` or `none`", "schema": {"type": "string"}},
+          {"name": "label", "in": "query", "description": "Only issues with all these labels. Repeat it or separate values with commas.", "schema": {"type": "array", "items": {"type": "string"}}, "style": "form", "explode": true},
+          {"name": "parent", "in": "query", "description": "Only the sub-issues of this issue (an identifier, or a number in the repository)", "schema": {"type": "string"}},
+          {"name": "q", "in": "query", "description": "Matches the title, the description (ignoring case) or the identifier", "schema": {"type": "string"}},
+          {"name": "sort", "in": "query", "description": "`priority` (urgent first; the default), `updated`, `created`, `number` or `manual`", "schema": {"type": "string", "enum": ["priority", "updated", "created", "number", "manual"]}},
+          {"name": "limit", "in": "query", "description": "Up to 500; 50 when omitted", "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "schema": {"type": "integer"}},
+          {"name": "description", "in": "query", "description": "Include each issue's description", "schema": {"type": "boolean"}}
+        ],
+        "responses": {
+          "200": {"description": "A page of issues", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueList"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/issues/{id}": {
+      "parameters": [{"$ref": "#/components/parameters/IssueID"}],
+      "get": {
+        "operationId": "getIssueByID",
+        "summary": "Get an issue in full",
+        "description": "With its sub-issues, comments, activity and linked commits. Anyone who can read the repository can.",
+        "responses": {
+          "200": {"description": "The issue", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueDetail"}}}},
+          "401": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "patch": {
+        "operationId": "updateIssueByID",
+        "summary": "Change an issue",
+        "description": "Only the fields sent change, and each change is logged. Needs read-write access.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueUpdate"}}}},
+        "responses": {
+          "200": {"description": "The issue as it is now", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Issue"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "delete": {
+        "operationId": "deleteIssueByID",
+        "summary": "Delete an issue",
+        "description": "For good, with its comments and activity; its sub-issues lose their parent. Needs read-write access.",
+        "responses": {
+          "204": {"description": "Deleted"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/issues/{id}/comments": {
+      "parameters": [{"$ref": "#/components/parameters/IssueID"}],
+      "post": {
+        "operationId": "commentOnIssueByID",
+        "summary": "Comment on an issue",
+        "description": "Needs read-write access.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "properties": {"body": {"type": "string", "description": "Markdown"}}, "required": ["body"]}}}},
+        "responses": {
+          "201": {"description": "The comment", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueComment"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
+    },
+    "/v1/issues/{id}/comments/{comment}": {
+      "parameters": [{"$ref": "#/components/parameters/IssueID"}, {"$ref": "#/components/parameters/CommentID"}],
+      "patch": {
+        "operationId": "updateIssueCommentByID",
+        "summary": "Change a comment",
+        "description": "Only its author or a repository admin can.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "properties": {"body": {"type": "string", "description": "Markdown"}}, "required": ["body"]}}}},
+        "responses": {
+          "200": {"description": "The comment", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueComment"}}}},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      },
+      "delete": {
+        "operationId": "deleteIssueCommentByID",
+        "summary": "Delete a comment",
+        "description": "Only its author or a repository admin can.",
+        "responses": {
+          "204": {"description": "Deleted"},
+          "400": {"$ref": "#/components/responses/Error"},
+          "401": {"$ref": "#/components/responses/Error"},
+          "403": {"$ref": "#/components/responses/Error"},
+          "404": {"$ref": "#/components/responses/Error"}
+        }
+      }
     }
   },
   "components": {
@@ -719,7 +1025,11 @@
       "Ref": {"name": "ref", "in": "query", "description": "Branch, tag or commit hash; the default branch when omitted", "schema": {"type": "string"}},
       "Path": {"name": "path", "in": "query", "description": "Path inside the repository; the root when omitted", "schema": {"type": "string"}},
       "WebhookID": {"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}},
-      "DeliveryID": {"name": "delivery", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}}
+      "DeliveryID": {"name": "delivery", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid"}},
+      "IssueNumber": {"name": "number", "in": "path", "required": true, "description": "The issue's number in the repository", "schema": {"type": "integer", "minimum": 1}},
+      "IssueID": {"name": "id", "in": "path", "required": true, "description": "The issue's identifier, such as ICE-12; any case", "schema": {"type": "string"}},
+      "CommentID": {"name": "comment", "in": "path", "required": true, "schema": {"type": "integer"}},
+      "LabelName": {"name": "label", "in": "path", "required": true, "description": "The label's name, URL-escaped; any case", "schema": {"type": "string"}}
     },
     "responses": {
       "Error": {"description": "An error", "content": {"application/json": {"schema": {"type": "object", "properties": {"error": {"type": "string"}}, "required": ["error"]}}}}
@@ -1114,7 +1424,144 @@
       "CreateUser": {"type": "object", "properties": {"username": {"type": "string"}, "admin": {"type": "boolean"}, "keys": {"type": "array", "items": {"type": "string"}, "description": "SSH keys in authorized_keys form"}}, "required": ["username"]},
       "UserUpdate": {"type": "object", "properties": {"username": {"type": "string"}, "admin": {"type": "boolean"}}},
       "Settings": {"type": "object", "properties": {"anon_access": {"type": "string", "enum": ["no-access", "read-only", "read-write", "admin-access"]}, "allow_keyless": {"type": "boolean"}, "anon_access_fixed": {"type": "boolean"}, "allow_keyless_fixed": {"type": "boolean"}}, "required": ["anon_access", "allow_keyless", "anon_access_fixed", "allow_keyless_fixed"]},
-      "SettingsUpdate": {"type": "object", "properties": {"anon_access": {"type": "string", "enum": ["no-access", "read-only", "read-write", "admin-access"]}, "allow_keyless": {"type": "boolean"}}}
+      "SettingsUpdate": {"type": "object", "properties": {"anon_access": {"type": "string", "enum": ["no-access", "read-only", "read-write", "admin-access"]}, "allow_keyless": {"type": "boolean"}}},
+      "Issue": {
+        "type": "object",
+        "description": "An issue, as lists show it.",
+        "properties": {
+          "id": {"type": "string", "description": "Identifier, such as ICE-12"},
+          "repo": {"type": "string"},
+          "number": {"type": "integer"},
+          "title": {"type": "string"},
+          "status": {"type": "string", "enum": ["backlog", "todo", "in_progress", "in_review", "done", "canceled"]},
+          "status_category": {"type": "string", "enum": ["backlog", "unstarted", "started", "completed", "canceled"]},
+          "priority": {"type": "string", "enum": ["none", "urgent", "high", "medium", "low"]},
+          "assignee": {"type": "string"},
+          "creator": {"type": "string"},
+          "labels": {"type": "array", "items": {"type": "string"}},
+          "parent": {"type": "string", "description": "The parent's identifier"},
+          "comment_count": {"type": "integer"},
+          "description": {"type": "string", "description": "Markdown; in lists only with description=true"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "updated_at": {"type": "string", "format": "date-time"},
+          "started_at": {"type": "string", "format": "date-time"},
+          "completed_at": {"type": "string", "format": "date-time"},
+          "canceled_at": {"type": "string", "format": "date-time"}
+        },
+        "required": ["id", "repo", "number", "title", "status", "status_category", "priority", "labels", "comment_count", "created_at", "updated_at"]
+      },
+      "IssueComment": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "integer"},
+          "author": {"type": "string"},
+          "body": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "updated_at": {"type": "string", "format": "date-time"},
+          "edited": {"type": "boolean"}
+        },
+        "required": ["id", "body", "created_at", "updated_at", "edited"]
+      },
+      "IssueEvent": {
+        "type": "object",
+        "description": "A change in an issue's activity.",
+        "properties": {
+          "actor": {"type": "string"},
+          "kind": {"type": "string", "enum": ["created", "title", "description", "status", "priority", "assignee", "label_added", "label_removed", "parent", "commit", "branch"]},
+          "from": {"type": "string"},
+          "to": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"}
+        },
+        "required": ["kind", "created_at"]
+      },
+      "IssueCommit": {
+        "type": "object",
+        "description": "A pushed commit that mentions the issue.",
+        "properties": {
+          "repo": {"type": "string"},
+          "sha": {"type": "string"},
+          "summary": {"type": "string"},
+          "closes": {"type": "boolean", "description": "It says it fixes, closes or resolves the issue"},
+          "linked_at": {"type": "string", "format": "date-time"}
+        },
+        "required": ["repo", "sha", "summary", "closes", "linked_at"]
+      },
+      "IssueDetail": {
+        "allOf": [
+          {"$ref": "#/components/schemas/Issue"},
+          {"type": "object", "properties": {"sub_issues": {"type": "array", "items": {"$ref": "#/components/schemas/Issue"}}, "comments": {"type": "array", "items": {"$ref": "#/components/schemas/IssueComment"}}, "activity": {"type": "array", "items": {"$ref": "#/components/schemas/IssueEvent"}}, "commits": {"type": "array", "items": {"$ref": "#/components/schemas/IssueCommit"}}}, "required": ["sub_issues", "comments", "activity", "commits"]}
+        ]
+      },
+      "IssueList": {
+        "type": "object",
+        "properties": {
+          "issues": {"type": "array", "items": {"$ref": "#/components/schemas/Issue"}},
+          "total": {"type": "integer", "description": "How many match, in all"}
+        },
+        "required": ["issues", "total"]
+      },
+      "IssueCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {"type": "string", "maxLength": 256},
+          "description": {"type": "string", "description": "Markdown, up to 64 KiB"},
+          "status": {"type": "string", "enum": ["backlog", "todo", "in_progress", "in_review", "done", "canceled"], "description": "todo when omitted"},
+          "priority": {"type": "string", "enum": ["none", "urgent", "high", "medium", "low"]},
+          "assignee": {"type": "string", "description": "A username who can read the repository, or `me`"},
+          "labels": {"type": "array", "items": {"type": "string"}, "description": "Created if new"},
+          "parent": {"type": "string", "description": "An issue in the same repository: identifier or number"}
+        },
+        "required": ["title"]
+      },
+      "IssueUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Only the fields sent change. Send assignee or parent as an empty string to clear it.",
+        "properties": {
+          "title": {"type": "string"},
+          "description": {"type": "string"},
+          "status": {"type": "string", "enum": ["backlog", "todo", "in_progress", "in_review", "done", "canceled"]},
+          "priority": {"type": "string", "enum": ["none", "urgent", "high", "medium", "low"]},
+          "assignee": {"type": "string"},
+          "parent": {"type": "string"},
+          "labels": {"type": "array", "items": {"type": "string"}, "description": "Replaces the labels"},
+          "add_labels": {"type": "array", "items": {"type": "string"}},
+          "remove_labels": {"type": "array", "items": {"type": "string"}}
+        }
+      },
+      "IssueLabel": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string", "maxLength": 50},
+          "color": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"},
+          "description": {"type": "string"}
+        },
+        "required": ["name"]
+      },
+      "IssueLabelUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string"},
+          "color": {"type": "string"},
+          "description": {"type": "string"}
+        }
+      },
+      "IssueTracker": {
+        "type": "object",
+        "properties": {
+          "repo": {"type": "string"},
+          "key": {"type": "string", "description": "As in ICE-12"},
+          "statuses": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "label": {"type": "string"}, "category": {"type": "string"}}}},
+          "priorities": {"type": "array", "items": {"type": "string"}},
+          "labels": {"type": "array", "items": {"$ref": "#/components/schemas/IssueLabel"}},
+          "open": {"type": "integer"},
+          "closed": {"type": "integer"}
+        },
+        "required": ["repo", "key", "statuses", "priorities", "labels", "open", "closed"]
+      }
     }
   }
 }
