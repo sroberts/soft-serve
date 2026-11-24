@@ -2,6 +2,7 @@ package web
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -146,5 +147,62 @@ func TestUIProjectsAndCycles(t *testing.T) {
 	seeOther(t, f.post("/group/open/-/issues/cycles/2/delete", auth, nil), "/group/open/-/issues/cycles?done=cycle-deleted")
 	if w := f.do(req{path: "/group/open/-/issues/cycles/2", auth: auth}); w.Code != http.StatusNotFound {
 		t.Errorf("deleted cycle: %d", w.Code)
+	}
+}
+
+func TestUIBoardAndQuick(t *testing.T) {
+	f := newViewFixture(t)
+	auth := f.owner()
+	for _, title := range []string{"One", "Two", "Three"} {
+		seeOther(t, f.post("/group/open/-/issues/new", auth, url.Values{"title": {title}}), "/group/open/-/issues/")
+	}
+
+	// The board: every column but canceled, cards in manual order, with
+	// menus for those who can write and the script on the page.
+	w := f.do(req{path: "/group/open/-/issues/board", auth: auth})
+	has(t, w, `data-status="backlog"`, `data-status="todo"`, `data-status="in_progress"`, `data-status="in_review"`, `data-status="done"`,
+		`data-quick="/group/open/-/issues/1/quick"`, `class="qmenu"`, `/-/static/issues.js?v=`, `id="shortcuts" hidden`)
+	hasNot(t, w, `data-status="canceled"`)
+	if csp := w.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "script-src 'self'") || !strings.Contains(csp, "connect-src 'self'") || strings.Contains(csp, "unsafe") {
+		t.Errorf("CSP: %s", csp)
+	}
+	hasNot(t, f.do(req{path: "/group/open/-/issues/board"}), `class="qmenu"`)
+	w = f.do(req{path: "/-/static/issues.js"})
+	if w.Code != http.StatusOK || !strings.HasPrefix(w.Header().Get("Content-Type"), "text/javascript") {
+		t.Errorf("script: %d %s", w.Code, w.Header().Get("Content-Type"))
+	}
+	// Pages that don't need it don't load it.
+	hasNot(t, f.do(req{path: "/group/open", auth: auth}), "issues.js")
+
+	// Without script, a menu's form changes only what it sends and goes
+	// back where it came from.
+	seeOther(t, f.post("/group/open/-/issues/2/quick", auth, url.Values{"status": {"in_progress"}, "back": {"/group/open/-/issues/board?assignee=me"}}),
+		"/group/open/-/issues/board?assignee=me&done=issue-saved")
+	seeOther(t, f.post("/group/open/-/issues/2/quick", auth, url.Values{"priority": {"high"}, "back": {"//evil.example/"}}), "/group/open/-/issues/2?done=issue-saved")
+	seeOther(t, f.post("/group/open/-/issues/2/quick", auth, url.Values{"priority": {"high"}, "back": {"https://evil.example/"}}), "/group/open/-/issues/2?done=issue-saved")
+	has(t, f.do(req{path: "/group/open/-/issues/2", auth: auth}), "In Progress", "High")
+
+	// From the script: 204, or the reason in JSON.
+	scripted := func(form url.Values) *httptest.ResponseRecorder {
+		return f.do(req{
+			method: http.MethodPost, path: "/group/open/-/issues/3/quick", auth: auth, body: form.Encode(),
+			header: map[string]string{"Content-Type": "application/x-www-form-urlencoded", "X-Requested-With": "soft-serve"},
+		})
+	}
+	if w := scripted(url.Values{"after": {"top"}}); w.Code != http.StatusNoContent {
+		t.Errorf("move to top: %d %s", w.Code, w.Body)
+	}
+	if w := scripted(url.Values{"status": {"shipped"}}); w.Code != http.StatusBadRequest || !strings.Contains(w.Body.String(), `"error":"Unknown status`) {
+		t.Errorf("bad status: %d %s", w.Code, w.Body)
+	}
+	w = f.do(req{path: "/group/open/-/issues/board", auth: auth})
+	body := w.Body.String()
+	if i, j := strings.Index(body, `data-issue="3"`), strings.Index(body, `data-issue="1"`); i < 0 || j < 0 || i > j {
+		t.Errorf("OPE-3 isn't above OPE-1 after moving it to the top")
+	}
+
+	// Readers can't use it, with or without script.
+	if w := f.post("/group/open/-/issues/1/quick", "", url.Values{"status": {"done"}}); w.Code == http.StatusSeeOther {
+		t.Errorf("anonymous quick change: %d", w.Code)
 	}
 }

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"html/template"
 	"net/http"
 	"net/url"
@@ -79,6 +80,11 @@ type issueListData struct {
 	Priorities                                    []string
 	CanWrite                                      bool
 	Key                                           string
+	// Board is the board view; Back is this page, for forms to return to.
+	Board bool
+	Back  string
+	// Statuses are the workflow, for the menus.
+	Statuses []string
 }
 
 // issues routes the pages under /{repo}/-/issues.
@@ -91,7 +97,13 @@ func (h uiHandler) issues(w http.ResponseWriter, r *http.Request, b *browser, p 
 			renderNotFound(w, r)
 			return
 		}
-		h.issueList(w, r, b, p, false)
+		h.issueList(w, r, b, p, false, false)
+	case rest == "board":
+		if r.Method == http.MethodPost {
+			renderNotFound(w, r)
+			return
+		}
+		h.issueList(w, r, b, p, false, true)
 	case rest == "new":
 		h.issueNew(w, r, b, p)
 	case rest == "settings":
@@ -115,6 +127,8 @@ func (h uiHandler) issues(w http.ResponseWriter, r *http.Request, b *browser, p 
 			h.issuePage(w, r, b, p, n)
 		case len(parts) == 2 && parts[1] == "edit":
 			h.issueEdit(w, r, b, p, n)
+		case len(parts) == 2 && parts[1] == "quick":
+			h.issueQuick(w, r, b, p, n)
 		case len(parts) == 2 && parts[1] == "comment":
 			h.issueComment(w, r, b, p, n)
 		case len(parts) == 2 && parts[1] == "delete":
@@ -160,14 +174,15 @@ func issueURL(repo string, number int64, rest ...string) string {
 
 // issueList is a repository's issues, or with global set, every readable
 // repository's, mine by default.
-func (h uiHandler) issueList(w http.ResponseWriter, r *http.Request, b *browser, p page, global bool) {
+func (h uiHandler) issueList(w http.ResponseWriter, r *http.Request, b *browser, p page, global, board bool) {
 	svc := b.service()
+	p.Script = true
 	in := r.URL.Query()
 	d := &issueListData{
 		Global: global, Scope: in.Get("scope"), Query: strings.TrimSpace(in.Get("q")),
 		Assignee: in.Get("assignee"), Priority: in.Get("priority"), Label: in.Get("label"), Sort: in.Get("sort"),
 		Project: in.Get("project"), Cycle: in.Get("cycle"),
-		Priorities: issue.PriorityNames,
+		Priorities: issue.PriorityNames, Statuses: issue.Statuses,
 	}
 	if global && !in.Has("assignee") && b.user != nil {
 		d.Assignee = "me"
@@ -189,6 +204,17 @@ func (h uiHandler) issueList(w http.ResponseWriter, r *http.Request, b *browser,
 	q.Status, q.Closed = scope.Statuses, scope.Closed
 	q.Offset, _ = strconv.Atoi(in.Get("offset"))
 	q.Offset = max(q.Offset, 0)
+	if board {
+		// The board shows every column but canceled, in manual order.
+		d.Board, d.Sort = true, "manual"
+		q.Status, q.Closed, q.Sort, q.Limit, q.Offset = boardColumns, true, "manual", 500, 0
+	}
+	back := r.URL.Query()
+	back.Del("done")
+	d.Back = r.URL.Path
+	if enc := back.Encode(); enc != "" {
+		d.Back += "?" + enc
+	}
 
 	repo := ""
 	if !global {
@@ -288,7 +314,15 @@ func (h uiHandler) issueList(w http.ResponseWriter, r *http.Request, b *browser,
 
 	// Group by status, keeping the list's order within each group. A
 	// manual or by-number sort reads better ungrouped.
-	if d.Sort == "manual" || d.Sort == "number" {
+	if board {
+		by := map[string][]ops.Issue{}
+		for _, i := range l.Issues {
+			by[i.Status] = append(by[i.Status], i)
+		}
+		for _, st := range boardColumns {
+			d.Groups = append(d.Groups, issueGroup{Status: st, Issues: by[st]})
+		}
+	} else if d.Sort == "manual" || d.Sort == "number" {
 		d.Groups = []issueGroup{{Issues: l.Issues}}
 	} else {
 		by := map[string][]ops.Issue{}
@@ -302,14 +336,22 @@ func (h uiHandler) issueList(w http.ResponseWriter, r *http.Request, b *browser,
 		}
 	}
 	p.Data = d
+	if board {
+		p.Title = "Board · " + repo
+		h.render(w, r, "issueboard", p)
+		return
+	}
 	h.render(w, r, "issues", p)
 }
+
+// boardColumns are the board's columns, in workflow order.
+var boardColumns = []string{issue.Backlog, issue.Todo, issue.InProgress, issue.InReview, issue.Done}
 
 // myIssues is /-/issues: issues across every repository the visitor can
 // read, theirs by default.
 func (h uiHandler) myIssues(w http.ResponseWriter, r *http.Request, b *browser, p page) {
 	p.Tab = "myissues"
-	h.issueList(w, r, b, p, true)
+	h.issueList(w, r, b, p, true, false)
 }
 
 // --- One issue ---
@@ -446,6 +488,7 @@ func (h uiHandler) issueDetail(r *http.Request, b *browser, p page, n int64) (*i
 
 // issuePage shows an issue, and saves its property form.
 func (h uiHandler) issuePage(w http.ResponseWriter, r *http.Request, b *browser, p page, n int64) {
+	p.Script = true
 	if r.Method == http.MethodPost {
 		h.issueSaveProps(w, r, b, p, n)
 		return
@@ -976,4 +1019,64 @@ func labelColors(ls []ops.IssueLabel) map[string]string {
 // repository's label of that name.
 func dotFor(m map[string]string, name string) template.HTML {
 	return labelDot(m[strings.ToLower(name)])
+}
+
+// issueQuick changes only what's posted (status, priority, place) from the
+// menus on lists and the board. Without script it redirects back to the
+// page it came from; the page's script asks with X-Requested-With and gets
+// 204, or the reason in JSON.
+func (h uiHandler) issueQuick(w http.ResponseWriter, r *http.Request, b *browser, p page, n int64) {
+	if r.Method != http.MethodPost {
+		http.Redirect(w, r, issueURL(p.Repo.Name, n), http.StatusSeeOther)
+		return
+	}
+	scripted := r.Header.Get("X-Requested-With") == "soft-serve"
+	f, err := readForm(w, r)
+	if err == nil {
+		var u ops.IssueUpdate
+		opt := func(k string) *string {
+			if v, ok := f[k]; ok && len(v) > 0 {
+				return &v[0]
+			}
+			return nil
+		}
+		u.Status, u.Priority, u.After = opt("status"), opt("priority"), opt("after")
+		_, err = b.service().UpdateIssue(r.Context(), p.Repo.Name, n, u)
+	}
+	if scripted {
+		if err != nil {
+			status, msg := h.opsMessage(r, b, err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(status)
+			json.NewEncoder(w).Encode(map[string]string{"error": msg}) //nolint:errcheck
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if err != nil {
+		h.opsFail(w, r, b, p, err)
+		return
+	}
+	http.Redirect(w, r, withDone(localBack(f.Get("back"), issueURL(p.Repo.Name, n)), "issue-saved"), http.StatusSeeOther)
+}
+
+// localBack is back if it's a path on this site, or else fallback: a form
+// can't send the visitor elsewhere.
+func localBack(back, fallback string) string {
+	if !strings.HasPrefix(back, "/") || strings.HasPrefix(back, "//") || strings.ContainsAny(back, "\\\r\n") {
+		return fallback
+	}
+	u, err := url.Parse(back)
+	if err != nil || u.Host != "" || u.Scheme != "" {
+		return fallback
+	}
+	return u.RequestURI()
+}
+
+// qArgs is what a row's status and priority menus need.
+type qArgs struct {
+	Issue                ops.Issue
+	Back                 string
+	Statuses, Priorities []string
 }

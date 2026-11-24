@@ -92,3 +92,14 @@ Check every flow at 1280px and at 390px (phone) wide.
    the day after the first ends and runs two weeks. A cycle overlapping
    another is refused.
 4. Filter the issue list by project and by **Current cycle**.
+
+## 12. Board and shortcuts
+1. Open `/icecream/-/issues/board`: a column per status (no Canceled), all
+   five visible at 1280px, one at a time with the next peeking in at 390px.
+2. Change a card's status from its menu: it moves without the page
+   reloading, and a message says so. With script off, the same menu posts
+   and comes back to the board.
+3. Drag a card to the top of another column with a mouse: it lands there.
+4. On the list: press `j`, then `s`; the row's status menu opens with its
+   current status focused; arrows move; Escape closes it. `?` shows the
+   shortcuts.

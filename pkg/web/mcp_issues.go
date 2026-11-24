@@ -112,6 +112,7 @@ type updateIssueArgs struct {
 	Labels       *[]string `json:"labels,omitempty" jsonschema:"the full set of labels, replacing the current ones"`
 	AddLabels    []string  `json:"add_labels,omitempty" jsonschema:"labels to add; created if new"`
 	RemoveLabels []string  `json:"remove_labels,omitempty" jsonschema:"labels to take off"`
+	After        *string   `json:"after,omitempty" jsonschema:"its place in its status column's manual order (the board's): \"top\", or the identifier of the issue it goes right after"`
 }
 
 type commentArgs struct {
@@ -244,7 +245,7 @@ func addIssueTools(s *mcp.Server, b *browser) {
 		return svc.UpdateIssue(ctx, repo, n, ops.IssueUpdate{
 			Title: in.Title, Description: in.Description, Status: in.Status, Priority: in.Priority,
 			Assignee: in.Assignee, Parent: in.Parent, Project: in.Project, Cycle: in.Cycle,
-			Labels: in.Labels, AddLabels: in.AddLabels, RemoveLabels: in.RemoveLabels,
+			Labels: in.Labels, AddLabels: in.AddLabels, RemoveLabels: in.RemoveLabels, After: in.After,
 		})
 	}))
 

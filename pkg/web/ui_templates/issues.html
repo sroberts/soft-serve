@@ -1,6 +1,6 @@
 {{define "issues"}}{{template "head" .}}
 {{if .Repo}}{{template "repohead" .}}{{end}}
-{{with .Data}}{{$colors := labelColors .Labels}}{{$global := .Global}}
+{{with .Data}}{{$colors := labelColors .Labels}}{{$global := .Global}}{{$d := .}}
 <section class="issues">
   {{if not .Global}}{{template "issuesnav" (issuesNav $.Repo.Name "issues")}}{{end}}
   <div class="issuebar">
@@ -54,10 +54,10 @@
   <section class="igroup"{{with .Status}} aria-labelledby="group-{{.}}"{{end}}>
     {{with .Status}}<h2 class="igroup-head" id="group-{{.}}">{{statusIcon .}}<span>{{statusLabel .}}</span></h2>{{end}}
     <ul class="ilist">
-      {{range .Issues}}<li class="irow">
-        <span class="ipri" title="{{priorityLabel .Priority}}">{{priorityIcon .Priority}}</span>
+      {{range .Issues}}<li class="irow" data-issue="{{.Number}}">
+        {{if $d.CanWrite}}{{template "qpriority" (qArgs . $d)}}{{else}}<span class="ipri" title="{{priorityLabel .Priority}}">{{priorityIcon .Priority}}</span>{{end}}
         <span class="iid">{{.ID}}</span>
-        <span class="istat" title="{{statusLabel .Status}}">{{statusIcon .Status}}</span>
+        {{if $d.CanWrite}}{{template "qstatus" (qArgs . $d)}}{{else}}<span class="istat" title="{{statusLabel .Status}}">{{statusIcon .Status}}</span>{{end}}
         <a class="ititle" href="{{issueURL .Repo .Number}}"><span class="visually-hidden">{{.ID}}, {{statusLabel .Status}}, {{priorityLabel .Priority}}: </span>{{.Title}}</a>
         <span class="imeta">
           {{range .Labels}}<span class="ilabel">{{dotFor $colors .}}{{.}}</span>{{end}}
@@ -85,6 +85,7 @@
     {{else}}<p>Nothing here.</p>{{end}}
   </div>
   {{end}}
+  {{template "shortcuts"}}
 </section>
 {{end}}
 {{template "foot" .}}{{end}}
@@ -182,6 +183,7 @@
     </section>
 
     {{if .CanWrite}}<p class="idelete"><a class="danger delete" href="{{issueURL $repo $i.Number "delete"}}">Delete issue…</a></p>{{end}}
+    {{template "shortcuts"}}
   </div>
 </div>
 {{end}}
@@ -318,6 +320,7 @@
 {{define "issuesnav"}}{{/* . is issuesNavArgs */}}
 <nav class="viewnav" aria-label="Issue views">
   <a href="{{repoURL .Repo "issues" "" ""}}"{{if eq .Current "issues"}} aria-current="page"{{end}}>Issues</a>
+  <a href="{{repoURL .Repo "issues/board" "" ""}}"{{if eq .Current "board"}} aria-current="page"{{end}}>Board</a>
   <a href="{{repoURL .Repo "issues/projects" "" ""}}"{{if eq .Current "projects"}} aria-current="page"{{end}}>Projects</a>
   <a href="{{repoURL .Repo "issues/cycles" "" ""}}"{{if eq .Current "cycles"}} aria-current="page"{{end}}>Cycles</a>
 </nav>
@@ -488,3 +491,84 @@
 </section>
 {{else}}<div class="empty iempty"><p>No issues in it yet.</p></div>{{end}}
 {{end}}
+
+{{define "qstatus"}}{{/* . is qArgs: Issue, Back, Statuses */}}
+<details class="qmenu">
+  <summary class="istat" title="Status: {{statusLabel .Issue.Status}}. Change it"><span class="visually-hidden">{{.Issue.ID}} status: {{statusLabel .Issue.Status}}. Change it</span>{{statusIcon .Issue.Status}}</summary>
+  <form class="qlist" method="post" action="{{issueURL .Issue.Repo .Issue.Number "quick"}}">
+    <input type="hidden" name="back" value="{{.Back}}">
+    {{$cur := .Issue.Status}}{{range .Statuses}}<button type="submit" class="qitem" name="status" value="{{.}}"{{if eq . $cur}} aria-current="true"{{end}}>{{statusIcon .}}<span>{{statusLabel .}}</span></button>{{end}}
+  </form>
+</details>
+{{end}}
+
+{{define "qpriority"}}{{/* . is qArgs: Issue, Back, Priorities */}}
+<details class="qmenu">
+  <summary class="ipri" title="Priority: {{priorityLabel .Issue.Priority}}. Change it"><span class="visually-hidden">{{.Issue.ID}} priority: {{priorityLabel .Issue.Priority}}. Change it</span>{{priorityIcon .Issue.Priority}}</summary>
+  <form class="qlist" method="post" action="{{issueURL .Issue.Repo .Issue.Number "quick"}}">
+    <input type="hidden" name="back" value="{{.Back}}">
+    {{$cur := .Issue.Priority}}{{range .Priorities}}<button type="submit" class="qitem" name="priority" value="{{.}}"{{if eq . $cur}} aria-current="true"{{end}}>{{priorityIcon .}}<span>{{priorityLabel .}}</span></button>{{end}}
+  </form>
+</details>
+{{end}}
+
+{{define "shortcuts"}}{{/* Shown by the script, since the keys need it. */}}
+<details class="shortcuts" id="shortcuts" hidden>
+  <summary>Keyboard shortcuts</summary>
+  <dl>
+    <dt><kbd>c</kbd></dt><dd>New issue</dd>
+    <dt><kbd>/</kbd></dt><dd>Search</dd>
+    <dt><kbd>j</kbd> <kbd>k</kbd></dt><dd>Next and previous issue</dd>
+    <dt><kbd>s</kbd> <kbd>p</kbd></dt><dd>Status and priority of the chosen issue</dd>
+    <dt><kbd>g</kbd> then <kbd>i</kbd> <kbd>b</kbd> <kbd>p</kbd> <kbd>y</kbd></dt><dd>Go to issues, board, projects, cycles</dd>
+    <dt><kbd>e</kbd> <kbd>r</kbd></dt><dd>On an issue: edit, reply</dd>
+    <dt><kbd>Esc</kbd></dt><dd>Close a menu</dd>
+    <dt><kbd>?</kbd></dt><dd>Show these</dd>
+  </dl>
+</details>
+{{end}}
+
+{{define "issueboard"}}{{template "head" .}}
+{{template "repohead" .}}
+{{with .Data}}{{$colors := labelColors .Labels}}{{$d := .}}
+<section class="issues">
+  {{template "issuesnav" (issuesNav $.Repo.Name "board")}}
+  <h1 class="visually-hidden">{{$.Repo.Name}}: board</h1>
+  <form class="issuefilter" method="get">
+    <input type="search" name="q" value="{{.Query}}" aria-label="Search issues" placeholder="Search titles and descriptions" autocomplete="off" enterkeyhint="search">
+    <select name="assignee" aria-label="Assignee">
+      <option value=""{{if eq .Assignee ""}} selected{{end}}>Anyone</option>
+      {{if $.SoftServe}}<option value="me"{{if eq .Assignee "me"}} selected{{end}}>Assigned to me</option>{{end}}
+      <option value="none"{{if eq .Assignee "none"}} selected{{end}}>Unassigned</option>
+    </select>
+    {{if .Labels}}<select name="label" aria-label="Label"><option value="">Any label</option>{{$lb := .Label}}{{range .Labels}}<option value="{{.Name}}"{{if eq .Name $lb}} selected{{end}}>{{.Name}}</option>{{end}}</select>{{end}}
+    {{if .Projects}}<select name="project" aria-label="Project"><option value="">Any project</option>{{$pj := .Project}}{{range .Projects}}<option value="{{.Name}}"{{if eq .Name $pj}} selected{{end}}>{{.Name}}</option>{{end}}</select>{{end}}
+    {{if .Cycles}}<select name="cycle" aria-label="Cycle"><option value="">Any cycle</option><option value="current"{{if eq .Cycle "current"}} selected{{end}}>Current cycle</option><option value="next"{{if eq .Cycle "next"}} selected{{end}}>Next cycle</option></select>{{end}}
+    <button type="submit" class="secondary">Filter</button>
+    {{if .Filtered}}<a class="clear" href="{{repoURL $.Repo.Name "issues/board" "" ""}}">Clear filters</a>{{end}}
+  </form>
+  <div class="board" role="region" aria-label="Board, one column per status" tabindex="0">
+    {{range .Groups}}{{$st := .Status}}
+    <section class="bcol" data-status="{{.Status}}" aria-labelledby="col-{{.Status}}">
+      <h2 class="bcol-head" id="col-{{.Status}}">{{statusIcon .Status}}<span>{{statusLabel .Status}}</span> <span class="count">{{len .Issues}}</span>
+        {{if $d.CanWrite}}<a class="badd" href="{{repoURL $.Repo.Name "issues/new" "" ""}}?status={{.Status}}" title="New issue in {{statusLabel .Status}}"><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path d="M7 2.5v9M2.5 7h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="visually-hidden">New issue in {{statusLabel .Status}}</span></a>{{end}}
+      </h2>
+      <ol class="bcards">
+        {{range .Issues}}<li class="bcard" data-issue="{{.Number}}" data-quick="{{issueURL .Repo .Number "quick"}}">
+          <div class="bcard-top">
+            <span class="iid">{{.ID}}</span>
+            <span class="grow"></span>
+            {{if $d.CanWrite}}{{template "qpriority" (qArgs . $d)}}{{template "qstatus" (qArgs . $d)}}{{else}}<span class="ipri" title="{{priorityLabel .Priority}}">{{priorityIcon .Priority}}</span>{{end}}
+          </div>
+          <a class="ititle" href="{{issueURL .Repo .Number}}"><span class="visually-hidden">{{.ID}}, {{priorityLabel .Priority}}: </span>{{.Title}}</a>
+          {{if or .Labels .Assignee .Project}}<div class="imeta">{{range .Labels}}<span class="ilabel">{{dotFor $colors .}}{{.}}</span>{{end}}{{with .Project}}<span class="iproject">{{.}}</span>{{end}}{{if .Assignee}}<span class="iassignee">{{.Assignee}}</span>{{end}}</div>{{end}}
+        </li>{{end}}
+      </ol>
+    </section>
+    {{end}}
+  </div>
+  <p class="note boardnote">Move a card with its status menu{{if .CanWrite}}, or drag it with a mouse{{end}}. Canceled issues are left off the board.</p>
+  {{template "shortcuts"}}
+</section>
+{{end}}
+{{template "foot" .}}{{end}}

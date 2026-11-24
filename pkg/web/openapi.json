@@ -1663,6 +1663,7 @@
           "parent": {"type": "string"},
           "project": {"type": "string", "description": "A project's name, or empty for none"},
           "cycle": {"type": "string", "description": "A cycle (number, `current`, `next`), or empty for none"},
+          "after": {"type": "string", "description": "Its place in its status column's manual order (the board's): `top`, or the issue it goes right after"},
           "labels": {"type": "array", "items": {"type": "string"}, "description": "Replaces the labels"},
           "add_labels": {"type": "array", "items": {"type": "string"}},
           "remove_labels": {"type": "array", "items": {"type": "string"}}

@@ -257,7 +257,7 @@ func issueCreateCommand() *cobra.Command {
 }
 
 func issueEditCommand() *cobra.Command {
-	var title, desc, status, priority, assignee, parent, project, cycle string
+	var title, desc, status, priority, assignee, parent, project, cycle, after string
 	var add, remove []string
 	cmd := &cobra.Command{
 		Use:   "edit ISSUE",
@@ -282,7 +282,7 @@ func issueEditCommand() *cobra.Command {
 			}
 			u.Title, u.Description, u.Status = set("title", title), set("description", desc), set("status", status)
 			u.Priority, u.Assignee, u.Parent = set("priority", priority), set("assignee", assignee), set("parent", parent)
-			u.Project, u.Cycle = set("project", project), set("cycle", cycle)
+			u.Project, u.Cycle, u.After = set("project", project), set("cycle", cycle), set("after", after)
 			i, err := svc.UpdateIssue(cmd.Context(), repo, n, u)
 			if err != nil {
 				return err
@@ -299,6 +299,7 @@ func issueEditCommand() *cobra.Command {
 	cmd.Flags().StringVar(&parent, "parent", "", `the issue it's part of, or "" for none`)
 	cmd.Flags().StringVar(&project, "project", "", `the project it's in, or "" for none`)
 	cmd.Flags().StringVar(&cycle, "cycle", "", `the cycle it's in (a number, current, next), or "" for none`)
+	cmd.Flags().StringVar(&after, "after", "", `its place on the board: "top", or the issue it goes after`)
 	cmd.Flags().StringSliceVar(&add, "add-label", nil, "labels to add, created if new")
 	cmd.Flags().StringSliceVar(&remove, "remove-label", nil, "labels to take off")
 	return cmd

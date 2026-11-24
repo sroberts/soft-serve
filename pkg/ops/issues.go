@@ -263,6 +263,10 @@ type IssueUpdate struct {
 	Labels       *[]string `json:"labels,omitempty"`
 	AddLabels    []string  `json:"add_labels,omitempty"`
 	RemoveLabels []string  `json:"remove_labels,omitempty"`
+	// After places the issue in its status column's manual order (the
+	// board's): "top", or the identifier or number of the issue it goes
+	// right after.
+	After *string `json:"after,omitempty"`
 }
 
 // Limits on what an issue holds.
@@ -990,9 +994,18 @@ func (l *Local) UpdateIssue(ctx context.Context, name string, number int64, u Is
 		}
 	}
 
+	moved := false
+	if u.After != nil {
+		order, err := l.orderAfter(ctx, h, r, row, *u.After)
+		if err != nil {
+			return Issue{}, err
+		}
+		row.SortOrder, moved = order, true
+	}
+
 	err = h.TransactionContext(ctx, func(tx *db.Tx) error {
 		touched := len(changes) > 0
-		if touched {
+		if touched || moved {
 			if err := issue.Update(ctx, tx, row, row.Status != before.Status); err != nil {
 				return err
 			}
@@ -1280,4 +1293,73 @@ func (l *Local) DeleteIssueLabel(ctx context.Context, name, labelName string) er
 		return issueErr(err, "label "+labelName)
 	}
 	return issue.DeleteLabel(ctx, h, lb.ID)
+}
+
+// orderAfter is the manual order that puts row right after the issue ref
+// names ("top" for first) among the issues in row's status column.
+func (l *Local) orderAfter(ctx context.Context, h *db.DB, r proto.Repository, row issue.Row, ref string) (float64, error) {
+	column := func() ([]issue.Row, error) {
+		rows, _, err := issue.List(ctx, h, issue.Filter{RepoIDs: []int64{r.ID()}, Statuses: []string{row.Status}, Sort: "manual", Limit: 500})
+		if err != nil {
+			return nil, err
+		}
+		out := rows[:0]
+		for _, x := range rows {
+			if x.ID != row.ID {
+				out = append(out, x)
+			}
+		}
+		return out, nil
+	}
+	rows, err := column()
+	if err != nil {
+		return 0, err
+	}
+	at := -1
+	ref = strings.TrimPrefix(strings.TrimSpace(ref), "#")
+	if !strings.EqualFold(ref, "top") && ref != "" {
+		var n int64
+		if num, ok := parseNumber(ref); ok {
+			n = num
+		} else if key, num, ok := issue.ParseID(ref); ok && key == row.Key {
+			n = num
+		} else {
+			return 0, Invalid("place it after an issue in the same repository, such as %s-1, or at the top", row.Key)
+		}
+		for i, x := range rows {
+			if x.Number == n {
+				at = i
+			}
+		}
+		if at < 0 {
+			return 0, Invalid("%s isn't in the %s column", issue.FormatID(row.Key, n), issue.StatusLabel(row.Status))
+		}
+	}
+	between := func() (float64, float64, bool) {
+		switch {
+		case len(rows) == 0:
+			return 0, 0, false
+		case at < 0:
+			return rows[0].SortOrder - 2, rows[0].SortOrder, true
+		case at == len(rows)-1:
+			return rows[at].SortOrder, rows[at].SortOrder + 2, true
+		}
+		return rows[at].SortOrder, rows[at+1].SortOrder, true
+	}
+	lo, hi, ok := between()
+	if !ok {
+		return row.SortOrder, nil
+	}
+	if hi-lo < 1e-6 {
+		// The gap has worn thin from halving: number the column afresh.
+		for i, x := range rows {
+			x.SortOrder = float64(i + 1)
+			if err := issue.SetOrder(ctx, h, x.ID, x.SortOrder); err != nil {
+				return 0, err
+			}
+			rows[i] = x
+		}
+		lo, hi, _ = between()
+	}
+	return (lo + hi) / 2, nil
 }
