@@ -1,72 +1,22 @@
 {{define "issues"}}{{template "head" .}}
 {{if .Repo}}{{template "repohead" .}}{{end}}
-{{with .Data}}{{$colors := labelColors .Labels}}{{$global := .Global}}{{$d := .}}
+{{with .Data}}{{$colors := labelColors .Labels}}{{$d := .}}
 <section class="issues">
   {{if not .Global}}{{template "issuesnav" (issuesNav $.Repo.Name "issues")}}{{end}}
   <div class="issuebar">
     {{if .Global}}<h1>{{$.Title}}</h1>{{else}}<h1 class="visually-hidden">{{$.Repo.Name}}: issues</h1>{{end}}
-    <nav class="subnav" aria-label="Which issues">{{range .Scopes}}<a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{.Label}}</a>{{end}}</nav>
+    <nav class="subnav scopes" aria-label="Which issues">{{range .Scopes}}<a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{.Label}}</a>{{end}}</nav>
     <span class="grow"></span>
-    {{if .CanWrite}}<a class="settingslink" href="{{repoURL $.Repo.Name "issues/settings" "" ""}}">Labels &amp; key</a>
-    <a class="button" href="{{repoURL $.Repo.Name "issues/new" "" ""}}">New issue</a>{{end}}
+    {{if .CanWrite}}<a class="button" href="{{repoURL $.Repo.Name "issues/new" "" ""}}">New issue</a>{{end}}
   </div>
-  <form class="issuefilter" method="get">
-    {{if ne .Scope "open"}}<input type="hidden" name="scope" value="{{.Scope}}">{{end}}
-    <input type="search" name="q" value="{{.Query}}" aria-label="Search issues" placeholder="Search titles and descriptions{{with .Key}}, or {{.}}-1{{end}}" autocomplete="off" enterkeyhint="search">
-    <select name="assignee" aria-label="Assignee">
-      <option value=""{{if eq .Assignee ""}} selected{{end}}>Anyone</option>
-      {{if $.SoftServe}}<option value="me"{{if eq .Assignee "me"}} selected{{end}}>Assigned to me</option>{{end}}
-      <option value="none"{{if eq .Assignee "none"}} selected{{end}}>Unassigned</option>
-      {{if not (eq .Assignee "" "me" "none")}}<option value="{{.Assignee}}" selected>Assigned to {{.Assignee}}</option>{{end}}
-    </select>
-    <select name="priority" aria-label="Priority">
-      <option value="">Any priority</option>
-      {{$pr := .Priority}}{{range .Priorities}}<option value="{{.}}"{{if eq . $pr}} selected{{end}}>{{priorityLabel .}}</option>{{end}}
-    </select>
-    {{if .Labels}}<select name="label" aria-label="Label">
-      <option value="">Any label</option>
-      {{$lb := .Label}}{{range .Labels}}<option value="{{.Name}}"{{if eq .Name $lb}} selected{{end}}>{{.Name}}</option>{{end}}
-    </select>{{end}}
-    {{if .Projects}}<select name="project" aria-label="Project">
-      <option value="">Any project</option>
-      {{$pj := .Project}}{{range .Projects}}<option value="{{.Name}}"{{if eq .Name $pj}} selected{{end}}>{{.Name}}</option>{{end}}
-      <option value="none"{{if eq .Project "none"}} selected{{end}}>No project</option>
-    </select>{{end}}
-    {{if .Cycles}}<select name="cycle" aria-label="Cycle">
-      <option value="">Any cycle</option>
-      <option value="current"{{if eq .Cycle "current"}} selected{{end}}>Current cycle</option>
-      <option value="next"{{if eq .Cycle "next"}} selected{{end}}>Next cycle</option>
-      {{$cy := .Cycle}}{{range .Cycles}}{{$n := printf "%d" .Number}}<option value="{{$n}}"{{if eq $n $cy}} selected{{end}}>Cycle {{.Number}}{{with .Name}}: {{.}}{{end}}</option>{{end}}
-      <option value="none"{{if eq .Cycle "none"}} selected{{end}}>No cycle</option>
-    </select>{{end}}
-    <select name="sort" aria-label="Order">
-      <option value=""{{if eq .Sort ""}} selected{{end}}>By priority</option>
-      <option value="updated"{{if eq .Sort "updated"}} selected{{end}}>Recently updated</option>
-      <option value="created"{{if eq .Sort "created"}} selected{{end}}>Newest first</option>
-      <option value="number"{{if eq .Sort "number"}} selected{{end}}>By number</option>
-    </select>
-    <button type="submit" class="secondary">Filter</button>
-    {{if .Filtered}}<a class="clear" href="{{.ClearURL}}">Clear filters</a>{{end}}
-  </form>
+  {{template "issuefilters" (filterArgs $d $.SoftServe $.Solo)}}
 
   {{if .Groups}}
-  {{range .Groups}}
+  {{range .Groups}}{{$g := .}}
   <section class="igroup"{{with .Status}} aria-labelledby="group-{{.}}"{{end}}>
-    {{with .Status}}<h2 class="igroup-head" id="group-{{.}}">{{statusIcon .}}<span>{{statusLabel .}}</span></h2>{{end}}
+    {{with .Status}}<h2 class="igroup-head" id="group-{{.}}">{{statusIcon .}}<span>{{statusLabel .}}</span> <span class="count">{{len $g.Issues}}</span></h2>{{end}}
     <ul class="ilist">
-      {{range .Issues}}<li class="irow" data-issue="{{.Number}}">
-        {{if $d.CanWrite}}{{template "qpriority" (qArgs . $d)}}{{else}}<span class="ipri" title="{{priorityLabel .Priority}}">{{priorityIcon .Priority}}</span>{{end}}
-        <span class="iid">{{.ID}}</span>
-        {{if $d.CanWrite}}{{template "qstatus" (qArgs . $d)}}{{else}}<span class="istat" title="{{statusLabel .Status}}">{{statusIcon .Status}}</span>{{end}}
-        <a class="ititle" href="{{issueURL .Repo .Number}}"><span class="visually-hidden">{{.ID}}, {{statusLabel .Status}}, {{priorityLabel .Priority}}: </span>{{.Title}}</a>
-        <span class="imeta">
-          {{range .Labels}}<span class="ilabel">{{dotFor $colors .}}{{.}}</span>{{end}}
-          {{if $global}}<span class="irepo">{{.Repo}}</span>{{end}}
-          {{if .CommentCount}}<span class="icount" title="{{.CommentCount}} comments"><svg viewBox="0 0 14 14" width="13" height="13" aria-hidden="true"><path d="M2.5 3.5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H6l-2.5 2v-2h0a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>{{.CommentCount}}<span class="visually-hidden"> comments</span></span>{{end}}
-          {{if .Assignee}}<span class="iassignee" title="Assigned to {{.Assignee}}">{{.Assignee}}</span>{{end}}
-          <time datetime="{{.UpdatedAt.Format "2006-01-02T15:04:05Z07:00"}}" title="Updated {{.UpdatedAt.Format "2 Jan 2006 15:04 MST"}}">{{ago .UpdatedAt}}</time>
-        </span>
-      </li>{{end}}
+      {{range .Issues}}{{template "issuerow" (row . $colors $d.CanWrite $d.Back $.SoftServe $.Solo $d.Global)}}{{end}}
     </ul>
   </section>
   {{end}}
@@ -78,22 +28,86 @@
   {{else}}
   <div class="empty iempty">
     {{if .Filtered}}<p>No issues match these filters. <a href="{{.ClearURL}}">Clear them</a>.</p>
-    {{else if and .Global (eq .Assignee "me")}}<p>Nothing is assigned to you{{if ne .Scope "all"}} here{{end}}.</p><p class="note">Issues you take, or that are assigned to you in any repository, show up here.</p>
-    {{else if .Global}}<p>No issues here yet.</p>
+    {{else if .Global}}<p>No {{if eq .Scope "open"}}open {{end}}issues in any repository.</p><p class="note">Each repository's Issues tab is where they start.</p>
     {{else if eq .Scope "open" "active" "backlog"}}<p>No {{if eq .Scope "open"}}open {{else if eq .Scope "active"}}active {{else}}backlog {{end}}issues.</p>
       {{if .CanWrite}}<p class="note"><a href="{{repoURL $.Repo.Name "issues/new" "" ""}}">Create one</a>, or name a branch after one (you/{{.Key | lower}}-1-…) and say <code>Fixes {{.Key}}-1</code> in a commit to move it along.</p>{{end}}
     {{else}}<p>Nothing here.</p>{{end}}
   </div>
   {{end}}
+  {{if .CanWrite}}<p class="ifoot"><a href="{{repoURL $.Repo.Name "issues/settings" "" ""}}">Labels and issue key</a></p>{{end}}
   {{template "shortcuts"}}
 </section>
 {{end}}
 {{template "foot" .}}{{end}}
 
+{{define "issuefilters"}}{{/* . is filterArgs: the list's data, the viewer and Solo */}}{{$d := .D}}
+<form class="issuefilter" method="get">
+  {{if not $d.Board}}<label class="scopepick"><span class="visually-hidden">Which issues</span>
+    <select name="scope">{{range $d.Scopes}}<option value="{{.Name}}"{{if .Current}} selected{{end}}>{{.Label}}</option>{{end}}</select>
+  </label>{{end}}
+  <input type="search" name="q" value="{{$d.Query}}" aria-label="Search issues" placeholder="Search titles and descriptions{{with $d.Key}}, or {{.}}-1{{end}}" autocomplete="off" enterkeyhint="search">
+  <details class="filters"{{if $d.FiltersOpen}} open{{end}}>
+    <summary>Filters{{with $d.FilterCount}} <span class="fcount">{{.}} on</span>{{end}}</summary>
+    <div class="filterset">
+      {{if or (not .Solo) $d.Assignee}}<select name="assignee" aria-label="Assignee">
+        <option value=""{{if eq $d.Assignee ""}} selected{{end}}>Anyone</option>
+        {{if .Viewer}}<option value="me"{{if eq $d.Assignee "me"}} selected{{end}}>Assigned to me</option>{{end}}
+        <option value="none"{{if eq $d.Assignee "none"}} selected{{end}}>Unassigned</option>
+        {{if not (eq $d.Assignee "" "me" "none")}}<option value="{{$d.Assignee}}" selected>Assigned to {{$d.Assignee}}</option>{{end}}
+      </select>{{end}}
+      <select name="priority" aria-label="Priority">
+        <option value="">Any priority</option>
+        {{range $d.Priorities}}<option value="{{.}}"{{if eq . $d.Priority}} selected{{end}}>{{priorityLabel .}}</option>{{end}}
+      </select>
+      {{if $d.Labels}}<select name="label" aria-label="Label">
+        <option value="">Any label</option>
+        {{range $d.Labels}}<option value="{{.Name}}"{{if eq .Name $d.Label}} selected{{end}}>{{.Name}}</option>{{end}}
+      </select>{{end}}
+      {{if $d.Projects}}<select name="project" aria-label="Project">
+        <option value="">Any project</option>
+        {{range $d.Projects}}<option value="{{.Name}}"{{if eq .Name $d.Project}} selected{{end}}>{{.Name}}</option>{{end}}
+        <option value="none"{{if eq $d.Project "none"}} selected{{end}}>No project</option>
+      </select>{{end}}
+      {{if $d.Cycles}}<select name="cycle" aria-label="Cycle">
+        <option value="">Any cycle</option>
+        <option value="current"{{if eq $d.Cycle "current"}} selected{{end}}>Current cycle</option>
+        <option value="next"{{if eq $d.Cycle "next"}} selected{{end}}>Next cycle</option>
+        {{range $d.Cycles}}{{$n := printf "%d" .Number}}<option value="{{$n}}"{{if eq $n $d.Cycle}} selected{{end}}>Cycle {{.Number}}{{with .Name}}: {{.}}{{end}}</option>{{end}}
+        <option value="none"{{if eq $d.Cycle "none"}} selected{{end}}>No cycle</option>
+      </select>{{end}}
+      {{if not $d.Board}}<select name="sort" aria-label="Order">
+        <option value=""{{if eq $d.Sort ""}} selected{{end}}>By priority</option>
+        <option value="updated"{{if eq $d.Sort "updated"}} selected{{end}}>Recently updated</option>
+        <option value="created"{{if eq $d.Sort "created"}} selected{{end}}>Newest first</option>
+        <option value="number"{{if eq $d.Sort "number"}} selected{{end}}>By number</option>
+      </select>{{end}}
+    </div>
+  </details>
+  <button type="submit" class="secondary">Show</button>
+  {{if $d.Filtered}}<a class="clear" href="{{$d.ClearURL}}">Clear filters</a>{{end}}
+</form>
+{{end}}
+
+{{define "issuerow"}}{{/* . is rowArgs */}}{{$i := .Issue}}
+<li class="irow" data-issue="{{$i.Number}}">
+  {{if .CanWrite}}{{template "qpriority" (qArgs $i .Back)}}{{else}}<span class="ipri" title="{{priorityLabel $i.Priority}}">{{priorityIcon $i.Priority}}</span>{{end}}
+  <span class="iid">{{$i.ID}}</span>
+  {{if .CanWrite}}{{template "qstatus" (qArgs $i .Back)}}{{else}}<span class="istat" title="{{statusLabel $i.Status}}">{{statusIcon $i.Status}}</span>{{end}}
+  <a class="ititle" href="{{issueURL $i.Repo $i.Number}}"><span class="visually-hidden">{{$i.ID}}, {{statusLabel $i.Status}}, {{priorityLabel $i.Priority}}: </span>{{$i.Title}}</a>
+  <span class="imeta">
+    {{$colors := .Colors}}{{range $i.Labels}}<span class="ilabel">{{dotFor $colors .}}{{.}}</span>{{end}}
+    {{if .Global}}<span class="irepo">{{$i.Repo}}</span>{{end}}
+    {{if $i.CommentCount}}<span class="icount" title="{{$i.CommentCount}} comments"><svg viewBox="0 0 14 14" width="13" height="13" aria-hidden="true"><path d="M2.5 3.5a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H6l-2.5 2v-2h0a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>{{$i.CommentCount}}<span class="visually-hidden"> comments</span></span>{{end}}
+    {{if showWho $i.Assignee .Viewer .Solo}}<span class="iassignee" title="Assigned to {{$i.Assignee}}">{{$i.Assignee}}</span>{{end}}
+    <time datetime="{{$i.UpdatedAt.Format "2006-01-02T15:04:05Z07:00"}}" title="Updated {{$i.UpdatedAt.Format "2 Jan 2006 15:04 MST"}}">{{ago $i.UpdatedAt}}</time>
+  </span>
+</li>
+{{end}}
+
 {{define "issue"}}{{template "head" .}}
 {{template "repohead" .}}
 {{with .Data}}{{$i := .Issue}}{{$repo := $.Repo.Name}}{{$colors := labelColors .Labels}}{{$d := .}}
-<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $repo "issues" "" ""}}">Issues</a><span class="sep" aria-hidden="true">/</span>{{with $i.Parent}}<a href="{{idURL $repo .}}">{{.}}</a><span class="sep" aria-hidden="true">/</span>{{end}}<span aria-current="page">{{$i.ID}}</span></nav>
+<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $repo "issues" "" ""}}">Issues</a><span class="sep" aria-hidden="true">/</span>{{with $i.Parent}}<a class="crumbid" href="{{idURL $repo .}}">{{.}}</a><span class="sep" aria-hidden="true">/</span>{{end}}<span class="crumbid" aria-current="page">{{$i.ID}}</span></nav>
 <header class="issuehead">
   <h1>{{$i.Title}}</h1>
   {{if .CanWrite}}<a class="button secondary" href="{{issueURL $repo $i.Number "edit"}}">Edit</a>{{end}}
@@ -101,21 +115,21 @@
 <div class="issuepage">
   <aside class="issueside" aria-label="Properties">
     <dl class="iprops">
-      <dt>Status</dt><dd>{{statusIcon $i.Status}} {{statusLabel $i.Status}}</dd>
-      <dt>Priority</dt><dd>{{priorityIcon $i.Priority}} {{priorityLabel $i.Priority}}</dd>
-      <dt>Assignee</dt><dd>{{if $i.Assignee}}{{$i.Assignee}}{{else}}<span class="muted">Nobody</span>{{end}}</dd>
+      <dt>Status</dt><dd>{{if .CanWrite}}{{template "qstatus" (qWide $i.Issue .Back)}}{{else}}{{statusIcon $i.Status}} {{statusLabel $i.Status}}{{end}}</dd>
+      <dt>Priority</dt><dd>{{if .CanWrite}}{{template "qpriority" (qWide $i.Issue .Back)}}{{else}}{{priorityIcon $i.Priority}} {{priorityLabel $i.Priority}}{{end}}</dd>
+      {{if or (not $.Solo) (and $i.Assignee (ne $i.Assignee $.SoftServe))}}<dt>Assignee</dt><dd>{{if $i.Assignee}}{{$i.Assignee}}{{else}}<span class="muted">Nobody</span>{{end}}</dd>{{end}}
       <dt>Labels</dt><dd>{{range $i.Labels}}<span class="ilabel">{{dotFor $colors .}}{{.}}</span>{{else}}<span class="muted">None</span>{{end}}</dd>
       {{with $i.Parent}}<dt>Part of</dt><dd><a href="{{idURL $repo .}}">{{.}}</a></dd>{{end}}
-      {{with $i.Project}}<dt>Project</dt><dd><a href="{{projectURL $repo .}}">{{.}}</a></dd>{{end}}
+      {{with $i.Project}}<dt>Project</dt><dd><a href="{{projectNameURL $repo .}}">{{.}}</a></dd>{{end}}
       {{with $i.Cycle}}<dt>Cycle</dt><dd><a href="{{cycleURL $repo .}}">Cycle {{.}}</a></dd>{{end}}
-      <dt>Opened</dt><dd><time datetime="{{$i.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}" title="{{$i.CreatedAt.Format "2 Jan 2006 15:04 MST"}}">{{ago $i.CreatedAt}}</time>{{with $i.Creator}} by {{.}}{{end}}</dd>
+      <dt>Opened</dt><dd><time datetime="{{$i.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}" title="{{$i.CreatedAt.Format "2 Jan 2006 15:04 MST"}}">{{ago $i.CreatedAt}}</time>{{if showWho $i.Creator $.SoftServe $.Solo}} by {{$i.Creator}}{{end}}</dd>
     </dl>
     {{if .CanWrite}}
     <details class="editprops"{{if .Err}} open{{end}}>
-      <summary>Change properties</summary>
+      <summary>Labels, project and more</summary>
       {{template "formerror" .Err}}
       <form class="manage" method="post" action="{{issueURL $repo $i.Number}}">
-        {{template "issuepropfields" .}}
+        {{template "issuemoreprops" .}}
         <div class="actions"><button type="submit">Save</button></div>
       </form>
     </details>
@@ -129,13 +143,7 @@
     <section class="isub" aria-labelledby="subs">
       <h2 id="subs">Sub-issues{{with $i.SubIssues}} <span class="count">{{len .}}</span>{{end}}</h2>
       {{if $i.SubIssues}}<ul class="ilist">
-        {{range $i.SubIssues}}<li class="irow">
-          <span class="ipri" title="{{priorityLabel .Priority}}">{{priorityIcon .Priority}}</span>
-          <span class="iid">{{.ID}}</span>
-          <span class="istat" title="{{statusLabel .Status}}">{{statusIcon .Status}}</span>
-          <a class="ititle" href="{{issueURL .Repo .Number}}"><span class="visually-hidden">{{.ID}}, {{statusLabel .Status}}: </span>{{.Title}}</a>
-          <span class="imeta">{{if .Assignee}}<span class="iassignee">{{.Assignee}}</span>{{end}}</span>
-        </li>{{end}}
+        {{range $i.SubIssues}}{{template "issuerow" (row . $colors $d.CanWrite $d.Back $.SoftServe $.Solo false)}}{{end}}
       </ul>{{end}}
       {{if .CanWrite}}<p class="addsub"><a href="{{repoURL $repo "issues/new" "" ""}}?parent={{$i.ID}}">Add a sub-issue</a></p>{{end}}
     </section>
@@ -189,18 +197,22 @@
 {{end}}
 {{template "foot" .}}{{end}}
 
-{{define "issuepropfields"}}{{/* . has Props, Statuses, Priorities, Labels and maybe Users */}}
-{{$p := .Props}}
-<label class="field">Status
-  <select name="status">{{range .Statuses}}<option value="{{.}}"{{if eq . $p.Status}} selected{{end}}>{{statusLabel .}}</option>{{end}}</select>
-</label>
-<label class="field">Priority
-  <select name="priority">{{range .Priorities}}<option value="{{.}}"{{if eq . $p.Priority}} selected{{end}}>{{priorityLabel .}}</option>{{end}}</select>
-</label>
-<label class="field">Assignee <span class="hint">a username, or <code>me</code>; empty for nobody</span>
+{{define "issuecoreprops"}}{{/* . has Props, Statuses and Priorities */}}{{$p := .Props}}
+<div class="fieldrow">
+  <label class="field">Status
+    <select name="status">{{range .Statuses}}<option value="{{.}}"{{if eq . $p.Status}} selected{{end}}>{{statusLabel .}}</option>{{end}}</select>
+  </label>
+  <label class="field">Priority
+    <select name="priority">{{range .Priorities}}<option value="{{.}}"{{if eq . $p.Priority}} selected{{end}}>{{priorityLabel .}}</option>{{end}}</select>
+  </label>
+</div>
+{{end}}
+
+{{define "issuemoreprops"}}{{/* . has Props, Labels, Projects, Cycles, Key, Users and Solo */}}{{$p := .Props}}
+{{if not .Solo}}<label class="field">Assignee <span class="hint">a username, or <code>me</code>; empty for nobody</span>
   <input type="text" name="assignee" value="{{$p.Assignee}}" list="issue-users" autocomplete="off" autocapitalize="off" spellcheck="false">
 </label>
-<datalist id="issue-users">{{with .Users}}{{range .}}<option value="{{.}}">{{end}}{{end}}</datalist>
+<datalist id="issue-users">{{with .Users}}{{range .}}<option value="{{.}}">{{end}}{{end}}</datalist>{{end}}
 <fieldset class="ilabels">
   <legend>Labels</legend>
   {{range .Labels}}<label class="check"><input type="checkbox" name="labels" value="{{.Name}}"{{if $p.Has .Name}} checked{{end}}> <span>{{labelDot .Color}} {{.Name}}</span></label>{{end}}
@@ -208,12 +220,14 @@
     <input type="text" name="new_label" value="{{$p.NewLabel}}" autocomplete="off">
   </label>
 </fieldset>
-{{if .Projects}}<label class="field">Project
-  <select name="project"><option value="">None</option>{{range .Projects}}<option value="{{.Name}}"{{if eq .Name $p.Project}} selected{{end}}>{{.Name}}</option>{{end}}</select>
-</label>{{end}}
-{{if .Cycles}}<label class="field">Cycle
-  <select name="cycle"><option value="">None</option>{{range .Cycles}}{{$n := printf "%d" .Number}}<option value="{{$n}}"{{if eq $n $p.Cycle}} selected{{end}}>Cycle {{.Number}}{{with .Name}}: {{.}}{{end}} ({{.StartDate}} to {{.EndDate}}){{if .Current}}, current{{end}}</option>{{end}}</select>
-</label>{{end}}
+{{if or .Projects .Cycles}}<div class="fieldrow">
+  {{if .Projects}}<label class="field">Project
+    <select name="project"><option value="">None</option>{{range .Projects}}<option value="{{.Name}}"{{if eq .Name $p.Project}} selected{{end}}>{{.Name}}</option>{{end}}</select>
+  </label>{{end}}
+  {{if .Cycles}}<label class="field">Cycle
+    <select name="cycle"><option value="">None</option>{{range .Cycles}}{{$n := printf "%d" .Number}}<option value="{{$n}}"{{if eq $n $p.Cycle}} selected{{end}}>Cycle {{.Number}}{{with .Name}}: {{.}}{{end}}{{if .Current}} (current){{end}}</option>{{end}}</select>
+  </label>{{end}}
+</div>{{end}}
 <label class="field">Part of <span class="hint">a parent issue, such as {{if .Key}}{{.Key}}-1{{else}}ICE-1{{end}}; empty for none</span>
   <input type="text" name="parent" value="{{$p.Parent}}" autocomplete="off" autocapitalize="characters" spellcheck="false">
 </label>
@@ -222,7 +236,7 @@
 {{define "issuenew"}}{{template "head" .}}
 {{template "repohead" .}}
 {{with .Data}}
-<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues" "" ""}}">Issues</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">New</span></nav>
+<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues" "" ""}}">Issues</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">New issue</span></nav>
 <h1 class="visually-hidden">New issue in {{$.Repo.Name}}</h1>
 {{template "formerror" .Err}}
 <form class="manage issueform" method="post" action="{{repoURL $.Repo.Name "issues/new" "" ""}}">
@@ -230,12 +244,13 @@
     <input type="text" name="title" value="{{.Title}}" required maxlength="256" autofocus autocomplete="off">
   </label>
   <label class="field">Description <span class="hint">optional; Markdown</span>
-    <textarea name="description" rows="10">{{.Description}}</textarea>
+    <textarea name="description" rows="8">{{.Description}}</textarea>
   </label>
-  <fieldset class="iprops-form">
-    <legend>Properties</legend>
-    {{template "issuepropfields" .}}
-  </fieldset>
+  {{template "issuecoreprops" .}}
+  <details class="moreprops"{{if or .MoreOpen .Err}} open{{end}}>
+    <summary>Labels, project and more</summary>
+    {{template "issuemoreprops" .}}
+  </details>
   <div class="actions"><button type="submit">Create issue</button> <a class="button secondary" href="{{repoURL $.Repo.Name "issues" "" ""}}">Cancel</a></div>
 </form>
 {{end}}
@@ -244,7 +259,7 @@
 {{define "issueedit"}}{{template "head" .}}
 {{template "repohead" .}}
 {{with .Data}}
-<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues" "" ""}}">Issues</a><span class="sep" aria-hidden="true">/</span><a href="{{issueURL $.Repo.Name .Number}}">{{.ID}}</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Edit</span></nav>
+<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues" "" ""}}">Issues</a><span class="sep" aria-hidden="true">/</span><a class="crumbid" href="{{issueURL $.Repo.Name .Number}}">{{.ID}}</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Edit</span></nav>
 <h1 class="visually-hidden">Edit {{.ID}}</h1>
 {{template "formerror" .Err}}
 <form class="manage issueform" method="post" action="{{issueURL $.Repo.Name .Number "edit"}}">
@@ -262,7 +277,7 @@
 {{define "commentedit"}}{{template "head" .}}
 {{template "repohead" .}}
 {{with .Data}}
-<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues" "" ""}}">Issues</a><span class="sep" aria-hidden="true">/</span><a href="{{issueURL $.Repo.Name .Number}}">{{.ID}}</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Edit comment</span></nav>
+<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues" "" ""}}">Issues</a><span class="sep" aria-hidden="true">/</span><a class="crumbid" href="{{issueURL $.Repo.Name .Number}}">{{.ID}}</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Edit comment</span></nav>
 <h1 class="visually-hidden">Edit a comment on {{.ID}}</h1>
 {{template "formerror" .Err}}
 <form class="manage issueform" method="post" action="{{commentURL $.Repo.Name .Number .Comment.ID "edit"}}">
@@ -277,11 +292,36 @@
 {{define "issuesettings"}}{{template "head" .}}
 {{template "repohead" .}}
 {{with .Data}}
-<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues" "" ""}}">Issues</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Labels &amp; key</span></nav>
+<nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues" "" ""}}">Issues</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Labels and issue key</span></nav>
 <h1 class="visually-hidden">Issue settings for {{$.Repo.Name}}</h1>
+<section class="refs ilabelset">
+  <h2 id="labels">Labels</h2>
+  {{template "formerror" .LabelErr}}
+  <ul>
+    {{range .Tracker.Labels}}<li>
+      <div class="refmain"><span class="refname">{{labelDot .Color}} {{.Name}}</span>{{with .Description}}<p class="meta">{{.}}</p>{{end}}</div>
+      {{if $.Data.CanWrite}}<form class="rowaction" method="post" action="{{repoURL $.Repo.Name "issues/settings" "" ""}}"><input type="hidden" name="op" value="delete-label"><input type="hidden" name="name" value="{{.Name}}"><button type="submit" class="link danger" aria-label="Delete label {{.Name}}…">Delete…</button></form>{{end}}
+    </li>
+    {{else}}<li class="muted">No labels yet. They're also made when you add one to an issue.</li>{{end}}
+  </ul>
+  {{if .CanWrite}}
+  <details class="addnew"{{if or .LabelErr (not .Tracker.Labels)}} open{{end}}>
+    <summary class="button secondary">New label</summary>
+    <form class="manage" method="post" action="{{repoURL $.Repo.Name "issues/settings" "" ""}}" aria-label="New label">
+      <input type="hidden" name="op" value="label">
+      <div class="fieldrow">
+        <label class="field">Name <input type="text" name="name" value="{{.Label.Name}}" required maxlength="50" autocomplete="off"></label>
+        <label class="field colorfield">Color <input type="color" name="color" value="{{if .Label.Color}}{{.Label.Color}}{{else}}#8f897f{{end}}"></label>
+      </div>
+      <label class="field">Description <span class="hint">optional</span><input type="text" name="description" value="{{.Label.Description}}" maxlength="256"></label>
+      <div class="actions"><button type="submit">Add label</button></div>
+    </form>
+  </details>
+  {{end}}
+</section>
 <section class="manage-section">
   <h2 id="key">Issue key</h2>
-  <p class="note">Issues here are named {{.Tracker.Key}}-1, {{.Tracker.Key}}-2 and so on. {{.Tracker.Open}} open, {{.Tracker.Closed}} closed.</p>
+  <p class="note">Issues here are named <span class="crumbid">{{.Tracker.Key}}-1</span>, <span class="crumbid">{{.Tracker.Key}}-2</span> and so on. {{.Tracker.Open}} open, {{.Done}} done, {{.Canceled}} canceled.</p>
   {{if .IsAdmin}}
   {{template "formerror" .KeyErr}}
   <form class="inline" method="post" action="{{repoURL $.Repo.Name "issues/settings" "" ""}}" aria-labelledby="key">
@@ -289,28 +329,7 @@
     <label class="field">Key <span class="hint">2 to 10 letters and digits; changing it renames every issue</span>
       <input type="text" name="key" value="{{.Key}}" required pattern="[A-Za-z][A-Za-z0-9]{1,9}" title="2 to 10 letters and digits, starting with a letter" autocapitalize="characters" autocomplete="off" spellcheck="false">
     </label>
-    <button type="submit">Change key</button>
-  </form>
-  {{end}}
-</section>
-<section class="refs ilabelset">
-  <h2 id="labels">Labels</h2>
-  {{template "formerror" .LabelErr}}
-  <ul>
-    {{range .Tracker.Labels}}<li>
-      <div class="refmain"><span class="refname">{{labelDot .Color}} {{.Name}}</span>{{with .Description}}<p class="meta">{{.}}</p>{{end}}</div>
-      {{if $.Data.CanWrite}}<form class="rowaction" method="post" action="{{repoURL $.Repo.Name "issues/settings" "" ""}}"><input type="hidden" name="op" value="delete-label"><input type="hidden" name="name" value="{{.Name}}"><button type="submit" class="link danger" aria-label="Delete label {{.Name}}" title="Takes it off every issue">Delete</button></form>{{end}}
-    </li>
-    {{else}}<li class="muted">No labels yet. They're also made when you add one to an issue.</li>{{end}}
-  </ul>
-  {{if .CanWrite}}
-  <h2 id="add-label">Add a label</h2>
-  <form class="inline" method="post" action="{{repoURL $.Repo.Name "issues/settings" "" ""}}" aria-labelledby="add-label">
-    <input type="hidden" name="op" value="label">
-    <label class="field">Name <input type="text" name="name" value="{{.Label.Name}}" required maxlength="50" autocomplete="off"></label>
-    <label class="field">Color <input type="color" name="color" value="{{if .Label.Color}}{{.Label.Color}}{{else}}#8f897f{{end}}"></label>
-    <label class="field">Description <span class="hint">optional</span><input type="text" name="description" value="{{.Label.Description}}" maxlength="256"></label>
-    <button type="submit">Add label</button>
+    <button type="submit" class="secondary">Change key…</button>
   </form>
   {{end}}
 </section>
@@ -339,32 +358,32 @@
 <ul class="projlist">
   {{range .Projects}}<li>
     <div class="projmain">
-      <a class="projname" href="{{projectURL $.Repo.Name .Name}}">{{.Name}}</a>
-      <p class="meta"><span class="pstatus ps-{{.Status}}">{{projectStatus .Status}}</span>{{with .Lead}} · led by {{.}}{{end}}{{with .TargetDate}} · due {{.}}{{end}}</p>
+      <a class="projname" href="{{projectURL $.Repo.Name .ID}}">{{.Name}}</a>
+      <p class="meta"><span class="pstatus ps-{{.Status}}">{{projectStatus .Status}}</span>{{if showWho .Lead $.SoftServe $.Solo}} · led by {{.Lead}}{{end}}{{with .TargetDate}} · due <span class="date">{{.}}</span>{{end}}</p>
     </div>
     {{template "progress" .Progress}}
   </li>{{end}}
 </ul>
 {{else}}<div class="empty iempty"><p>No projects yet.</p><p class="note">A project gathers the issues for one piece of work, and shows how far along it is.</p></div>{{end}}
 {{if .CanWrite}}
-<section class="manage-section">
-  <h2 id="add-project">Add a project</h2>
+<details class="addnew"{{if or .Err (not .Projects)}} open{{end}}>
+  <summary class="button secondary">New project</summary>
   {{template "formerror" .Err}}
-  <form class="manage" method="post" action="{{repoURL $.Repo.Name "issues/projects" "" ""}}" aria-labelledby="add-project">
+  <form class="manage" method="post" action="{{repoURL $.Repo.Name "issues/projects" "" ""}}" aria-label="New project">
     {{template "projectfields" .}}
     <div class="actions"><button type="submit">Add project</button></div>
   </form>
-</section>
+</details>
 {{end}}
 {{end}}
 {{template "foot" .}}{{end}}
 
-{{define "projectfields"}}{{/* . has Form and Statuses */}}
+{{define "projectfields"}}{{/* . has Form, Statuses and Solo */}}
 <label class="field">Name <input type="text" name="name" value="{{.Form.Name}}" required maxlength="80" autocomplete="off"></label>
 <label class="field">Description <span class="hint">optional; Markdown</span><textarea name="description" rows="4">{{.Form.Description}}</textarea></label>
 <div class="fieldrow">
   <label class="field">Status <select name="status">{{$st := .Form.Status}}{{range .Statuses}}<option value="{{.}}"{{if eq . $st}} selected{{end}}>{{projectStatus .}}</option>{{end}}</select></label>
-  <label class="field">Lead <span class="hint">a username, or <code>me</code></span><input type="text" name="lead" value="{{.Form.Lead}}" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+  {{if not .Solo}}<label class="field">Lead <span class="hint">a username, or <code>me</code></span><input type="text" name="lead" value="{{.Form.Lead}}" autocomplete="off" autocapitalize="off" spellcheck="false"></label>{{end}}
 </div>
 <div class="fieldrow">
   <label class="field">Start <input type="date" name="start_date" value="{{.Form.StartDate}}"></label>
@@ -384,27 +403,28 @@
   <aside class="issueside" aria-label="Project">
     <dl class="iprops">
       <dt>Status</dt><dd><span class="pstatus ps-{{$pr.Status}}">{{projectStatus $pr.Status}}</span></dd>
-      <dt>Lead</dt><dd>{{if $pr.Lead}}{{$pr.Lead}}{{else}}<span class="muted">Nobody</span>{{end}}</dd>
-      <dt>Start</dt><dd>{{if $pr.StartDate}}{{$pr.StartDate}}{{else}}<span class="muted">Not set</span>{{end}}</dd>
-      <dt>Target</dt><dd>{{if $pr.TargetDate}}{{$pr.TargetDate}}{{else}}<span class="muted">Not set</span>{{end}}</dd>
+      {{if or (not $.Solo) (showWho $pr.Lead $.SoftServe $.Solo)}}<dt>Lead</dt><dd>{{if $pr.Lead}}{{$pr.Lead}}{{else}}<span class="muted">Nobody</span>{{end}}</dd>{{end}}
+      <dt>Start</dt><dd>{{if $pr.StartDate}}<span class="date">{{$pr.StartDate}}</span>{{else}}<span class="muted">Not set</span>{{end}}</dd>
+      <dt>Target</dt><dd>{{if $pr.TargetDate}}<span class="date">{{$pr.TargetDate}}</span>{{else}}<span class="muted">Not set</span>{{end}}</dd>
       <dt>Progress</dt><dd>{{template "progress" $pr.Progress}}</dd>
     </dl>
     {{if .CanWrite}}
     <details class="editprops"{{if .Err}} open{{end}}>
       <summary>Change project</summary>
       {{template "formerror" .Err}}
-      <form class="manage" method="post" action="{{projectURL $.Repo.Name $pr.Name}}">
+      <form class="manage" method="post" action="{{projectURL $.Repo.Name $pr.ID}}">
         {{template "projectfields" .}}
-        <div class="actions"><button type="submit">Save</button> <a class="danger" href="{{repoURL $.Repo.Name "issues/project/delete" "" ""}}?name={{$pr.Name}}">Delete project…</a></div>
+        <div class="actions"><button type="submit">Save</button> <a class="danger" href="{{projectURL $.Repo.Name $pr.ID}}/delete">Delete project…</a></div>
       </form>
     </details>
     {{end}}
   </aside>
   <div class="issuemain">
     {{if .Description}}<div class="markdown idesc">{{.Description}}</div>{{end}}
-    {{template "issuegroups" (groupArgs .Groups $colors)}}
+    {{template "issuegroups" (groupArgs .Groups $colors .CanWrite .Back $.SoftServe $.Solo)}}
   </div>
 </div>
+{{template "shortcuts"}}
 {{end}}
 {{template "foot" .}}{{end}}
 
@@ -415,27 +435,29 @@
 <h1 class="visually-hidden">Cycles in {{$.Repo.Name}}</h1>
 {{if .Cycles}}
 <ul class="projlist">
-  {{range .Cycles}}<li{{if .Current}} class="current"{{end}}>
+  {{range .Cycles}}<li>
     <div class="projmain">
       <a class="projname" href="{{cycleURL $.Repo.Name .Number}}">Cycle {{.Number}}{{with .Name}}: {{.}}{{end}}</a>
-      <p class="meta">{{.StartDate}} to {{.EndDate}}{{if .Current}} · <strong>current</strong>{{end}}</p>
+      <p class="meta"><span class="date">{{.StartDate}}</span> to <span class="date">{{.EndDate}}</span>{{if .Current}} <span class="badge current">Current</span>{{end}}</p>
     </div>
     {{template "progress" .Progress}}
   </li>{{end}}
 </ul>
 {{else}}<div class="empty iempty"><p>No cycles yet.</p><p class="note">A cycle is a stretch of time, two weeks by default, with the issues you mean to finish in it.</p></div>{{end}}
 {{if .CanWrite}}
-<section class="manage-section">
-  <h2 id="add-cycle">Add the next cycle</h2>
+<details class="addnew"{{if or .Err (not .Cycles)}} open{{end}}>
+  <summary class="button secondary">New cycle</summary>
   <p class="note">Leave the dates empty to start the day after the last cycle ends, or today, and run two weeks.</p>
   {{template "formerror" .Err}}
-  <form class="inline" method="post" action="{{repoURL $.Repo.Name "issues/cycles" "" ""}}" aria-labelledby="add-cycle">
+  <form class="manage" method="post" action="{{repoURL $.Repo.Name "issues/cycles" "" ""}}" aria-label="New cycle">
     <label class="field">Name <span class="hint">optional</span><input type="text" name="name" value="{{.Form.Name}}" maxlength="80" autocomplete="off"></label>
-    <label class="field">Start <input type="date" name="start_date" value="{{.Form.StartDate}}"></label>
-    <label class="field">End <input type="date" name="end_date" value="{{.Form.EndDate}}"></label>
-    <button type="submit">Add cycle</button>
+    <div class="fieldrow">
+      <label class="field">Start <input type="date" name="start_date" value="{{.Form.StartDate}}"></label>
+      <label class="field">End <input type="date" name="end_date" value="{{.Form.EndDate}}"></label>
+    </div>
+    <div class="actions"><button type="submit">Add cycle</button></div>
   </form>
-</section>
+</details>
 {{end}}
 {{end}}
 {{template "foot" .}}{{end}}
@@ -445,14 +467,13 @@
 {{with .Data}}{{$colors := labelColors .Labels}}{{$c := .Cycle}}
 <nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues/cycles" "" ""}}">Cycles</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Cycle {{$c.Number}}</span></nav>
 <header class="issuehead">
-  <h1>Cycle {{$c.Number}}{{with $c.Name}}: {{.}}{{end}}</h1>
+  <h1>Cycle {{$c.Number}}{{with $c.Name}}: {{.}}{{end}}{{if $c.Current}} <span class="badge current">Current</span>{{end}}</h1>
   {{if .CanWrite}}<a class="button" href="{{repoURL $.Repo.Name "issues/new" "" ""}}?cycle={{$c.Number}}">New issue</a>{{end}}
 </header>
 <div class="issuepage">
   <aside class="issueside" aria-label="Cycle">
     <dl class="iprops">
-      <dt>Dates</dt><dd>{{$c.StartDate}} to {{$c.EndDate}}</dd>
-      {{if $c.Current}}<dt>Now</dt><dd><strong>Current cycle</strong></dd>{{end}}
+      <dt>Dates</dt><dd><span class="date">{{$c.StartDate}}</span> to <span class="date">{{$c.EndDate}}</span></dd>
       <dt>Progress</dt><dd>{{template "progress" $c.Progress}}</dd>
     </dl>
     {{if .CanWrite}}
@@ -469,57 +490,53 @@
     {{end}}
   </aside>
   <div class="issuemain">
-    {{template "issuegroups" (groupArgs .Groups $colors)}}
+    {{template "issuegroups" (groupArgs .Groups $colors .CanWrite .Back $.SoftServe $.Solo)}}
   </div>
 </div>
+{{template "shortcuts"}}
 {{end}}
 {{template "foot" .}}{{end}}
 
-{{define "issuegroups"}}{{/* . is groupArgs: Groups and Colors */}}{{$colors := .Colors}}
+{{define "issuegroups"}}{{/* . is groupArgs */}}{{$g := .}}
 {{range .Groups}}
 <section class="igroup" aria-labelledby="group-{{.Status}}">
   <h2 class="igroup-head" id="group-{{.Status}}">{{statusIcon .Status}}<span>{{statusLabel .Status}}</span> <span class="count">{{len .Issues}}</span></h2>
   <ul class="ilist">
-    {{range .Issues}}<li class="irow">
-      <span class="ipri" title="{{priorityLabel .Priority}}">{{priorityIcon .Priority}}</span>
-      <span class="iid">{{.ID}}</span>
-      <span class="istat" title="{{statusLabel .Status}}">{{statusIcon .Status}}</span>
-      <a class="ititle" href="{{issueURL .Repo .Number}}"><span class="visually-hidden">{{.ID}}, {{statusLabel .Status}}, {{priorityLabel .Priority}}: </span>{{.Title}}</a>
-      <span class="imeta">{{range .Labels}}<span class="ilabel">{{dotFor $colors .}}{{.}}</span>{{end}}{{if .Assignee}}<span class="iassignee">{{.Assignee}}</span>{{end}}</span>
-    </li>{{end}}
+    {{range .Issues}}{{template "issuerow" (row . $g.Colors $g.CanWrite $g.Back $g.Viewer $g.Solo false)}}{{end}}
   </ul>
 </section>
 {{else}}<div class="empty iempty"><p>No issues in it yet.</p></div>{{end}}
 {{end}}
 
-{{define "qstatus"}}{{/* . is qArgs: Issue, Back, Statuses */}}
-<details class="qmenu">
-  <summary class="istat" title="Status: {{statusLabel .Issue.Status}}. Change it"><span class="visually-hidden">{{.Issue.ID}} status: {{statusLabel .Issue.Status}}. Change it</span>{{statusIcon .Issue.Status}}</summary>
+{{define "qstatus"}}{{/* . is qArgs: Issue, Back, Statuses, Wide */}}
+<details class="qmenu{{if .Wide}} wide{{end}}">
+  <summary class="istat" title="Status: {{statusLabel .Issue.Status}}. Change it"><span class="visually-hidden">{{.Issue.ID}} status: </span>{{statusIcon .Issue.Status}}{{if .Wide}}<span>{{statusLabel .Issue.Status}}</span>{{else}}<span class="visually-hidden">{{statusLabel .Issue.Status}}</span>{{end}}<span class="visually-hidden">. Change it</span></summary>
   <form class="qlist" method="post" action="{{issueURL .Issue.Repo .Issue.Number "quick"}}">
     <input type="hidden" name="back" value="{{.Back}}">
-    {{$cur := .Issue.Status}}{{range .Statuses}}<button type="submit" class="qitem" name="status" value="{{.}}"{{if eq . $cur}} aria-current="true"{{end}}>{{statusIcon .}}<span>{{statusLabel .}}</span></button>{{end}}
+    {{$cur := .Issue.Status}}{{range $n, $s := .Statuses}}<button type="submit" class="qitem" name="status" value="{{$s}}"{{if eq $s $cur}} aria-current="true"{{end}}>{{statusIcon $s}}<span>{{statusLabel $s}}</span><kbd class="qkey" aria-hidden="true">{{inc $n}}</kbd></button>{{end}}
   </form>
 </details>
 {{end}}
 
-{{define "qpriority"}}{{/* . is qArgs: Issue, Back, Priorities */}}
-<details class="qmenu">
-  <summary class="ipri" title="Priority: {{priorityLabel .Issue.Priority}}. Change it"><span class="visually-hidden">{{.Issue.ID}} priority: {{priorityLabel .Issue.Priority}}. Change it</span>{{priorityIcon .Issue.Priority}}</summary>
+{{define "qpriority"}}{{/* . is qArgs: Issue, Back, Priorities, Wide */}}
+<details class="qmenu{{if .Wide}} wide{{end}}">
+  <summary class="ipri" title="Priority: {{priorityLabel .Issue.Priority}}. Change it"><span class="visually-hidden">{{.Issue.ID}} priority: </span>{{priorityIcon .Issue.Priority}}{{if .Wide}}<span>{{priorityLabel .Issue.Priority}}</span>{{else}}<span class="visually-hidden">{{priorityLabel .Issue.Priority}}</span>{{end}}<span class="visually-hidden">. Change it</span></summary>
   <form class="qlist" method="post" action="{{issueURL .Issue.Repo .Issue.Number "quick"}}">
     <input type="hidden" name="back" value="{{.Back}}">
-    {{$cur := .Issue.Priority}}{{range .Priorities}}<button type="submit" class="qitem" name="priority" value="{{.}}"{{if eq . $cur}} aria-current="true"{{end}}>{{priorityIcon .}}<span>{{priorityLabel .}}</span></button>{{end}}
+    {{$cur := .Issue.Priority}}{{range $n, $p := .Priorities}}<button type="submit" class="qitem" name="priority" value="{{$p}}"{{if eq $p $cur}} aria-current="true"{{end}}>{{priorityIcon $p}}<span>{{priorityLabel $p}}</span><kbd class="qkey" aria-hidden="true">{{$n}}</kbd></button>{{end}}
   </form>
 </details>
 {{end}}
 
-{{define "shortcuts"}}{{/* Shown by the script, since the keys need it. */}}
+{{define "shortcuts"}}{{/* Shown by the script, since the keys need it; never on touch screens. */}}
 <details class="shortcuts" id="shortcuts" hidden>
   <summary>Keyboard shortcuts</summary>
   <dl>
     <dt><kbd>c</kbd></dt><dd>New issue</dd>
     <dt><kbd>/</kbd></dt><dd>Search</dd>
     <dt><kbd>j</kbd> <kbd>k</kbd></dt><dd>Next and previous issue</dd>
-    <dt><kbd>s</kbd> <kbd>p</kbd></dt><dd>Status and priority of the chosen issue</dd>
+    <dt><kbd>s</kbd> <kbd>p</kbd></dt><dd>Status and priority of the chosen issue, or this issue</dd>
+    <dt><kbd>0</kbd>–<kbd>6</kbd></dt><dd>In an open menu: choose the option with that number</dd>
     <dt><kbd>g</kbd> then <kbd>i</kbd> <kbd>b</kbd> <kbd>p</kbd> <kbd>y</kbd></dt><dd>Go to issues, board, projects, cycles</dd>
     <dt><kbd>e</kbd> <kbd>r</kbd></dt><dd>On an issue: edit, reply</dd>
     <dt><kbd>Esc</kbd></dt><dd>Close a menu</dd>
@@ -534,21 +551,9 @@
 <section class="issues">
   {{template "issuesnav" (issuesNav $.Repo.Name "board")}}
   <h1 class="visually-hidden">{{$.Repo.Name}}: board</h1>
-  <form class="issuefilter" method="get">
-    <input type="search" name="q" value="{{.Query}}" aria-label="Search issues" placeholder="Search titles and descriptions" autocomplete="off" enterkeyhint="search">
-    <select name="assignee" aria-label="Assignee">
-      <option value=""{{if eq .Assignee ""}} selected{{end}}>Anyone</option>
-      {{if $.SoftServe}}<option value="me"{{if eq .Assignee "me"}} selected{{end}}>Assigned to me</option>{{end}}
-      <option value="none"{{if eq .Assignee "none"}} selected{{end}}>Unassigned</option>
-    </select>
-    {{if .Labels}}<select name="label" aria-label="Label"><option value="">Any label</option>{{$lb := .Label}}{{range .Labels}}<option value="{{.Name}}"{{if eq .Name $lb}} selected{{end}}>{{.Name}}</option>{{end}}</select>{{end}}
-    {{if .Projects}}<select name="project" aria-label="Project"><option value="">Any project</option>{{$pj := .Project}}{{range .Projects}}<option value="{{.Name}}"{{if eq .Name $pj}} selected{{end}}>{{.Name}}</option>{{end}}</select>{{end}}
-    {{if .Cycles}}<select name="cycle" aria-label="Cycle"><option value="">Any cycle</option><option value="current"{{if eq .Cycle "current"}} selected{{end}}>Current cycle</option><option value="next"{{if eq .Cycle "next"}} selected{{end}}>Next cycle</option></select>{{end}}
-    <button type="submit" class="secondary">Filter</button>
-    {{if .Filtered}}<a class="clear" href="{{repoURL $.Repo.Name "issues/board" "" ""}}">Clear filters</a>{{end}}
-  </form>
+  {{template "issuefilters" (filterArgs $d $.SoftServe $.Solo)}}
   <div class="board" role="region" aria-label="Board, one column per status" tabindex="0">
-    {{range .Groups}}{{$st := .Status}}
+    {{range .Groups}}
     <section class="bcol" data-status="{{.Status}}" aria-labelledby="col-{{.Status}}">
       <h2 class="bcol-head" id="col-{{.Status}}">{{statusIcon .Status}}<span>{{statusLabel .Status}}</span> <span class="count">{{len .Issues}}</span>
         {{if $d.CanWrite}}<a class="badd" href="{{repoURL $.Repo.Name "issues/new" "" ""}}?status={{.Status}}" title="New issue in {{statusLabel .Status}}"><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path d="M7 2.5v9M2.5 7h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="visually-hidden">New issue in {{statusLabel .Status}}</span></a>{{end}}
@@ -558,16 +563,16 @@
           <div class="bcard-top">
             <span class="iid">{{.ID}}</span>
             <span class="grow"></span>
-            {{if $d.CanWrite}}{{template "qpriority" (qArgs . $d)}}{{template "qstatus" (qArgs . $d)}}{{else}}<span class="ipri" title="{{priorityLabel .Priority}}">{{priorityIcon .Priority}}</span>{{end}}
+            {{if $d.CanWrite}}{{template "qpriority" (qArgs . $d.Back)}}{{template "qstatus" (qArgs . $d.Back)}}{{else}}<span class="ipri" title="{{priorityLabel .Priority}}">{{priorityIcon .Priority}}</span>{{end}}
           </div>
           <a class="ititle" href="{{issueURL .Repo .Number}}"><span class="visually-hidden">{{.ID}}, {{priorityLabel .Priority}}: </span>{{.Title}}</a>
-          {{if or .Labels .Assignee .Project}}<div class="imeta">{{range .Labels}}<span class="ilabel">{{dotFor $colors .}}{{.}}</span>{{end}}{{with .Project}}<span class="iproject">{{.}}</span>{{end}}{{if .Assignee}}<span class="iassignee">{{.Assignee}}</span>{{end}}</div>{{end}}
+          {{$who := showWho .Assignee $.SoftServe $.Solo}}{{if or .Labels $who .Project}}<div class="imeta">{{range .Labels}}<span class="ilabel">{{dotFor $colors .}}{{.}}</span>{{end}}{{with .Project}}<span class="iproject">{{.}}</span>{{end}}{{if $who}}<span class="iassignee">{{.Assignee}}</span>{{end}}</div>{{end}}
         </li>{{end}}
       </ol>
     </section>
     {{end}}
   </div>
-  <p class="note boardnote">Move a card with its status menu{{if .CanWrite}}, or drag it with a mouse{{end}}. Canceled issues are left off the board.</p>
+  <p class="note boardnote">Move a card with its status menu<span class="finehint">, or drag it</span>. Canceled issues are left off the board.</p>
   {{template "shortcuts"}}
 </section>
 {{end}}

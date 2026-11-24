@@ -31,6 +31,8 @@ type IssueProgress struct {
 
 // IssueProject is a body of work in a repository.
 type IssueProject struct {
+	// ID stays the same when the project is renamed.
+	ID          int64         `json:"id"`
 	Name        string        `json:"name"`
 	Description string        `json:"description,omitempty"`
 	Status      string        `json:"status"`
@@ -109,7 +111,7 @@ func (l *Local) projectOut(ctx context.Context, h db.Handler, p issue.Project) (
 		return IssueProject{}, err
 	}
 	return IssueProject{
-		Name: p.Name, Description: p.Description, Status: p.Status, Lead: p.Lead.String,
+		ID: p.ID, Name: p.Name, Description: p.Description, Status: p.Status, Lead: p.Lead.String,
 		StartDate: p.StartDate, TargetDate: p.TargetDate, Progress: progressOut(prog),
 		CreatedAt: p.CreatedAt.UTC(), UpdatedAt: p.UpdatedAt.UTC(),
 	}, nil

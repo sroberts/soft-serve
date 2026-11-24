@@ -15,7 +15,7 @@
   --del-bg: #fdecea;
   --hunk: #5b52b8;
   /* Issue statuses: what's moving is yellow, review green, done the accent. */
-  --st-progress: #b7791f;
+  --st-progress: #8f5b00; /* 5.6:1 on white, for "Started" as text too */
   --st-review: #1a7f37;
   --st-done: #6d3fd8;
   --radius: 8px;
@@ -1042,11 +1042,22 @@ main {
 .issuebar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 0 0 12px; }
 .issuebar h1 { margin: 0; font-size: var(--text-display); }
 .issuebar .subnav { margin: 0; }
-.issuebar .settingslink { font-size: var(--text-ui); color: var(--muted); }
 .issuefilter { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 18px; font-size: var(--text-ui); }
 .issuefilter input[type="search"] { flex: 1 1 16rem; height: 2.375rem; }
 .issuefilter select { width: auto; flex: 0 1 auto; }
 .issuefilter .clear { white-space: nowrap; }
+/* On a phone the scope tabs become this menu; elsewhere the tabs do. */
+.scopepick { display: none; }
+/* The filters fold away until wanted; open when any is on. The menus
+   inside still go with the form when it's closed. */
+.issuefilter .filters { display: contents; }
+.issuefilter .filters > summary { display: inline-flex; align-items: center; gap: 6px; height: 2.375rem; padding: 0 12px; border: 1px solid var(--field-border); border-radius: var(--radius); background: var(--surface); color: var(--text); font-weight: var(--weight-label); cursor: pointer; list-style: none; }
+.issuefilter .filters > summary::-webkit-details-marker { display: none; }
+.issuefilter .filters[open] > summary { border-color: var(--accent); }
+.fcount { padding: 0 6px; border-radius: 999px; background: var(--accent-soft); font-size: var(--text-micro); }
+.filterset { display: flex; flex-wrap: wrap; gap: 8px; flex-basis: 100%; order: 1; }
+.ifoot { margin: 20px 0 0; font-size: var(--text-ui); }
+.ifoot a { color: var(--muted); }
 
 .sicon, .picon, .ldot { flex: none; display: inline-block; vertical-align: -2px; }
 .sicon { color: var(--muted); }
@@ -1084,7 +1095,12 @@ main {
 .iempty { padding: 32px 0; }
 .iempty p { margin: 0 0 6px; }
 
-.ipath { font-size: var(--text-lead); margin-bottom: 6px; }
+.ipath { font-family: var(--sans); font-size: var(--text-ui); margin-bottom: 6px; }
+/* Mono is for identifiers, not names. */
+.crumbid { font-family: var(--mono); }
+.date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.badge.current { color: var(--accent); border-color: var(--accent); vertical-align: 0.15em; font-weight: var(--weight-label); }
+.issuehead h1 .badge { font-size: var(--text-micro); }
 /* A breadcrumb link is told from the text beside it by more than color. */
 .ipath a { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .issuehead { display: flex; align-items: flex-start; gap: 12px 16px; margin: 0 0 18px; }
@@ -1130,7 +1146,21 @@ main {
 .projlist { list-style: none; margin: 0 0 24px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .projlist li { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding: 12px 16px; border-top: 1px solid var(--line); }
 .projlist li:first-child { border-top: 0; }
-.projlist li.current { box-shadow: inset 0 0 0 1px var(--accent); border-radius: var(--radius); }
+/* A form for adding sits behind a button-like summary until it's wanted. */
+.addnew { max-width: 40rem; margin: 4px 0 24px; }
+.addnew > summary { list-style: none; cursor: pointer; width: max-content; }
+.addnew > summary.button { display: inline-block; font-size: var(--text-ui); font-weight: var(--weight-strong); padding: 7px 14px; border: 1px solid var(--field-border); border-radius: var(--radius); background: var(--surface); color: var(--text); }
+@media (hover: hover) { .addnew > summary.button:hover { border-color: var(--accent); } }
+.addnew[open] > summary.button { border-color: var(--accent); }
+/* With the script, a filter applies as it changes, so its button can go. */
+@media (max-width: 600px) { .scripted .issuefilter > button[type="submit"] { display: none; } }
+.addnew > summary::-webkit-details-marker { display: none; }
+.addnew[open] > summary { margin-bottom: 14px; }
+.addnew .note { margin: 0 0 10px; }
+.colorfield { flex: 0 0 auto !important; }
+.colorfield input[type="color"] { width: 3.5rem; height: 2.375rem; padding: 2px; border: 1px solid var(--field-border); border-radius: var(--radius); background: var(--surface); }
+.moreprops { margin: 4px 0 16px; }
+.moreprops > summary { cursor: pointer; color: var(--accent); width: max-content; font-size: var(--text-ui); margin-bottom: 10px; }
 .projmain { flex: 1 1 16rem; min-width: 0; }
 .projname { font-size: var(--text-lead); font-weight: var(--weight-strong); color: var(--text); overflow-wrap: anywhere; }
 .projname::after { content: ""; position: absolute; inset: 0; }
@@ -1159,6 +1189,9 @@ main {
 /* An open menu rises above the rows and cards after it. */
 .qmenu[open] { z-index: 30; }
 .qmenu > summary { list-style: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; cursor: pointer; }
+/* On an issue's page the menu shows its value's name beside the icon. */
+.qmenu.wide > summary { width: auto; height: auto; gap: 6px; padding: 2px 8px 2px 4px; margin-left: -4px; }
+.qkey { margin-left: auto; min-width: 0; padding: 0 4px; border-bottom-width: 1px; color: var(--muted); font-size: var(--text-micro); }
 .qmenu > summary::-webkit-details-marker { display: none; }
 @media (hover: hover) { .qmenu > summary:hover { background: var(--line); } }
 .qmenu[open] > summary { background: var(--line); }
@@ -1195,6 +1228,15 @@ main {
 .boardnote { font-size: var(--text-meta); }
 
 .shortcuts { margin: 24px 0 0; font-size: var(--text-ui); color: var(--muted); }
+/* Asked for with ?, the list floats over the page where you are. */
+.shortcuts.floating[open] { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 40; margin: 0; padding: 12px 16px; max-width: min(24rem, calc(100vw - 32px)); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 12px 32px rgb(0 0 0 / 0.22), 0 2px 6px rgb(0 0 0 / 0.12); }
+/* Keys and dragging need a keyboard and a mouse; a touch screen has neither. */
+@media (pointer: coarse) {
+  .shortcuts, .finehint { display: none; }
+  .qmenu > summary { min-width: 44px; min-height: 44px; }
+  .badd { min-width: 44px; min-height: 44px; justify-content: center; align-items: center; }
+  .viewnav a { min-height: 44px; display: inline-flex; align-items: center; }
+}
 .shortcuts summary { cursor: pointer; width: max-content; }
 .shortcuts dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 10px 0 0; }
 .shortcuts dd { margin: 0; color: var(--text); }
@@ -1216,8 +1258,15 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 5px; border: 1px solid
   .qmenu > summary { width: 36px; height: 36px; }
   .qlist button.qitem[type="submit"] { padding: 10px; }
   .issuebar h1 { font-size: var(--text-title); }
-  .issuefilter input[type="search"] { flex-basis: 100%; }
+  /* The scope tabs become a menu beside the search, and the filters fold
+     behind one button, so the issues start near the top. */
+  .issuebar .scopes { display: none; }
+  .scopepick { display: block; flex: 0 0 auto; }
+  .scopepick select { width: auto; }
+  .issuefilter input[type="search"] { flex: 1 1 8rem; }
+  .issuefilter .filters:not([open]) .filterset { display: none; }
   .issuefilter select { flex: 1 1 40%; }
+  .issuebar { margin-bottom: 8px; }
   /* A row wraps: identifier and title first, then what's known about it. */
   .irow { flex-wrap: wrap; row-gap: 4px; }
   .irow .ititle { flex-basis: calc(100% - 7.5em); white-space: normal; }

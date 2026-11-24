@@ -69,7 +69,8 @@
         try {
           await post(form.action, fields);
           await refresh();
-          say(btn ? `Set to ${btn.textContent.trim()}.` : "Saved.");
+          const label = btn?.querySelector("span")?.textContent.trim();
+          say(label ? `Set to ${label}.` : "Saved.");
         } catch (err) {
           say(err.message, true);
         }
@@ -77,9 +78,16 @@
     }
   };
 
-  // One menu open at a time; a click elsewhere or Escape closes it.
+  // One menu open at a time; a click elsewhere or Escape closes it. A menu
+  // that held the focus hands it back to its button, so it isn't left on
+  // something hidden.
   const closeMenus = (except) => {
-    for (const d of $$("details.qmenu[open]")) if (d !== except) d.removeAttribute("open");
+    for (const d of $$("details.qmenu[open]")) {
+      if (d === except) continue;
+      const had = d.contains(document.activeElement);
+      d.open = false;
+      if (had) d.querySelector("summary")?.focus();
+    }
   };
   document.addEventListener("toggle", (e) => {
     const d = e.target;
@@ -92,10 +100,17 @@
     if (!e.target.closest("details.qmenu")) closeMenus();
   });
 
-  // Arrow keys move through an open menu.
+  // Arrow keys move through an open menu, and a digit picks the option
+  // with that number.
   document.addEventListener("keydown", (e) => {
     const menu = e.target.closest?.("details.qmenu[open]");
-    if (!menu || !["ArrowDown", "ArrowUp"].includes(e.key)) return;
+    if (!menu) return;
+    if (/^[0-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      const pick = $$("button", menu).find((b) => b.querySelector(".qkey")?.textContent === e.key);
+      if (pick) { pick.click(); e.preventDefault(); }
+      return;
+    }
+    if (!["ArrowDown", "ArrowUp"].includes(e.key)) return;
     const items = $$("button", menu);
     const i = items.indexOf(document.activeElement);
     const next = items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length];
@@ -178,7 +193,11 @@
   const typing = (el) => el && (el.isContentEditable || /^(input|textarea|select)$/i.test(el.tagName));
   const rows = () => $$(".irow .ititle, .bcard .ititle");
   const go = (href) => { if (href) location.href = href; };
-  const viewLink = (name) => $(`.viewnav a[href$="/-/issues${name}"]`)?.href;
+  // A view of this repository's issues, from wherever in them we are.
+  const viewLink = (name) => {
+    const at = location.pathname.indexOf("/-/issues");
+    return at < 0 ? null : location.pathname.slice(0, at) + "/-/issues" + name;
+  };
   let pendingG = false;
 
   const shortcuts = () => {
@@ -186,10 +205,19 @@
     if (panel) panel.hidden = false;
   };
 
+  // Changing a filter shows its result; the Show button is for no script.
+  const filters = () => {
+    for (const sel of $$(".issuefilter select")) {
+      sel.addEventListener("change", () => sel.form.requestSubmit());
+    }
+  };
+
   document.addEventListener("keydown", (e) => {
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === "Escape") {
       if ($("details.qmenu[open]")) { closeMenus(); e.preventDefault(); return; }
+      const help = $("#shortcuts.floating[open]");
+      if (help) { help.open = false; help.classList.toggle("floating", false); e.preventDefault(); return; }
       if (typing(document.activeElement)) document.activeElement.blur();
       return;
     }
@@ -208,8 +236,13 @@
         setTimeout(() => { pendingG = false; }, 1200);
         return;
       case "?": {
+        // Asked for by key, the list floats over the page rather than
+        // scrolling away to its foot.
         const panel = $("#shortcuts");
-        if (panel) { panel.open = !panel.open; if (panel.open) panel.scrollIntoView({ block: "nearest" }); }
+        if (!panel) return;
+        const show = !(panel.open && panel.classList.contains("floating"));
+        panel.classList.toggle("floating", show);
+        panel.open = show;
         break;
       }
       case "/":
@@ -233,12 +266,10 @@
       case "s":
       case "p": {
         const which = e.key === "s" ? ".istat" : ".ipri";
-        const menu = focused?.querySelector(`details.qmenu > summary${which}`)?.parentElement;
+        // The chosen row's menu, or on an issue's page, its own.
+        const menu = focused?.querySelector(`details.qmenu > summary${which}`)?.parentElement
+          || $(`.iprops details.qmenu > summary${which}`)?.parentElement;
         if (menu) { menu.open = true; break; }
-        // On an issue's page: open its property form at that field.
-        const props = $("details.editprops");
-        const field = $(`details.editprops select[name="${e.key === "s" ? "status" : "priority"}"]`);
-        if (props && field) { props.open = true; field.focus(); break; }
         return;
       }
       case "a": {
@@ -263,10 +294,14 @@
     e.preventDefault();
   });
 
+  // Styles that only make sense with the script running hang off this.
+  document.documentElement.classList.add("scripted");
+
   const setup = () => {
     menus();
     board();
     shortcuts();
+    filters();
   };
   setup();
 })();

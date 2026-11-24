@@ -974,7 +974,7 @@ In the web view, a repository's **Issues** tab lists them by status, with
 filters and search, and each issue has a page for its properties, sub-issues,
 linked commits, activity and comments. The **Board** shows a column per status:
 move a card with its status menu, or drag it with a mouse. **My issues**, in
-the header, lists what's assigned to you across repositories.
+the header, lists everything open across your repositories, most urgent first.
 
 The issue views load one small script of the server's own for keyboard
 shortcuts (<kbd>c</kbd> new issue, <kbd>/</kbd> search, <kbd>j</kbd>/<kbd>k</kbd>
