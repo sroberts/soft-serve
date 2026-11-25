@@ -151,7 +151,7 @@ func TestUIProjectsAndCycles(t *testing.T) {
 	}
 	w = f.do(req{path: "/group/open/-/issues/projects/1", auth: auth})
 	has(t, w, "<h1>Web/v2</h1>", "1 of 2 done · 50%", "Shipped", "Pending", `id="group-done"`)
-	has(t, f.do(req{path: "/group/open/-/issues/1", auth: auth}), `<dt>Project</dt><dd><a href="/group/open/-/issues/project?name=Web%2Fv2">Web/v2</a>`)
+	has(t, f.do(req{path: "/group/open/-/issues/1", auth: auth}), `class="iproj"`, `<span>Web/v2</span>`, `href="/group/open/-/issues/project?name=Web%2Fv2">View`)
 	has(t, f.do(req{path: "/group/open/-/issues?project=Web/v2&scope=all", auth: auth}), "Shipped", "Pending")
 	hasNot(t, f.do(req{path: "/group/open/-/issues?project=none&scope=all", auth: auth}), "Shipped")
 
@@ -173,7 +173,7 @@ func TestUIProjectsAndCycles(t *testing.T) {
 
 	// Put an issue in a cycle from its property form.
 	seeOther(t, f.post("/group/open/-/issues/2", auth, url.Values{"status": {"todo"}, "priority": {"none"}, "cycle": {"2"}}), "/group/open/-/issues/2?done=issue-saved")
-	has(t, f.do(req{path: "/group/open/-/issues/2", auth: auth}), `<dt>Cycle</dt><dd><a href="/group/open/-/issues/cycles/2">Cycle 2</a>`, "moved it into cycle 2")
+	has(t, f.do(req{path: "/group/open/-/issues/2", auth: auth}), `<span>Cycle 2</span>`, `href="/group/open/-/issues/cycles/2">View`, "moved it into cycle 2")
 	has(t, f.do(req{path: "/group/open/-/issues/cycles/2", auth: auth}), "Cycle 2: Polish", "Pending", "0 of 1 done")
 	seeOther(t, f.post("/group/open/-/issues/cycles/2", auth, url.Values{"name": {"Polish"}, "start_date": {"2027-01-18"}, "end_date": {"2027-02-07"}}), "/group/open/-/issues/cycles/2?done=cycle-saved")
 	seeOther(t, f.post("/group/open/-/issues/cycles/2/delete", auth, nil), "/group/open/-/issues/cycles?done=cycle-deleted")
@@ -256,8 +256,20 @@ func TestUIOneEditingModel(t *testing.T) {
 	// On the issue's page, the side panel's status and priority are the
 	// same menus, showing their names; the form holds the rest.
 	w := f.do(req{path: "/group/open/-/issues/1", auth: auth})
-	has(t, w, `class="qmenu wide"`, `<span>Todo</span>`, "Labels, project and more")
+	has(t, w, `class="qmenu wide"`, `<span>Todo</span>`, "Labels and more")
 	hasNot(t, w, `<select name="status">`)
+	// Project and cycle are menus too, each with a link to its page.
+	has(t, w, `class="iproj"`, `name="project" value="Board" aria-current="true"`, `class="icycle"`, `name="cycle" value="1" aria-current="true"`, `href="/group/open/-/issues/cycles/1">View`)
+	if w := f.post("/group/open/-/issues/1/quick", auth, url.Values{"project": {""}, "cycle": {""}}); w.Code != http.StatusSeeOther {
+		t.Fatalf("quick project and cycle: %d %s", w.Code, w.Body)
+	}
+	cleared := f.do(req{path: "/group/open/-/issues/1", auth: auth})
+	has(t, cleared, `name="project" value="" aria-current="true"`, `name="cycle" value="" aria-current="true"`)
+	seeOther(t, f.post("/group/open/-/issues/1/quick", auth, url.Values{"project": {"Board"}, "cycle": {"1"}}), "/group/open/-/issues/1?done=issue-saved")
+	// The shortcuts work on every issue page, not some.
+	for _, path := range []string{"/group/open/-/issues/projects", "/group/open/-/issues/cycles", "/group/open/-/issues/new", "/group/open/-/issues/settings", "/group/open/-/issues/1/edit"} {
+		has(t, f.do(req{path: path, auth: auth}), "/-/static/issues.js", `id="shortcuts"`)
+	}
 	// Saving that form leaves status and priority alone.
 	seeOther(t, f.post("/group/open/-/issues/1/quick", auth, url.Values{"status": {"in_progress"}}), "/group/open/-/issues/1")
 	seeOther(t, f.post("/group/open/-/issues/1", auth, url.Values{"assignee": {""}, "labels": {}, "new_label": {"web"}}), "/group/open/-/issues/1?done=issue-saved")

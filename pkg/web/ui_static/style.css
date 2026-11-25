@@ -1126,6 +1126,7 @@ main {
 .timeline { list-style: none; margin: 0 0 16px; padding: 0 0 0 14px; border-left: 1px solid var(--line); }
 .timeline .who { font-weight: var(--weight-strong); color: var(--text); }
 .tevent { position: relative; padding: 5px 0; color: var(--muted); font-size: var(--text-ui); overflow-wrap: anywhere; }
+.tevent time { white-space: nowrap; }
 .tevent::before { content: ""; position: absolute; left: -18px; top: 13px; width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
 .tcomment { margin: 10px 0; }
 .tcomment article { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
@@ -1136,6 +1137,8 @@ main {
 .commentform, .issueform { max-width: 48rem; }
 .commentform textarea, .issueform textarea { width: 100%; font: var(--text-body)/1.55 var(--sans); }
 .idelete { margin: 0; font-size: var(--text-ui); }
+/* Kept in the side panel's foot, away from the Comment button. */
+.issueside .idelete { margin-top: 16px; }
 .ilabelset .refname { font-family: var(--sans); }
 
 .viewnav { display: flex; gap: 4px; margin: 0 0 16px; padding: 3px; width: max-content; max-width: 100%; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: var(--text-ui); }
@@ -1153,7 +1156,8 @@ main {
 @media (hover: hover) { .addnew > summary.button:hover { border-color: var(--accent); } }
 .addnew[open] > summary.button { border-color: var(--accent); }
 /* With the script, a filter applies as it changes, so its button can go. */
-@media (max-width: 600px) { .scripted .issuefilter > button[type="submit"] { display: none; } }
+/* Filters apply as they change, so the button is only for no script. */
+.scripted .issuefilter > button[type="submit"] { display: none; }
 .addnew > summary::-webkit-details-marker { display: none; }
 .addnew[open] > summary { margin-bottom: 14px; }
 .addnew .note { margin: 0 0 10px; }
@@ -1191,6 +1195,10 @@ main {
 .qmenu > summary { list-style: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; cursor: pointer; }
 /* On an issue's page the menu shows its value's name beside the icon. */
 .qmenu.wide > summary { width: auto; height: auto; gap: 6px; padding: 2px 8px 2px 4px; margin-left: -4px; }
+/* A project or cycle menu keeps a link to the thing itself beside it. */
+.iprops dd.qprop { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.qopen { color: var(--muted); font-size: var(--text-micro); }
+.qlist .badge.current { margin-left: auto; }
 .qkey { margin-left: auto; min-width: 0; padding: 0 4px; border-bottom-width: 1px; color: var(--muted); font-size: var(--text-micro); }
 .qmenu > summary::-webkit-details-marker { display: none; }
 @media (hover: hover) { .qmenu > summary:hover { background: var(--line); } }
@@ -1201,6 +1209,9 @@ main {
 @media (hover: hover) { .qlist button.qitem[type="submit"]:hover { background: var(--bg); filter: none; } }
 .qlist button.qitem:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .bcard .qlist { left: auto; right: -6px; }
+/* The board scrolls sideways, so its first column's menus open rightward
+   rather than being cut off at its left edge. */
+.bcol:first-child .bcard .qlist { left: -6px; right: auto; }
 
 .board { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(11.5rem, 1fr); gap: 12px; overflow-x: auto; padding: 0 0 12px; margin: 0 0 8px; overscroll-behavior-x: contain; }
 .board:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius); }
@@ -1233,15 +1244,19 @@ main {
 /* Keys and dragging need a keyboard and a mouse; a touch screen has neither. */
 @media (pointer: coarse) {
   .shortcuts, .finehint { display: none; }
+  /* Menu numbers are keys; by touch they are only noise. */
+  .qkey { display: none; }
   .qmenu > summary { min-width: 44px; min-height: 44px; }
   .badd { min-width: 44px; min-height: 44px; justify-content: center; align-items: center; }
   .viewnav a { min-height: 44px; display: inline-flex; align-items: center; }
 }
 .shortcuts summary { cursor: pointer; width: max-content; }
-.shortcuts dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 10px 0 0; }
-.shortcuts dd { margin: 0; color: var(--text); }
+.shortcuts dl { display: grid; grid-template-columns: minmax(min-content, 7rem) 1fr; gap: 6px 16px; margin: 10px 0 0; }
+.shortcuts dd { margin: 0; color: var(--text); text-wrap: pretty; }
 kbd { display: inline-block; min-width: 1.6em; padding: 0 5px; border: 1px solid var(--field-border); border-bottom-width: 2px; border-radius: 4px; background: var(--surface); color: var(--text); font: var(--text-meta)/1.5 var(--mono); text-align: center; }
 .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 50; margin: 0; padding: 9px 16px; border: 1px solid var(--add); border-radius: var(--radius); background: var(--add-bg); color: var(--text); font-size: var(--text-ui); box-shadow: 0 8px 24px rgb(0 0 0 / 0.2); }
+.keyhint { margin: 24px 0 0; color: var(--muted); font-size: var(--text-meta); }
+.toast .link { margin-left: 6px; font-weight: var(--weight-strong); }
 .toast.bad { border-color: var(--del); background: var(--del-bg); }
 @media (prefers-reduced-motion: no-preference) { .toast { animation: toast-in 180ms cubic-bezier(0.16, 1, 0.3, 1); } }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }

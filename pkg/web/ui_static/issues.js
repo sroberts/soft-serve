@@ -9,8 +9,9 @@
 
   // --- Talking to the server ---
 
-  // say puts a message in a live region, so it's read out and seen.
-  const say = (text, bad) => {
+  // say puts a message in a live region, so it's read out and seen. With
+  // undo, it offers a button that takes the change back, and stays longer.
+  const say = (text, bad, undo) => {
     let box = $("#issue-status");
     if (!box) {
       box = document.createElement("p");
@@ -20,8 +21,19 @@
     }
     box.textContent = text;
     box.className = bad ? "toast bad" : "toast";
+    if (undo) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "link";
+      btn.textContent = "Undo";
+      btn.addEventListener("click", () => { box.textContent = ""; box.className = ""; undo(); });
+      box.append(" ", btn);
+    }
     clearTimeout(say.timer);
-    say.timer = setTimeout(() => { box.textContent = ""; box.className = ""; }, bad ? 6000 : 2500);
+    say.timer = setTimeout(() => {
+      if (box.contains(document.activeElement)) return;
+      box.textContent = ""; box.className = "";
+    }, bad || undo ? 8000 : 4000);
   };
 
   // post sends a form's fields, as the form would, and says why if the
@@ -41,12 +53,19 @@
     }
   };
 
+  // focusOf notes where el is, to find its like again after a refresh:
+  // its issue's row, or for a menu outside any row, as in an issue's side
+  // panel, the menu by its place on the page.
+  const focusOf = (el) => ({
+    focusKey: el?.closest("[data-issue]")?.dataset.issue,
+    menuAt: $$("details.qmenu").indexOf(el?.closest("details.qmenu")),
+  });
+
   // refresh fetches the page again and swaps in its main content, keeping
-  // focus on the same issue where it can.
-  const refresh = async () => {
-    const focusKey = document.activeElement?.closest("[data-issue]")?.dataset.issue;
-    // A menu outside any row, as in an issue's side panel, by its place.
-    const menuAt = $$("details.qmenu").indexOf(document.activeElement?.closest("details.qmenu"));
+  // focus on the same issue where it can. where says what had the focus;
+  // by default, whatever has it now.
+  const refresh = async (where = focusOf(document.activeElement)) => {
+    const { focusKey, menuAt } = where;
     // Text typed but not sent, such as a comment, survives the swap.
     const typed = $$("main textarea, main input[type=text]")
       .filter((el) => el.name && el.form && el.value !== el.defaultValue)
@@ -76,12 +95,28 @@
         const fields = new FormData(form);
         if (btn?.name) fields.set(btn.name, btn.value);
         fields.delete("back");
+        // Noted before the menu closes, which drops the focus.
+        const where = focusOf(form);
+        // What it was, so the change can be taken back.
+        const was = form.querySelector('[aria-current="true"]');
+        const action = form.action;
         form.closest("details")?.removeAttribute("open");
+        if (btn && was === btn) return;
         try {
-          await post(form.action, fields);
-          await refresh();
+          await post(action, fields);
+          await refresh(where);
+          const field = { status: "Status", priority: "Priority", project: "Project", cycle: "Cycle" }[btn?.name];
           const label = btn?.querySelector("span")?.textContent.trim();
-          say(label ? `Set to ${label}.` : "Saved.");
+          const undo = was && btn?.name ? async () => {
+            try {
+              await post(action, { [btn.name]: was.value });
+              await refresh(where);
+              say(`${field || "Change"} put back.`);
+            } catch (err) {
+              say(err.message, true);
+            }
+          } : null;
+          say(label ? `${field ? field + " set" : "Set"} to ${label}.` : "Saved.", false, undo);
         } catch (err) {
           say(err.message, true);
         }
@@ -106,6 +141,8 @@
       closeMenus(d);
       (d.querySelector('[aria-current="true"]') || d.querySelector("button"))?.focus();
     }
+    // The shortcut list, closed by its own button, goes away entirely.
+    if (d.id === "shortcuts" && !d.open && d.classList.contains("floating")) showHelp(false);
   }, true);
   document.addEventListener("click", (e) => {
     if (!e.target.closest("details.qmenu")) closeMenus();
@@ -133,7 +170,15 @@
 
   const board = () => {
     const root = $(".board");
-    if (!root || !matchMedia("(pointer: fine)").matches) return;
+    if (!root) return;
+    // On a narrow screen one column shows at a time: open on the work in
+    // flight rather than the backlog, once, not after every change.
+    if (!board.placed) {
+      board.placed = true;
+      const start = $('.bcol[data-status="in_progress"]', root);
+      if (start && root.scrollWidth > root.clientWidth) root.scrollLeft = start.offsetLeft - root.offsetLeft;
+    }
+    if (!matchMedia("(pointer: fine)").matches) return;
     const canWrite = !!$(".bcard .qmenu", root);
     if (!canWrite) return;
     let dragged = null;
@@ -189,7 +234,7 @@
         const fields = { status: col.dataset.status, after: prev ? prev.dataset.issue : "top" };
         try {
           await post(card.dataset.quick, fields);
-          await refresh();
+          await refresh({ focusKey: card.dataset.issue, menuAt: -1 });
           say(`Moved to ${$(".bcol-head span", col).textContent}.`);
         } catch (err) {
           say(err.message, true);
@@ -202,18 +247,34 @@
   // --- Keyboard ---
 
   const typing = (el) => el && (el.isContentEditable || /^(input|textarea|select)$/i.test(el.tagName));
-  const rows = () => $$(".irow .ititle, .bcard .ititle");
+  const rows = () => $$(".irow .ititle, .bcard .ititle, .projname");
   const go = (href) => { if (href) location.href = href; };
-  // A view of this repository's issues, from wherever in them we are.
+  // A view of this repository's issues, from wherever in them we are. Across
+  // every repository there's only the list.
   const viewLink = (name) => {
     const at = location.pathname.indexOf("/-/issues");
-    return at < 0 ? null : location.pathname.slice(0, at) + "/-/issues" + name;
+    if (at < 0 || (at === 0 && name !== "")) return null;
+    return location.pathname.slice(0, at) + "/-/issues" + name;
   };
   let pendingG = false;
 
+  // The list stays out of the way until asked for with ?; a line at the
+  // page's foot says so. Keys that do nothing on this page aren't listed.
   const shortcuts = () => {
+    const hint = $("#keyhint");
+    if (hint) hint.hidden = false;
+    for (const dt of $$("#shortcuts dt[data-needs]")) {
+      const there = !!$(dt.dataset.needs);
+      dt.hidden = !there;
+      if (dt.nextElementSibling) dt.nextElementSibling.hidden = !there;
+    }
+  };
+  const showHelp = (show) => {
     const panel = $("#shortcuts");
-    if (panel) panel.hidden = false;
+    if (!panel) return;
+    panel.hidden = !show;
+    panel.classList.toggle("floating", show);
+    panel.open = show;
   };
 
   // Changing a filter shows its result; the Show button is for no script.
@@ -224,11 +285,16 @@
   };
 
   document.addEventListener("keydown", (e) => {
+    // Cmd or Ctrl with Enter sends the form being typed in.
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && typing(e.target) && e.target.form) {
+      e.target.form.requestSubmit();
+      e.preventDefault();
+      return;
+    }
     if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === "Escape") {
       if ($("details.qmenu[open]")) { closeMenus(); e.preventDefault(); return; }
-      const help = $("#shortcuts.floating[open]");
-      if (help) { help.open = false; help.classList.toggle("floating", false); e.preventDefault(); return; }
+      if ($("#shortcuts.floating[open]")) { showHelp(false); e.preventDefault(); return; }
       if (typing(document.activeElement)) document.activeElement.blur();
       return;
     }
@@ -247,13 +313,10 @@
         setTimeout(() => { pendingG = false; }, 1200);
         return;
       case "?": {
-        // Asked for by key, the list floats over the page rather than
-        // scrolling away to its foot.
+        // The list floats over the page.
         const panel = $("#shortcuts");
         if (!panel) return;
-        const show = !(panel.open && panel.classList.contains("floating"));
-        panel.classList.toggle("floating", show);
-        panel.open = show;
+        showHelp(panel.hidden || !panel.open);
         break;
       }
       case "/":
@@ -268,7 +331,9 @@
       case "k": {
         const list = rows();
         if (!list.length) return;
-        const i = list.indexOf(document.activeElement);
+        // From the chosen row, even when its menu button has the focus.
+        const here = document.activeElement?.closest("[data-issue]")?.querySelector(".ititle") || document.activeElement;
+        const i = list.indexOf(here);
         const next = i < 0 ? (e.key === "j" ? 0 : list.length - 1) : Math.min(list.length - 1, Math.max(0, i + (e.key === "j" ? 1 : -1)));
         list[next].focus();
         list[next].scrollIntoView({ block: "nearest" });

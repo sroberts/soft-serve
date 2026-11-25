@@ -93,6 +93,8 @@ type issueListData struct {
 // issues routes the pages under /{repo}/-/issues.
 func (h uiHandler) issues(w http.ResponseWriter, r *http.Request, b *browser, p page, rest string) {
 	p.Tab = "issues"
+	// Every issue page has the shortcuts, so none is a dead end for them.
+	p.Script = true
 	parts := strings.Split(rest, "/")
 	switch {
 	case rest == "":
@@ -1129,6 +1131,7 @@ func (h uiHandler) issueQuick(w http.ResponseWriter, r *http.Request, b *browser
 			return nil
 		}
 		u.Status, u.Priority, u.After = opt("status"), opt("priority"), opt("after")
+		u.Project, u.Cycle = opt("project"), opt("cycle")
 		_, err = b.service().UpdateIssue(r.Context(), p.Repo.Name, n, u)
 	}
 	if scripted {

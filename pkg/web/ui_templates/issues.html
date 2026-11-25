@@ -120,19 +120,22 @@
       {{if or (not $.Solo) (and $i.Assignee (ne $i.Assignee $.SoftServe))}}<dt>Assignee</dt><dd>{{if $i.Assignee}}{{$i.Assignee}}{{else}}<span class="muted">Nobody</span>{{end}}</dd>{{end}}
       <dt>Labels</dt><dd>{{range $i.Labels}}<span class="ilabel">{{dotFor $colors .}}{{.}}</span>{{else}}<span class="muted">None</span>{{end}}</dd>
       {{with $i.Parent}}<dt>Part of</dt><dd><a href="{{idURL $repo .}}">{{.}}</a></dd>{{end}}
-      {{with $i.Project}}<dt>Project</dt><dd><a href="{{projectNameURL $repo .}}">{{.}}</a></dd>{{end}}
-      {{with $i.Cycle}}<dt>Cycle</dt><dd><a href="{{cycleURL $repo .}}">Cycle {{.}}</a></dd>{{end}}
+      {{if and .CanWrite .Projects}}<dt>Project</dt><dd class="qprop">{{template "qproject" .}}{{with $i.Project}}<a class="qopen" href="{{projectNameURL $repo .}}">View<span class="visually-hidden"> project {{.}}</span></a>{{end}}</dd>
+      {{else}}{{with $i.Project}}<dt>Project</dt><dd><a href="{{projectNameURL $repo .}}">{{.}}</a></dd>{{end}}{{end}}
+      {{if and .CanWrite .Cycles}}<dt>Cycle</dt><dd class="qprop">{{template "qcycle" .}}{{with $i.Cycle}}<a class="qopen" href="{{cycleURL $repo .}}">View<span class="visually-hidden"> cycle {{.}}</span></a>{{end}}</dd>
+      {{else}}{{with $i.Cycle}}<dt>Cycle</dt><dd><a href="{{cycleURL $repo .}}">Cycle {{.}}</a></dd>{{end}}{{end}}
       <dt>Opened</dt><dd><time datetime="{{$i.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}" title="{{$i.CreatedAt.Format "2 Jan 2006 15:04 MST"}}">{{ago $i.CreatedAt}}</time>{{if showWho $i.Creator $.SoftServe $.Solo}} by {{$i.Creator}}{{end}}</dd>
     </dl>
     {{if .CanWrite}}
     <details class="editprops"{{if .Err}} open{{end}}>
-      <summary>Labels, project and more</summary>
+      <summary>Labels and more</summary>
       {{template "formerror" .Err}}
       <form class="manage" method="post" action="{{issueURL $repo $i.Number}}">
         {{template "issuemoreprops" .}}
         <div class="actions"><button type="submit">Save</button></div>
       </form>
     </details>
+    <p class="idelete"><a class="danger delete" href="{{issueURL $repo $i.Number "delete"}}">Delete issue…</a></p>
     {{end}}
   </aside>
 
@@ -190,7 +193,6 @@
       {{else if not $.SoftServe}}<p class="note">Sign in with write access to comment.</p>{{end}}
     </section>
 
-    {{if .CanWrite}}<p class="idelete"><a class="danger delete" href="{{issueURL $repo $i.Number "delete"}}">Delete issue…</a></p>{{end}}
     {{template "shortcuts"}}
   </div>
 </div>
@@ -254,6 +256,7 @@
   <div class="actions"><button type="submit">Create issue</button> <a class="button secondary" href="{{repoURL $.Repo.Name "issues" "" ""}}">Cancel</a></div>
 </form>
 {{end}}
+{{template "shortcuts"}}
 {{template "foot" .}}{{end}}
 
 {{define "issueedit"}}{{template "head" .}}
@@ -272,6 +275,7 @@
   <div class="actions"><button type="submit">Save</button> <a class="button secondary" href="{{issueURL $.Repo.Name .Number}}">Cancel</a></div>
 </form>
 {{end}}
+{{template "shortcuts"}}
 {{template "foot" .}}{{end}}
 
 {{define "commentedit"}}{{template "head" .}}
@@ -287,6 +291,7 @@
   <div class="actions"><button type="submit">Save</button> <a class="button secondary" href="{{issueURL $.Repo.Name .Number}}#comment-{{.Comment.ID}}">Cancel</a></div>
 </form>
 {{end}}
+{{template "shortcuts"}}
 {{template "foot" .}}{{end}}
 
 {{define "issuesettings"}}{{template "head" .}}
@@ -334,6 +339,7 @@
   {{end}}
 </section>
 {{end}}
+{{template "shortcuts"}}
 {{template "foot" .}}{{end}}
 
 {{define "issuesnav"}}{{/* . is issuesNavArgs */}}
@@ -376,6 +382,7 @@
 </details>
 {{end}}
 {{end}}
+{{template "shortcuts"}}
 {{template "foot" .}}{{end}}
 
 {{define "projectfields"}}{{/* . has Form, Statuses and Solo */}}
@@ -460,6 +467,7 @@
 </details>
 {{end}}
 {{end}}
+{{template "shortcuts"}}
 {{template "foot" .}}{{end}}
 
 {{define "cycle"}}{{template "head" .}}
@@ -518,6 +526,28 @@
 </details>
 {{end}}
 
+{{define "qproject"}}{{/* . is the issue page's data */}}{{$i := .Issue}}
+<details class="qmenu wide">
+  <summary class="iproj" title="Project: {{or $i.Project "None"}}. Change it"><span class="visually-hidden">{{$i.ID}} project: </span><span>{{or $i.Project "None"}}</span><span class="visually-hidden">. Change it</span></summary>
+  <form class="qlist" method="post" action="{{issueURL $i.Repo $i.Number "quick"}}">
+    <input type="hidden" name="back" value="{{.Back}}">
+    <button type="submit" class="qitem" name="project" value=""{{if not $i.Project}} aria-current="true"{{end}}><span>None</span></button>
+    {{range .Projects}}<button type="submit" class="qitem" name="project" value="{{.Name}}"{{if eq .Name $i.Project}} aria-current="true"{{end}}><span>{{.Name}}</span></button>{{end}}
+  </form>
+</details>
+{{end}}
+
+{{define "qcycle"}}{{/* . is the issue page's data */}}{{$i := .Issue}}
+<details class="qmenu wide">
+  <summary class="icycle" title="Cycle: {{if $i.Cycle}}Cycle {{$i.Cycle}}{{else}}None{{end}}. Change it"><span class="visually-hidden">{{$i.ID}} cycle: </span><span>{{if $i.Cycle}}Cycle {{$i.Cycle}}{{else}}None{{end}}</span><span class="visually-hidden">. Change it</span></summary>
+  <form class="qlist" method="post" action="{{issueURL $i.Repo $i.Number "quick"}}">
+    <input type="hidden" name="back" value="{{.Back}}">
+    <button type="submit" class="qitem" name="cycle" value=""{{if not $i.Cycle}} aria-current="true"{{end}}><span>None</span></button>
+    {{range .Cycles}}{{$n := printf "%d" .Number}}<button type="submit" class="qitem" name="cycle" value="{{$n}}"{{if eq $n (printf "%v" $i.Cycle)}} aria-current="true"{{end}}><span>Cycle {{.Number}}{{with .Name}}: {{.}}{{end}}</span>{{if .Current}}<span class="badge current">Current</span>{{end}}</button>{{end}}
+  </form>
+</details>
+{{end}}
+
 {{define "qpriority"}}{{/* . is qArgs: Issue, Back, Priorities, Wide */}}
 <details class="qmenu{{if .Wide}} wide{{end}}">
   <summary class="ipri" title="Priority: {{priorityLabel .Issue.Priority}}. Change it"><span class="visually-hidden">{{.Issue.ID}} priority: </span>{{priorityIcon .Issue.Priority}}{{if .Wide}}<span>{{priorityLabel .Issue.Priority}}</span>{{else}}<span class="visually-hidden">{{priorityLabel .Issue.Priority}}</span>{{end}}<span class="visually-hidden">. Change it</span></summary>
@@ -532,17 +562,21 @@
 <details class="shortcuts" id="shortcuts" hidden>
   <summary>Keyboard shortcuts</summary>
   <dl>
-    <dt><kbd>c</kbd></dt><dd>New issue</dd>
-    <dt><kbd>/</kbd></dt><dd>Search</dd>
-    <dt><kbd>j</kbd> <kbd>k</kbd></dt><dd>Next and previous issue</dd>
-    <dt><kbd>s</kbd> <kbd>p</kbd></dt><dd>Status and priority of the chosen issue, or this issue</dd>
-    <dt><kbd>0</kbd>–<kbd>6</kbd></dt><dd>In an open menu: choose the option with that number</dd>
-    <dt><kbd>g</kbd> then <kbd>i</kbd> <kbd>b</kbd> <kbd>p</kbd> <kbd>y</kbd></dt><dd>Go to issues, board, projects, cycles</dd>
-    <dt><kbd>e</kbd> <kbd>r</kbd></dt><dd>On an issue: edit, reply</dd>
+    {{/* data-needs names what a key acts on; the script drops keys whose target the page lacks. */}}
+    <dt data-needs='a.button[href*="/-/issues/new"]'><kbd>c</kbd></dt><dd>New issue</dd>
+    <dt data-needs='.issuefilter input[type="search"]'><kbd>/</kbd></dt><dd>Search</dd>
+    <dt data-needs=".irow .ititle, .bcard .ititle, .projname"><kbd>j</kbd> <kbd>k</kbd></dt><dd>Next and previous item</dd>
+    <dt data-needs=".qmenu"><kbd>s</kbd> <kbd>p</kbd></dt><dd>Status and priority of the chosen issue, or this issue</dd>
+    <dt data-needs=".qmenu"><kbd>0</kbd>–<kbd>6</kbd></dt><dd>In an open menu: choose the option with that number</dd>
+    <dt data-needs=".viewnav, .ipath"><kbd>g</kbd> then <kbd>i</kbd> <kbd>b</kbd> <kbd>p</kbd> <kbd>y</kbd></dt><dd>Go to issues, board, projects, cycles</dd>
+    <dt data-needs=".issuehead"><kbd>e</kbd> <kbd>r</kbd></dt><dd>On an issue: edit, reply</dd>
+    <dt data-needs='details.editprops input[name="assignee"]'><kbd>a</kbd></dt><dd>On an issue: assignee</dd>
+    <dt><kbd>⌘</kbd> <kbd>Enter</kbd></dt><dd>In a form: send it (<kbd>Ctrl</kbd> <kbd>Enter</kbd> off a Mac)</dd>
     <dt><kbd>Esc</kbd></dt><dd>Close a menu</dd>
     <dt><kbd>?</kbd></dt><dd>Show these</dd>
   </dl>
 </details>
+<p class="keyhint finehint" id="keyhint" hidden>Press <kbd>?</kbd> for keyboard shortcuts.</p>
 {{end}}
 
 {{define "issueboard"}}{{template "head" .}}
