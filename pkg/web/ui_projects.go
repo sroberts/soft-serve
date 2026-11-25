@@ -65,7 +65,8 @@ func (h uiHandler) projectByName(w http.ResponseWriter, r *http.Request, b *brow
 		h.opsFail(w, r, b, p, err)
 		return
 	}
-	http.Redirect(w, r, projectURL(p.Repo.Name, pr.ID), http.StatusMovedPermanently)
+	// Not permanent: a name can later belong to another project.
+	http.Redirect(w, r, projectURL(p.Repo.Name, pr.ID), http.StatusFound)
 }
 
 func cycleURL(repo string, n int64, rest ...string) string {
@@ -181,11 +182,16 @@ func (h uiHandler) issueProject(w http.ResponseWriter, r *http.Request, b *brows
 				Name: f.Get("name"), Description: f.Get("description"), Status: f.Get("status"),
 				Lead: strings.TrimSpace(f.Get("lead")), StartDate: f.Get("start_date"), TargetDate: f.Get("target_date"),
 			}
-			var up ops.IssueProject
-			up, err = svc.UpdateIssueProject(r.Context(), p.Repo.Name, pr.Name, ops.IssueProjectUpdate{
+			u := ops.IssueProjectUpdate{
 				Name: &d.Form.Name, Description: &d.Form.Description, Status: &d.Form.Status,
 				Lead: &d.Form.Lead, StartDate: &d.Form.StartDate, TargetDate: &d.Form.TargetDate,
-			})
+			}
+			// With one user the form has no lead field; leave the lead be.
+			if !f.Has("lead") {
+				u.Lead, d.Form.Lead = nil, pr.Lead
+			}
+			var up ops.IssueProject
+			up, err = svc.UpdateIssueProject(r.Context(), p.Repo.Name, pr.Name, u)
 			if err == nil {
 				http.Redirect(w, r, withDone(projectURL(p.Repo.Name, up.ID), "project-saved"), http.StatusSeeOther)
 				return

@@ -45,14 +45,25 @@
   // focus on the same issue where it can.
   const refresh = async () => {
     const focusKey = document.activeElement?.closest("[data-issue]")?.dataset.issue;
+    // A menu outside any row, as in an issue's side panel, by its place.
+    const menuAt = $$("details.qmenu").indexOf(document.activeElement?.closest("details.qmenu"));
+    // Text typed but not sent, such as a comment, survives the swap.
+    const typed = $$("main textarea, main input[type=text]")
+      .filter((el) => el.name && el.form && el.value !== el.defaultValue)
+      .map((el) => [el.form.getAttribute("action"), el.name, el.value]);
     const res = await fetch(location.href, { credentials: "same-origin" });
     if (!res.ok) { location.reload(); return; }
     const doc = new DOMParser().parseFromString(await res.text(), "text/html");
     const fresh = $("main", doc);
     if (!fresh) { location.reload(); return; }
     $("main").replaceWith(fresh);
+    for (const [action, name, value] of typed) {
+      const el = $$(`main [name="${CSS.escape(name)}"]`).find((f) => f.form?.getAttribute("action") === action);
+      if (el) el.value = value;
+    }
     setup();
     if (focusKey) $(`[data-issue="${CSS.escape(focusKey)}"] .ititle`)?.focus({ preventScroll: true });
+    else if (menuAt >= 0) $$("details.qmenu")[menuAt]?.querySelector("summary")?.focus({ preventScroll: true });
   };
 
   // --- Menus: send in place ---

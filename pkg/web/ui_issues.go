@@ -891,9 +891,20 @@ func (h uiHandler) issueSettings(w http.ResponseWriter, r *http.Request, b *brow
 	switch f.Get("op") {
 	case "key":
 		d.Key = strings.TrimSpace(f.Get("key"))
-		if f.Get("confirmed") == "" && issue.ValidKey(strings.ToUpper(d.Key)) && load() && !strings.EqualFold(d.Key, d.Tracker.Key) {
+		if !d.IsAdmin {
+			// Only an admin can change the key: say so now, not after
+			// asking them to confirm a change they can't make.
+			h.opsFail(w, r, b, p, errForbiddenFor(b))
+			return
+		}
+		newKey := strings.ToUpper(d.Key)
+		if f.Get("confirmed") == "" && issue.ValidKey(newKey) {
+			if !load() {
+				return
+			}
+		}
+		if f.Get("confirmed") == "" && issue.ValidKey(newKey) && newKey != d.Tracker.Key {
 			// Every issue is renamed, so it asks first, showing how.
-			newKey := strings.ToUpper(d.Key)
 			p.Title = "Change the issue key"
 			p.Data = confirmData{
 				Heading: "Rename every issue?",
@@ -921,6 +932,10 @@ func (h uiHandler) issueSettings(w http.ResponseWriter, r *http.Request, b *brow
 		setErr = func(m string) { d.LabelErr = m }
 	case "delete-label":
 		name := f.Get("name")
+		if !d.CanWrite {
+			h.opsFail(w, r, b, p, errForbiddenFor(b))
+			return
+		}
 		if f.Get("confirmed") == "" {
 			n := 0
 			if l, err := svc.ListIssues(r.Context(), ops.IssueQuery{Repo: p.Repo.Name, Label: []string{name}, Closed: true, Limit: 1}); err == nil {

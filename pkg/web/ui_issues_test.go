@@ -74,6 +74,22 @@ func TestUIIssues(t *testing.T) {
 	has(t, f.do(req{path: "/group/open/-/issues/settings", auth: auth}), `named <span class="crumbid">OPE-1</span>`, `value="OPE"`, "1 done, 0 canceled")
 	seeOther(t, f.post("/group/open/-/issues/settings", auth, url.Values{"op": {"label"}, "name": {"bug"}, "color": {"#e5484d"}}), "/group/open/-/issues/settings?done=label-created")
 	has(t, f.do(req{path: "/group/open/-/issues/settings", auth: auth}), `fill="#e5484d"`, " bug</span>")
+	// Someone who can only read is refused, not asked to confirm a change
+	// they can't make.
+	stranger := f.outpost.token(t, "stranger", viewHost, nil)
+	for _, form := range []url.Values{
+		{"op": {"delete-label"}, "name": {"web"}},
+		{"op": {"key"}, "key": {"open"}},
+	} {
+		for name, who := range map[string]req{"anonymous": {}, "stranger": {identity: stranger}} {
+			who.method, who.path, who.body = http.MethodPost, "/group/open/-/issues/settings", form.Encode()
+			who.header = map[string]string{"Content-Type": "application/x-www-form-urlencoded", "Sec-Fetch-Site": "same-origin"}
+			w := f.do(who)
+			if w.Code == http.StatusOK || strings.Contains(w.Body.String(), `name="confirmed"`) {
+				t.Errorf("%s by %s: %d, offered a confirmation", form.Get("op"), name, w.Code)
+			}
+		}
+	}
 	// Deleting a label asks first and says how many issues have it.
 	has(t, f.post("/group/open/-/issues/settings", auth, url.Values{"op": {"delete-label"}, "name": {"web"}}), "Delete this label?", "It comes off 2 issues.")
 	seeOther(t, f.post("/group/open/-/issues/settings", auth, url.Values{"op": {"delete-label"}, "name": {"web"}, "confirmed": {"1"}}), "/group/open/-/issues/settings?done=label-deleted")
@@ -130,7 +146,7 @@ func TestUIProjectsAndCycles(t *testing.T) {
 	seeOther(t, f.post("/group/open/-/issues/new", auth, url.Values{"title": {"Shipped"}, "status": {"done"}, "project": {"Web/v2"}}), "/group/open/-/issues/1")
 	seeOther(t, f.post("/group/open/-/issues/new", auth, url.Values{"title": {"Pending"}, "project": {"Web/v2"}}), "/group/open/-/issues/2")
 	// A link by name, as an issue's page gives, finds its page.
-	if w := f.do(req{path: "/group/open/-/issues/project?name=Web/v2", auth: auth}); w.Code != http.StatusMovedPermanently || w.Header().Get("Location") != "/group/open/-/issues/projects/1" {
+	if w := f.do(req{path: "/group/open/-/issues/project?name=Web/v2", auth: auth}); w.Code != http.StatusFound || w.Header().Get("Location") != "/group/open/-/issues/projects/1" {
 		t.Errorf("project by name: %d %s", w.Code, w.Header().Get("Location"))
 	}
 	w = f.do(req{path: "/group/open/-/issues/projects/1", auth: auth})
@@ -142,6 +158,8 @@ func TestUIProjectsAndCycles(t *testing.T) {
 	// Rename it; deleting asks first and keeps its issues.
 	// Renaming keeps its address.
 	seeOther(t, f.post("/group/open/-/issues/projects/1", auth, url.Values{"name": {"Web v2"}, "status": {"completed"}}), "/group/open/-/issues/projects/1?done=project-saved")
+	// A form without the lead field, as with one user, leaves the lead be.
+	has(t, f.do(req{path: "/group/open/-/issues/projects/1", auth: auth}), "<dt>Lead</dt><dd>owner</dd>")
 	has(t, f.do(req{path: "/group/open/-/issues/projects/1/delete", auth: auth}), "Delete this project?", "Its 2 issues stay, in no project.")
 	seeOther(t, f.post("/group/open/-/issues/projects/1/delete", auth, nil), "/group/open/-/issues/projects?done=project-deleted")
 	hasNot(t, f.do(req{path: "/group/open/-/issues/1", auth: auth}), "<dt>Project</dt>")
