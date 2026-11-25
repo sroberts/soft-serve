@@ -1716,6 +1716,7 @@
       "IssueProject": {
         "type": "object",
         "properties": {
+          "id": {"type": "integer", "description": "Stays the same when the project is renamed"},
           "name": {"type": "string"},
           "description": {"type": "string"},
           "status": {"type": "string", "enum": ["planned", "started", "paused", "completed", "canceled"]},
@@ -1726,7 +1727,7 @@
           "created_at": {"type": "string", "format": "date-time"},
           "updated_at": {"type": "string", "format": "date-time"}
         },
-        "required": ["name", "status", "progress", "created_at", "updated_at"]
+        "required": ["id", "name", "status", "progress", "created_at", "updated_at"]
       },
       "IssueProjectInput": {
         "type": "object",

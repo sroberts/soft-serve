@@ -51,8 +51,8 @@ var issueGroupOrder = []string{issue.InReview, issue.InProgress, issue.Todo, iss
 const issuePageSize = 100
 
 type issueScopeLink struct {
-	Label, URL string
-	Current    bool
+	Name, Label, URL string
+	Current          bool
 }
 
 type issueGroup struct {
@@ -80,6 +80,9 @@ type issueListData struct {
 	Priorities                                    []string
 	CanWrite                                      bool
 	Key                                           string
+	// FilterCount is how many filters are on; FiltersOpen shows them.
+	FilterCount int
+	FiltersOpen bool
 	// Board is the board view; Back is this page, for forms to return to.
 	Board bool
 	Back  string
@@ -90,6 +93,8 @@ type issueListData struct {
 // issues routes the pages under /{repo}/-/issues.
 func (h uiHandler) issues(w http.ResponseWriter, r *http.Request, b *browser, p page, rest string) {
 	p.Tab = "issues"
+	// Every issue page has the shortcuts, so none is a dead end for them.
+	p.Script = true
 	parts := strings.Split(rest, "/")
 	switch {
 	case rest == "":
@@ -110,8 +115,11 @@ func (h uiHandler) issues(w http.ResponseWriter, r *http.Request, b *browser, p 
 		h.issueSettings(w, r, b, p)
 	case rest == "projects":
 		h.issueProjects(w, r, b, p)
-	case rest == "project" || rest == "project/delete":
-		h.issueProject(w, r, b, p, strings.TrimPrefix(strings.TrimPrefix(rest, "project"), "/"))
+	case rest == "project":
+		// Links by name, from before projects had their own address.
+		h.projectByName(w, r, b, p)
+	case parts[0] == "projects" && (len(parts) == 2 || (len(parts) == 3 && parts[2] == "delete")):
+		h.issueProject(w, r, b, p, parts[1], strings.Join(parts[2:], ""))
 	case rest == "cycles":
 		h.issueCycles(w, r, b, p)
 	case parts[0] == "cycles" && (len(parts) == 2 || (len(parts) == 3 && parts[2] == "delete")):
@@ -184,9 +192,7 @@ func (h uiHandler) issueList(w http.ResponseWriter, r *http.Request, b *browser,
 		Project: in.Get("project"), Cycle: in.Get("cycle"),
 		Priorities: issue.PriorityNames, Statuses: issue.Statuses,
 	}
-	if global && !in.Has("assignee") && b.user != nil {
-		d.Assignee = "me"
-	}
+	p.Solo = b.solo(r)
 	q := ops.IssueQuery{Query: d.Query, Assignee: d.Assignee, Sort: d.Sort, Limit: issuePageSize}
 	if d.Priority != "" {
 		q.Priority = []string{d.Priority}
@@ -209,12 +215,7 @@ func (h uiHandler) issueList(w http.ResponseWriter, r *http.Request, b *browser,
 		d.Board, d.Sort = true, "manual"
 		q.Status, q.Closed, q.Sort, q.Limit, q.Offset = boardColumns, true, "manual", 500, 0
 	}
-	back := r.URL.Query()
-	back.Del("done")
-	d.Back = r.URL.Path
-	if enc := back.Encode(); enc != "" {
-		d.Back += "?" + enc
-	}
+	d.Back = backOf(r)
 
 	repo := ""
 	if !global {
@@ -232,10 +233,7 @@ func (h uiHandler) issueList(w http.ResponseWriter, r *http.Request, b *browser,
 		d.CanWrite = b.user != nil && access.ParseAccessLevel(p.Repo.Access) >= access.ReadWriteAccess
 		p.Title = "Issues · " + repo
 	} else {
-		p.Title = "Issues"
-		if d.Assignee == "me" {
-			p.Title = "My issues"
-		}
+		p.Title = "My issues"
 	}
 
 	l, err := svc.ListIssues(r.Context(), q)
@@ -280,15 +278,12 @@ func (h uiHandler) issueList(w http.ResponseWriter, r *http.Request, b *browser,
 				v.Set(k, vs[0])
 			}
 		}
-		if global && !in.Has("assignee") && d.Assignee != "" {
-			v.Set("assignee", d.Assignee)
-		}
 		change(v)
 		return issuesURL(repo, v)
 	}
 	for _, s := range issueScopes {
 		name := s.Name
-		d.Scopes = append(d.Scopes, issueScopeLink{Label: s.Label, Current: name == d.Scope, URL: keep(func(v url.Values) {
+		d.Scopes = append(d.Scopes, issueScopeLink{Name: name, Label: s.Label, Current: name == d.Scope, URL: keep(func(v url.Values) {
 			if name == "open" {
 				v.Del("scope")
 			} else {
@@ -306,10 +301,19 @@ func (h uiHandler) issueList(w http.ResponseWriter, r *http.Request, b *browser,
 	if q.Offset+len(l.Issues) < l.Total {
 		d.NextURL = keep(func(v url.Values) { v.Set("offset", strconv.Itoa(q.Offset+issuePageSize)) })
 	}
-	d.Filtered = d.Query != "" || d.Priority != "" || d.Label != "" || d.Project != "" || d.Cycle != "" || (d.Assignee != "" && !(global && d.Assignee == "me"))
+	for _, f := range []string{d.Assignee, d.Priority, d.Label, d.Project, d.Cycle} {
+		if f != "" {
+			d.FilterCount++
+		}
+	}
+	d.FiltersOpen = d.FilterCount > 0 || d.Sort != "" && !d.Board
+	d.Filtered = d.Query != "" || d.FilterCount > 0
 	d.ClearURL = issuesURL(repo, url.Values{"scope": {d.Scope}})
 	if d.Scope == "open" {
 		d.ClearURL = issuesURL(repo, nil)
+	}
+	if board {
+		d.ClearURL = repoURL(repo, "issues/board", "", "")
 	}
 
 	// Group by status, keeping the list's order within each group. A
@@ -380,6 +384,11 @@ type issueData struct {
 	// Projects and Cycles are the repository's, for the property form.
 	Projects []ops.IssueProject
 	Cycles   []ops.IssueCycle
+	// Inline is set: status and priority have menus of their own here.
+	// Solo is set when the server has one user; MoreOpen is unused here.
+	Inline, Solo, MoreOpen bool
+	// Back is the issue's page, for its menus to return to.
+	Back string
 	// Props is the property form as last submitted, and Err why it failed.
 	Props        issueProps
 	Err          string
@@ -442,6 +451,9 @@ func (h uiHandler) issueDetail(r *http.Request, b *browser, p page, n int64) (*i
 		Statuses:    issue.Statuses,
 		Priorities:  issue.PriorityNames,
 		Props:       propsOf(d.Issue),
+		Inline:      true,
+		Solo:        b.solo(r),
+		Back:        issueURL(p.Repo.Name, d.Number),
 	}
 	out.Projects, _ = svc.IssueProjects(r.Context(), p.Repo.Name)
 	out.Cycles, _ = svc.IssueCycles(r.Context(), p.Repo.Name)
@@ -489,6 +501,7 @@ func (h uiHandler) issueDetail(r *http.Request, b *browser, p page, n int64) (*i
 // issuePage shows an issue, and saves its property form.
 func (h uiHandler) issuePage(w http.ResponseWriter, r *http.Request, b *browser, p page, n int64) {
 	p.Script = true
+	p.Solo = b.solo(r)
 	if r.Method == http.MethodPost {
 		h.issueSaveProps(w, r, b, p, n)
 		return
@@ -520,8 +533,18 @@ func (h uiHandler) issueSaveProps(w http.ResponseWriter, r *http.Request, b *bro
 			}
 		}
 		u := ops.IssueUpdate{
-			Status: &props.Status, Priority: &props.Priority, Assignee: &props.Assignee,
-			Parent: &props.Parent, Labels: &labels, Project: &props.Project, Cycle: &props.Cycle,
+			Assignee: &props.Assignee, Parent: &props.Parent, Labels: &labels, Project: &props.Project, Cycle: &props.Cycle,
+		}
+		// Status and priority have menus of their own on the issue's page;
+		// the form changes them only if it sends them.
+		if f.Has("status") {
+			u.Status = &props.Status
+		}
+		if f.Has("priority") {
+			u.Priority = &props.Priority
+		}
+		if !f.Has("assignee") {
+			u.Assignee = nil
 		}
 		if _, err = b.service().UpdateIssue(r.Context(), p.Repo.Name, n, u); err == nil {
 			http.Redirect(w, r, withDone(issueURL(p.Repo.Name, n), "issue-saved"), http.StatusSeeOther)
@@ -535,6 +558,7 @@ func (h uiHandler) issueSaveProps(w http.ResponseWriter, r *http.Request, b *bro
 	}
 	d.Props = props
 	p.Title = d.Issue.ID + " " + d.Issue.Title
+	p.Script, p.Solo = true, d.Solo
 	p.Data = d
 	h.renderForm(w, r, b, p, "issue", err, func(m string) { d.Err = m })
 }
@@ -554,6 +578,12 @@ type issueFormData struct {
 	Number int64
 	ID     string
 	Err    string
+	// Inline is set on an issue's page, where status and priority have
+	// menus of their own; Solo when the server has one user.
+	Inline, Solo bool
+	// MoreOpen shows the less-used properties without a click: something
+	// filled them in, or the form came back with an error.
+	MoreOpen bool
 }
 
 func (h uiHandler) issueNew(w http.ResponseWriter, r *http.Request, b *browser, p page) {
@@ -575,6 +605,9 @@ func (h uiHandler) issueNew(w http.ResponseWriter, r *http.Request, b *browser, 
 	d.Cycles, _ = svc.IssueCycles(r.Context(), p.Repo.Name)
 	d.Props.Project = r.URL.Query().Get("project")
 	d.Props.Cycle = r.URL.Query().Get("cycle")
+	d.Solo = b.solo(r)
+	p.Solo = d.Solo
+	d.MoreOpen = d.Props.Parent != "" || d.Props.Project != "" || d.Props.Cycle != ""
 	p.Data = d
 	if r.Method != http.MethodPost {
 		if b.user == nil || access.ParseAccessLevel(p.Repo.Access) < access.ReadWriteAccess {
@@ -678,6 +711,7 @@ func (h uiHandler) issueComment(w http.ResponseWriter, r *http.Request, b *brows
 	}
 	d.CommentDraft = body
 	p.Title = d.Issue.ID + " " + d.Issue.Title
+	p.Script, p.Solo = true, d.Solo
 	p.Data = d
 	h.renderForm(w, r, b, p, "issue", err, func(m string) { d.CommentErr = m })
 }
@@ -810,13 +844,15 @@ func plural(n int, one, many string) string {
 // --- Settings: the key and labels ---
 
 type issueSettingsData struct {
-	Tracker  ops.IssueTracker
-	IsAdmin  bool
-	CanWrite bool
-	Key      string
-	KeyErr   string
-	Label    ops.IssueLabel
-	LabelErr string
+	Tracker ops.IssueTracker
+	// Done and Canceled split the closed issues, as the board does.
+	Done, Canceled int
+	IsAdmin        bool
+	CanWrite       bool
+	Key            string
+	KeyErr         string
+	Label          ops.IssueLabel
+	LabelErr       string
 }
 
 func (h uiHandler) issueSettings(w http.ResponseWriter, r *http.Request, b *browser, p page) {
@@ -835,6 +871,10 @@ func (h uiHandler) issueSettings(w http.ResponseWriter, r *http.Request, b *brow
 		if d.Key == "" {
 			d.Key = t.Key
 		}
+		if l, err := svc.ListIssues(r.Context(), ops.IssueQuery{Repo: p.Repo.Name, Status: []string{issue.Done}, Limit: 1}); err == nil {
+			d.Done = l.Total
+		}
+		d.Canceled = t.Closed - d.Done
 		return true
 	}
 	if r.Method != http.MethodPost {
@@ -853,6 +893,33 @@ func (h uiHandler) issueSettings(w http.ResponseWriter, r *http.Request, b *brow
 	switch f.Get("op") {
 	case "key":
 		d.Key = strings.TrimSpace(f.Get("key"))
+		if !d.IsAdmin {
+			// Only an admin can change the key: say so now, not after
+			// asking them to confirm a change they can't make.
+			h.opsFail(w, r, b, p, errForbiddenFor(b))
+			return
+		}
+		newKey := strings.ToUpper(d.Key)
+		if f.Get("confirmed") == "" && issue.ValidKey(newKey) {
+			if !load() {
+				return
+			}
+		}
+		if f.Get("confirmed") == "" && issue.ValidKey(newKey) && newKey != d.Tracker.Key {
+			// Every issue is renamed, so it asks first, showing how.
+			p.Title = "Change the issue key"
+			p.Data = confirmData{
+				Heading: "Rename every issue?",
+				What:    d.Tracker.Key + "-1 → " + newKey + "-1",
+				Message: "All " + plural(d.Tracker.Open+d.Tracker.Closed, "issue", "issues") + " here take the new key. Commits and links that say " + d.Tracker.Key + "-… won't find them any more.",
+				Action:  back,
+				Fields:  map[string]string{"op": "key", "key": newKey, "confirmed": "1"},
+				Button:  "Change key to " + newKey,
+				Cancel:  back,
+			}
+			h.render(w, r, "confirm", p)
+			return
+		}
 		if err = svc.SetIssueKey(r.Context(), p.Repo.Name, d.Key); err == nil {
 			http.Redirect(w, r, withDone(back, "key-saved"), http.StatusSeeOther)
 			return
@@ -866,7 +933,30 @@ func (h uiHandler) issueSettings(w http.ResponseWriter, r *http.Request, b *brow
 		}
 		setErr = func(m string) { d.LabelErr = m }
 	case "delete-label":
-		if err = svc.DeleteIssueLabel(r.Context(), p.Repo.Name, f.Get("name")); err == nil {
+		name := f.Get("name")
+		if !d.CanWrite {
+			h.opsFail(w, r, b, p, errForbiddenFor(b))
+			return
+		}
+		if f.Get("confirmed") == "" {
+			n := 0
+			if l, err := svc.ListIssues(r.Context(), ops.IssueQuery{Repo: p.Repo.Name, Label: []string{name}, Closed: true, Limit: 1}); err == nil {
+				n = l.Total
+			}
+			msg := "No issue has it."
+			if n > 0 {
+				msg = "It comes off " + plural(n, "issue", "issues") + ". The issues stay."
+			}
+			p.Title = "Delete label " + name
+			p.Data = confirmData{
+				Heading: "Delete this label?", What: name, Message: msg, Action: back,
+				Fields: map[string]string{"op": "delete-label", "name": name, "confirmed": "1"},
+				Button: "Delete label", Cancel: back + "#labels",
+			}
+			h.render(w, r, "confirm", p)
+			return
+		}
+		if err = svc.DeleteIssueLabel(r.Context(), p.Repo.Name, name); err == nil {
 			http.Redirect(w, r, withDone(back, "label-deleted"), http.StatusSeeOther)
 			return
 		}
@@ -1041,6 +1131,7 @@ func (h uiHandler) issueQuick(w http.ResponseWriter, r *http.Request, b *browser
 			return nil
 		}
 		u.Status, u.Priority, u.After = opt("status"), opt("priority"), opt("after")
+		u.Project, u.Cycle = opt("project"), opt("cycle")
 		_, err = b.service().UpdateIssue(r.Context(), p.Repo.Name, n, u)
 	}
 	if scripted {
@@ -1079,4 +1170,49 @@ type qArgs struct {
 	Issue                ops.Issue
 	Back                 string
 	Statuses, Priorities []string
+	// Wide shows the value's name beside its icon, as on an issue's page.
+	Wide bool
+}
+
+// rowArgs is what an issue's row in a list needs.
+type rowArgs struct {
+	Issue    ops.Issue
+	Colors   map[string]string
+	CanWrite bool
+	Back     string
+	Viewer   string
+	Solo     bool
+	Global   bool
+}
+
+// filterArgs is what the list's and the board's filters need.
+type filterArgs struct {
+	D      *issueListData
+	Viewer string
+	Solo   bool
+}
+
+// showWho reports whether to name who an issue is assigned to (or who
+// leads a project): not when nobody is, when it's the viewer, or when the
+// server has one user and so it always would be.
+func showWho(who, viewer string, solo bool) bool {
+	return who != "" && who != viewer && !solo
+}
+
+// solo reports whether the server has one user, for the issue views to
+// leave out assignees and leads.
+func (b *browser) solo(r *http.Request) bool {
+	users, err := b.be.Users(r.Context())
+	return err == nil && len(users) <= 1
+}
+
+// backOf is the page a request is for, without its notice, for forms on
+// it to return to.
+func backOf(r *http.Request) string {
+	q := r.URL.Query()
+	q.Del("done")
+	if enc := q.Encode(); enc != "" {
+		return r.URL.Path + "?" + enc
+	}
+	return r.URL.Path
 }

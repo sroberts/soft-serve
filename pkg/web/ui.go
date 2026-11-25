@@ -104,15 +104,29 @@ var uiTemplates = template.Must(template.New("").Funcs(template.FuncMap{
 	"dotFor":         dotFor,
 	"eventText":      eventText,
 	"lower":          strings.ToLower,
+	"showWho":        showWho,
 	"idURL":          idURL,
-	"projectURL":     func(repo, name string) string { return projectURL(repo, name) },
+	"projectURL":     func(repo string, id int64) string { return projectURL(repo, id) },
 	"cycleURL":       func(repo string, n int64) string { return cycleURL(repo, n) },
 	"projectStatus":  issue.ProjectStatusLabel,
-	"qArgs": func(i ops.Issue, d *issueListData) qArgs {
-		return qArgs{Issue: i, Back: d.Back, Statuses: d.Statuses, Priorities: d.Priorities}
+	"qArgs": func(i ops.Issue, back string) qArgs {
+		return qArgs{Issue: i, Back: back, Statuses: issue.Statuses, Priorities: issue.PriorityNames}
 	},
-	"groupArgs": func(gs []issueGroup, colors map[string]string) groupArgs {
-		return groupArgs{Groups: gs, Colors: colors}
+	"qWide": func(i ops.Issue, back string) qArgs {
+		return qArgs{Issue: i, Back: back, Statuses: issue.Statuses, Priorities: issue.PriorityNames, Wide: true}
+	},
+	"row": func(i ops.Issue, colors map[string]string, canWrite bool, back, viewer string, solo, global bool) rowArgs {
+		return rowArgs{Issue: i, Colors: colors, CanWrite: canWrite, Back: back, Viewer: viewer, Solo: solo, Global: global}
+	},
+	"filterArgs": func(d *issueListData, viewer string, solo bool) filterArgs {
+		return filterArgs{D: d, Viewer: viewer, Solo: solo}
+	},
+	"inc": func(n int) int { return n + 1 },
+	"projectNameURL": func(repo, name string) string {
+		return repoURL(repo, "issues/project", "", "") + "?name=" + url.QueryEscape(name)
+	},
+	"groupArgs": func(gs []issueGroup, colors map[string]string, canWrite bool, back, viewer string, solo bool) groupArgs {
+		return groupArgs{Groups: gs, Colors: colors, CanWrite: canWrite, Back: back, Viewer: viewer, Solo: solo}
 	},
 	"issuesNav": func(repo, current string) issuesNavArgs { return issuesNavArgs{Repo: repo, Current: current} },
 	"issueURL":  func(repo string, n int64, rest ...string) string { return issueURL(repo, n, rest...) },
@@ -145,6 +159,9 @@ type page struct {
 	RepoHome bool
 	// Feed is an Atom feed for the page, if it has one.
 	Feed string
+	// Solo is set on issue views when the server has one user, so the
+	// views leave out who's assigned or leads: it's always them.
+	Solo bool
 	// Script loads the issue views' script, which adds keyboard shortcuts,
 	// menus that change things in place, and dragging on the board. Every
 	// page works without it.
