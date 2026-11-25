@@ -70,7 +70,13 @@
     const typed = $$("main textarea, main input[type=text]")
       .filter((el) => el.name && el.form && el.value !== el.defaultValue)
       .map((el) => [el.form.getAttribute("action"), el.name, el.value]);
-    const res = await fetch(location.href, { credentials: "same-origin" });
+    // A notice of an earlier save ("Issue created.") is old news now.
+    const here = new URL(location.href);
+    if (here.searchParams.has("done")) {
+      here.searchParams.delete("done");
+      history.replaceState(history.state, "", here);
+    }
+    const res = await fetch(here, { credentials: "same-origin" });
     if (!res.ok) { location.reload(); return; }
     const doc = new DOMParser().parseFromString(await res.text(), "text/html");
     const fresh = $("main", doc);

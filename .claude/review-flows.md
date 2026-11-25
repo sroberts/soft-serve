@@ -75,11 +75,13 @@ Check every flow at 1280px and at 390px (phone) wide.
    **New issue**.
 2. Create one from **New issue** with a label that doesn't exist yet: it's
    created, and the issue page says so.
-3. On an issue, open **Change properties**, set a status and an unknown
-   assignee: the form stays open and says no user has that name. Fix it
-   and save: the activity records each change.
+3. On an issue, change status, priority, project and cycle from the side
+   panel's menus: each changes in place, and the toast offers Undo. With a
+   second user, open **Labels and more** and give an unknown assignee: the
+   form stays open and says no user has that name. Fix it and save: the
+   activity records each change.
 4. Comment, edit the comment, delete it (with a confirmation).
-5. Open `/-/issues`: issues assigned to you across repositories.
+5. Open `/-/issues`: every open issue across the repositories you can read.
 6. At 390px, rows wrap under their title and the properties sit above the
    description.
 
