@@ -7,6 +7,8 @@
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1c1b18" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/-/static/manifest.webmanifest" crossorigin="use-credentials">
+<link rel="icon" href="{{static "favicon-32.png"}}" sizes="32x32" type="image/png">
+<link rel="icon" href="{{static "mark.svg"}}" type="image/svg+xml">
 <link rel="apple-touch-icon" href="{{static "apple-touch-icon.png"}}">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -22,7 +24,7 @@
 <body>
 <a class="skip" href="#content">Skip to content</a>
 <header class="site">
-  <a class="brand" href="/">{{.SiteName}}</a>
+  <a class="brand" href="/"><img class="mark" src="{{static "mark.svg"}}" alt="" width="20" height="20"><span class="name">{{.SiteName}}</span></a>
   {{if .Repo}}<span class="sep" aria-hidden="true">/</span><a class="crumb" href="{{repoURL .Repo.Name "" "" ""}}">{{.Repo.Name}}</a>{{end}}
   <span class="grow"></span>
   {{if .SoftServe}}<a class="who issueslink" href="/-/issues"{{if eq .Tab "myissues"}} aria-current="page"{{end}}>My issues</a>{{end}}

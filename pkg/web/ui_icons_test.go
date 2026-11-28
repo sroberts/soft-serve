@@ -114,3 +114,24 @@ func TestCopyTargetsAdjacent(t *testing.T) {
 		t.Fatal("no copy buttons found")
 	}
 }
+
+// TestSiteMark checks the mark beside the site name and the favicon: the
+// page links both, they're served, and /favicon.ico answers with an image
+// rather than a not-found page.
+func TestSiteMark(t *testing.T) {
+	f := newViewFixture(t)
+	home := f.do(req{path: "/"}).Body.String()
+	for _, want := range []string{`<img class="mark" src="/-/static/mark.svg?v=`, `rel="icon" href="/-/static/mark.svg?v=`, `rel="icon" href="/-/static/favicon-32.png?v=`} {
+		if !strings.Contains(home, want) {
+			t.Errorf("home page has no %s", want)
+		}
+	}
+	svg := f.do(req{path: "/-/static/mark.svg"})
+	if svg.Code != 200 || svg.Header().Get("Content-Type") != "image/svg+xml" {
+		t.Errorf("mark.svg: %d %q", svg.Code, svg.Header().Get("Content-Type"))
+	}
+	ico := f.do(req{path: "/favicon.ico"})
+	if ico.Code != 200 || ico.Header().Get("Content-Type") != "image/png" || ico.Body.Len() == 0 {
+		t.Errorf("favicon.ico: %d %q, %d bytes", ico.Code, ico.Header().Get("Content-Type"), ico.Body.Len())
+	}
+}
