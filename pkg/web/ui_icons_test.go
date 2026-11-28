@@ -47,8 +47,34 @@ func TestIconsExist(t *testing.T) {
 		if k == issue.EventPriority {
 			e.To = "high"
 		}
-		if !strings.Contains(string(eventIcon(e)), `aria-hidden="true"`) {
+		got := string(eventIcon(e))
+		if !strings.Contains(got, `aria-hidden="true"`) {
 			t.Errorf("no hidden icon for a %s event", k)
+		}
+		// Anything but a creation falling through to the opened mark means
+		// eventIcon has no case for it.
+		if k != issue.EventCreated && strings.Contains(got, "ic-opened") {
+			t.Errorf("a %s event falls back to the opened icon", k)
+		}
+	}
+	for _, st := range []string{"added", "modified", "deleted", "renamed"} {
+		if diffIcon(st) == "" {
+			t.Errorf("no icon for a %s file", st)
+		}
+	}
+	for _, c := range []struct {
+		m    *RefMenu
+		want string
+	}{
+		{nil, ""},
+		{&RefMenu{CurrentIsBranch: true}, "ic-branch"},
+		{&RefMenu{CurrentIsTag: true}, "ic-tag"},
+		{&RefMenu{CurrentIsBranch: true, CurrentIsTag: true}, "ic-tag"}, // git reads the tag
+		{&RefMenu{Current: "0123456789abcdef0123456789abcdef01234567"}, "ic-commit"},
+	} {
+		got := string(refIcon(c.m))
+		if (c.want == "" && got != "") || !strings.Contains(got, c.want) {
+			t.Errorf("refIcon(%+v) = %q, want %s", c.m, got, c.want)
 		}
 	}
 }
@@ -58,5 +84,33 @@ func TestIconsExist(t *testing.T) {
 func TestCopyScriptServed(t *testing.T) {
 	if len(staticBody("copy.js")) == 0 {
 		t.Fatal("copy.js isn't served")
+	}
+}
+
+// TestCopyTargetsAdjacent checks every copy button sits right after the
+// element it copies, since copy.js copies its neighbour and only when that
+// neighbour carries the id the button names.
+func TestCopyTargetsAdjacent(t *testing.T) {
+	button := regexp.MustCompile(`data-copy="([a-z-]+)"`)
+	files, err := fs.Glob(uiFS, "ui_templates/*.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := 0
+	for _, f := range files {
+		b, err := fs.ReadFile(uiFS, f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range button.FindAllStringSubmatch(string(b), -1) {
+			seen++
+			adjacent := regexp.MustCompile(`id="` + m[1] + `">[^<]*</code><button type="button" class="copybtn" data-copy="` + m[1] + `"`)
+			if !adjacent.Match(b) {
+				t.Errorf("%s: the copy button for %q doesn't follow its target", f, m[1])
+			}
+		}
+	}
+	if seen == 0 {
+		t.Fatal("no copy buttons found")
 	}
 }

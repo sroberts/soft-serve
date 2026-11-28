@@ -111,7 +111,7 @@
     {{with .TypeName}}<label class="field"><span>Type <code>{{.}}</code> to confirm</span>
       <input type="text" name="confirm" value="{{$.Data.Typed}}" required pattern="{{confirmPattern .}}" title="Type {{.}} exactly" autocomplete="off" autocapitalize="off" spellcheck="false"{{if $.Data.TypeErr}} aria-invalid="true" aria-describedby="confirm-error"{{end}}>
     </label>
-    {{with $.Data.TypeErr}}<p class="formerror" id="confirm-error" role="alert">{{.}}</p>{{end}}{{end}}
+    {{with $.Data.TypeErr}}<p class="formerror" id="confirm-error" role="alert">{{icon "alert"}}{{.}}</p>{{end}}{{end}}
     <div class="actions"><button type="submit" class="danger">{{.Button}}</button> <a class="button secondary" href="{{.Cancel}}">Cancel</a></div>
   </form>
 </section>

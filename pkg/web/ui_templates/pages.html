@@ -111,7 +111,7 @@
   {{if .Page.Path}}<input type="hidden" name="path" value="{{.Page.Path}}">{{end}}
   <button type="submit">Search</button>
 </form>
-{{if .Err}}<p class="formerror" role="alert">{{.Err}}</p>{{end}}
+{{template "formerror" .Err}}
 {{if .Searched}}<p class="summaryline">{{.Page.Total}} commit{{if ne .Page.Total 1}}s{{end}}{{with .Page.Query}} mentioning “{{.}}”{{end}}{{with .Page.Author}} by authors matching “{{.}}”{{end}} on <code>{{.Page.Ref}}</code>. <a href="{{repoURL $.Repo.Name "commits" $.Ref .Page.Path}}">Clear</a></p>{{end}}
 <p class="scope"><span class="grow"></span>{{if .Page.Path}}<a href="{{repoURL $.Repo.Name "commits" $.Ref ""}}">All commits</a> · {{end}}<a href="{{$.Feed}}">{{icon "feed"}}Atom feed</a></p>
 <ol class="commits">
@@ -186,7 +186,7 @@
 {{define "diffview"}}{{/* . is a diffView */}}
 <nav class="difftools" aria-label="Diff options">
   <span class="seg"><a href="{{.UnifiedURL}}"{{if not .Split}} aria-current="true"{{end}}>Unified</a><a href="{{.SplitURL}}"{{if .Split}} aria-current="true"{{end}}>Split</a></span>
-  <a href="{{.WhitespaceURL}}" class="toggle"{{if .IgnoreWhitespace}} aria-current="true"{{end}}>{{if .IgnoreWhitespace}}{{icon "check"}}{{end}}{{if .IgnoreWhitespace}}Showing{{else}}Show{{end}} without whitespace changes</a>
+  <a href="{{.WhitespaceURL}}" class="toggle"{{if .IgnoreWhitespace}} aria-current="true"{{end}}>{{if .IgnoreWhitespace}}{{icon "check"}}Showing{{else}}Show{{end}} without whitespace changes</a>
   {{if .Path}}<span class="grow"></span><span class="muted">Only <code>{{.Path}}</code> · <a href="{{.AllFilesURL}}">All files</a></span>{{end}}
 </nav>
 {{if .Files}}
@@ -276,7 +276,7 @@
   <button type="submit">Compare</button>
   <datalist id="refnames">{{range .Refs.Branches}}<option value="{{.Name}}">{{end}}{{range .Refs.Tags}}<option value="{{.Name}}">{{end}}</datalist>
 </form>
-{{if .Err}}<p class="formerror" role="alert">{{.Err}}</p>{{end}}
+{{template "formerror" .Err}}
 {{with .Result}}
 {{if eq .MergeBase .HeadCommit}}
 <p class="empty"><code>{{.Head}}</code> has nothing that <code>{{.Base}}</code> doesn't.</p>
@@ -311,7 +311,7 @@
   {{if $.Ref}}<input type="hidden" name="ref" value="{{$.Ref}}">{{end}}
   <button type="submit">Search</button>
 </form>
-{{if .Err}}<p class="formerror" role="alert">{{.Err}}</p>{{end}}
+{{template "formerror" .Err}}
 {{with .Result}}
 {{if .Files}}
 <p class="summaryline">Matches for “{{.Query}}” in {{len .Files}} file{{if ne (len .Files) 1}}s{{end}} on <code>{{.Ref}}</code>{{if .Truncated}}, showing the first {{len .Files}}{{end}}.</p>
@@ -367,7 +367,7 @@
   {{if $.Ref}}<input type="hidden" name="ref" value="{{$.Ref}}">{{end}}
   <button type="submit">Go to file</button>
 </form>
-{{if .Err}}<p class="formerror" role="alert">{{.Err}}</p>{{end}}
+{{template "formerror" .Err}}
 {{with .Result}}
 {{if .Files}}
 <p class="summaryline">{{.Total}} file{{if ne .Total 1}}s{{end}} on <code>{{.Ref}}</code> match “{{.Query}}”{{if .Truncated}}; the closest {{len .Files}} are shown{{end}}.</p>

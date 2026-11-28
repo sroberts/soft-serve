@@ -493,7 +493,6 @@ pre.plain { white-space: pre-wrap; overflow-wrap: anywhere; }
 .difftools .toggle[aria-current] { font-weight: var(--weight-strong); }
 .difftools .toggle .ic { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; }
 
-
 .filediff { margin-top: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
 .filediff > summary {
   display: flex;
@@ -1326,7 +1325,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 5px; border: 1px solid
 dd > code + .copybtn { width: 26px; height: 26px; margin-left: 6px; }
 dd > code + .copybtn > .ic { width: 13px; height: 13px; }
 .tokenline { display: flex; gap: 8px; align-items: center; }
-.tokenline code.token { flex: 1; min-width: 0; }
+.tokenline code.token { flex: 1; min-width: 0; margin: 0; }
 
 .changes .status { line-height: 0; }
 .changes .status .ic { width: 15px; height: 15px; }
@@ -1348,7 +1347,6 @@ dd > code + .copybtn > .ic { width: 13px; height: 13px; }
 .notice > .ic:first-child { color: var(--add); }
 
 .scope a .ic-feed { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; }
-.tokenline code.token { margin: 0; }
 @media (pointer: coarse) {
   .copybtn, dd > code + .copybtn { width: 40px; height: 40px; }
 }

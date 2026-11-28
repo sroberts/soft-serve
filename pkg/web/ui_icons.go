@@ -66,16 +66,17 @@ func diffIcon(status string) template.HTML {
 	return icon("diff-" + status)
 }
 
-// refIcon marks what the page is showing: a branch, a tag, or (for
-// anything else, such as a commit hash) a commit.
+// refIcon marks what the page is showing: a tag, a branch, or (for
+// anything else, such as a commit hash) a commit. A name that is both a
+// tag and a branch is the tag, as git resolves it.
 func refIcon(m *RefMenu) template.HTML {
 	switch {
 	case m == nil:
 		return ""
-	case m.CurrentIsBranch:
-		return icon("branch")
 	case m.CurrentIsTag:
 		return icon("tag")
+	case m.CurrentIsBranch:
+		return icon("branch")
 	}
 	return icon("commit")
 }
