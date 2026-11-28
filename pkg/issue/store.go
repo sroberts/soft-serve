@@ -277,6 +277,13 @@ func Update(ctx context.Context, h db.Handler, r Row, statusChanged bool) error 
 	return nil
 }
 
+// SetOrder sets an issue's place in the manual order, without counting it
+// as a change to the issue.
+func SetOrder(ctx context.Context, h db.Handler, id int64, order float64) error {
+	_, err := h.ExecContext(ctx, h.Rebind(`UPDATE issues SET sort_order = ? WHERE id = ?`), order, id)
+	return wrap(err)
+}
+
 // Touch marks an issue as changed now, for changes stored elsewhere
 // (labels, comments).
 func Touch(ctx context.Context, h db.Handler, id int64) error {

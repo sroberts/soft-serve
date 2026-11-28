@@ -972,8 +972,15 @@ Pushes update issues by themselves:
 
 In the web view, a repository's **Issues** tab lists them by status, with
 filters and search, and each issue has a page for its properties, sub-issues,
-linked commits, activity and comments. **My issues**, in the header, lists
-what's assigned to you across repositories.
+linked commits, activity and comments. The **Board** shows a column per status:
+move a card with its status menu, or drag it with a mouse. **My issues**, in
+the header, lists everything open across your repositories, most urgent first.
+
+The issue views load one small script of the server's own for keyboard
+shortcuts (<kbd>c</kbd> new issue, <kbd>/</kbd> search, <kbd>j</kbd>/<kbd>k</kbd>
+to move, <kbd>s</kbd>/<kbd>p</kbd> for status and priority, <kbd>g</kbd> then
+<kbd>b</kbd> for the board, <kbd>?</kbd> for the rest), menus that change an issue
+without reloading, and dragging on the board. Everything works without it.
 
 Anyone who can read a repository can read its issues. Creating, changing and
 commenting need read-write access; only a comment's author or a repository

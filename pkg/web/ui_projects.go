@@ -26,16 +26,47 @@ import (
 
 // groupArgs is what the issuegroups template needs.
 type groupArgs struct {
-	Groups []issueGroup
-	Colors map[string]string
+	Groups   []issueGroup
+	Colors   map[string]string
+	CanWrite bool
+	Back     string
+	Viewer   string
+	Solo     bool
 }
 
 // issuesNavArgs is what the switch between issues, projects and cycles
 // needs.
 type issuesNavArgs struct{ Repo, Current string }
 
-func projectURL(repo, name string, rest ...string) string {
-	return repoURL(repo, "issues/project"+strings.Join(append([]string{""}, rest...), "/"), "", "") + "?name=" + url.QueryEscape(name)
+// projectURL is a project's page, by its ID, so a rename doesn't break
+// links to it.
+func projectURL(repo string, id int64, rest ...string) string {
+	return repoURL(repo, "issues/projects/"+strconv.FormatInt(id, 10)+strings.Join(append([]string{""}, rest...), "/"), "", "")
+}
+
+// findProject is one of the repository's projects, by ID.
+func findProject(r *http.Request, svc ops.IssueService, repo, id string) (ops.IssueProject, error) {
+	ps, err := svc.IssueProjects(r.Context(), repo)
+	if err != nil {
+		return ops.IssueProject{}, err
+	}
+	for _, p := range ps {
+		if strconv.FormatInt(p.ID, 10) == id {
+			return p, nil
+		}
+	}
+	return ops.IssueProject{}, errNotFound
+}
+
+// projectByName sends an old link by name to the project's page.
+func (h uiHandler) projectByName(w http.ResponseWriter, r *http.Request, b *browser, p page) {
+	pr, err := b.service().IssueProject(r.Context(), p.Repo.Name, r.URL.Query().Get("name"))
+	if err != nil {
+		h.opsFail(w, r, b, p, err)
+		return
+	}
+	// Not permanent: a name can later belong to another project.
+	http.Redirect(w, r, projectURL(p.Repo.Name, pr.ID), http.StatusFound)
 }
 
 func cycleURL(repo string, n int64, rest ...string) string {
@@ -73,6 +104,7 @@ type projectsData struct {
 	Projects []ops.IssueProject
 	Statuses []string
 	CanWrite bool
+	Solo     bool
 	Form     ops.IssueProjectInput
 	Err      string
 }
@@ -81,7 +113,8 @@ func (h uiHandler) issueProjects(w http.ResponseWriter, r *http.Request, b *brow
 	svc := b.service()
 	p.Title = "Projects · " + p.Repo.Name
 	p.Tab = "issues"
-	d := &projectsData{Statuses: issue.ProjectStatuses, CanWrite: b.canWriteIssues(p), Form: ops.IssueProjectInput{Status: issue.ProjectPlanned}}
+	p.Solo = b.solo(r)
+	d := &projectsData{Statuses: issue.ProjectStatuses, CanWrite: b.canWriteIssues(p), Form: ops.IssueProjectInput{Status: issue.ProjectPlanned}, Solo: p.Solo}
 	p.Data = d
 	var err error
 	if r.Method == http.MethodPost {
@@ -93,7 +126,7 @@ func (h uiHandler) issueProjects(w http.ResponseWriter, r *http.Request, b *brow
 			}
 			var created ops.IssueProject
 			if created, err = svc.CreateIssueProject(r.Context(), p.Repo.Name, d.Form); err == nil {
-				http.Redirect(w, r, withDone(projectURL(p.Repo.Name, created.Name), "project-created"), http.StatusSeeOther)
+				http.Redirect(w, r, withDone(projectURL(p.Repo.Name, created.ID), "project-created"), http.StatusSeeOther)
 				return
 			}
 		}
@@ -113,6 +146,8 @@ func (h uiHandler) issueProjects(w http.ResponseWriter, r *http.Request, b *brow
 
 type projectData struct {
 	Project     ops.IssueProject
+	Solo        bool
+	Back        string
 	Description template.HTML
 	Groups      []issueGroup
 	Total       int
@@ -123,11 +158,11 @@ type projectData struct {
 	Err         string
 }
 
-func (h uiHandler) issueProject(w http.ResponseWriter, r *http.Request, b *browser, p page, rest string) {
+func (h uiHandler) issueProject(w http.ResponseWriter, r *http.Request, b *browser, p page, id, rest string) {
 	svc := b.service()
 	p.Tab = "issues"
-	name := r.URL.Query().Get("name")
-	pr, err := svc.IssueProject(r.Context(), p.Repo.Name, name)
+	p.Script, p.Solo = true, b.solo(r)
+	pr, err := findProject(r, svc, p.Repo.Name, id)
 	if err != nil {
 		h.opsFail(w, r, b, p, err)
 		return
@@ -137,7 +172,7 @@ func (h uiHandler) issueProject(w http.ResponseWriter, r *http.Request, b *brows
 		return
 	}
 	p.Title = pr.Name + " · " + p.Repo.Name
-	d := &projectData{Project: pr, Statuses: issue.ProjectStatuses, CanWrite: b.canWriteIssues(p)}
+	d := &projectData{Project: pr, Statuses: issue.ProjectStatuses, CanWrite: b.canWriteIssues(p), Solo: p.Solo, Back: backOf(r)}
 	d.Form = ops.IssueProjectInput{Name: pr.Name, Description: pr.Description, Status: pr.Status, Lead: pr.Lead, StartDate: pr.StartDate, TargetDate: pr.TargetDate}
 	p.Data = d
 	if r.Method == http.MethodPost {
@@ -147,13 +182,18 @@ func (h uiHandler) issueProject(w http.ResponseWriter, r *http.Request, b *brows
 				Name: f.Get("name"), Description: f.Get("description"), Status: f.Get("status"),
 				Lead: strings.TrimSpace(f.Get("lead")), StartDate: f.Get("start_date"), TargetDate: f.Get("target_date"),
 			}
-			var up ops.IssueProject
-			up, err = svc.UpdateIssueProject(r.Context(), p.Repo.Name, pr.Name, ops.IssueProjectUpdate{
+			u := ops.IssueProjectUpdate{
 				Name: &d.Form.Name, Description: &d.Form.Description, Status: &d.Form.Status,
 				Lead: &d.Form.Lead, StartDate: &d.Form.StartDate, TargetDate: &d.Form.TargetDate,
-			})
+			}
+			// With one user the form has no lead field; leave the lead be.
+			if !f.Has("lead") {
+				u.Lead, d.Form.Lead = nil, pr.Lead
+			}
+			var up ops.IssueProject
+			up, err = svc.UpdateIssueProject(r.Context(), p.Repo.Name, pr.Name, u)
 			if err == nil {
-				http.Redirect(w, r, withDone(projectURL(p.Repo.Name, up.Name), "project-saved"), http.StatusSeeOther)
+				http.Redirect(w, r, withDone(projectURL(p.Repo.Name, up.ID), "project-saved"), http.StatusSeeOther)
 				return
 			}
 		}
@@ -202,9 +242,9 @@ func (h uiHandler) projectDelete(w http.ResponseWriter, r *http.Request, b *brow
 		Heading: "Delete this project?",
 		What:    pr.Name,
 		Message: msg,
-		Action:  projectURL(p.Repo.Name, pr.Name, "delete"),
+		Action:  projectURL(p.Repo.Name, pr.ID, "delete"),
 		Button:  "Delete project",
-		Cancel:  projectURL(p.Repo.Name, pr.Name),
+		Cancel:  projectURL(p.Repo.Name, pr.ID),
 	}
 	h.render(w, r, "confirm", p)
 }
@@ -251,6 +291,8 @@ func (h uiHandler) issueCycles(w http.ResponseWriter, r *http.Request, b *browse
 
 type cycleData struct {
 	Cycle    ops.IssueCycle
+	Solo     bool
+	Back     string
 	Groups   []issueGroup
 	Total    int
 	Labels   []ops.IssueLabel
@@ -299,7 +341,8 @@ func (h uiHandler) issueCycle(w http.ResponseWriter, r *http.Request, b *browser
 		return
 	}
 	p.Title = "Cycle " + num + " · " + p.Repo.Name
-	d := &cycleData{Cycle: c, CanWrite: b.canWriteIssues(p), Form: ops.IssueCycleInput{Name: c.Name, StartDate: c.StartDate, EndDate: c.EndDate}}
+	p.Script, p.Solo = true, b.solo(r)
+	d := &cycleData{Cycle: c, CanWrite: b.canWriteIssues(p), Solo: p.Solo, Back: backOf(r), Form: ops.IssueCycleInput{Name: c.Name, StartDate: c.StartDate, EndDate: c.EndDate}}
 	p.Data = d
 	if r.Method == http.MethodPost {
 		var f url.Values
