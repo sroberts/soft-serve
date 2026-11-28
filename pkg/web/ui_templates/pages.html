@@ -113,7 +113,7 @@
 </form>
 {{if .Err}}<p class="formerror" role="alert">{{.Err}}</p>{{end}}
 {{if .Searched}}<p class="summaryline">{{.Page.Total}} commit{{if ne .Page.Total 1}}s{{end}}{{with .Page.Query}} mentioning “{{.}}”{{end}}{{with .Page.Author}} by authors matching “{{.}}”{{end}} on <code>{{.Page.Ref}}</code>. <a href="{{repoURL $.Repo.Name "commits" $.Ref .Page.Path}}">Clear</a></p>{{end}}
-<p class="scope"><span class="grow"></span>{{if .Page.Path}}<a href="{{repoURL $.Repo.Name "commits" $.Ref ""}}">All commits</a> · {{end}}<a href="{{$.Feed}}">Atom feed</a></p>
+<p class="scope"><span class="grow"></span>{{if .Page.Path}}<a href="{{repoURL $.Repo.Name "commits" $.Ref ""}}">All commits</a> · {{end}}<a href="{{$.Feed}}">{{icon "feed"}}Atom feed</a></p>
 <ol class="commits">
   {{range .Page.Commits}}
   <li>
@@ -140,7 +140,7 @@
   {{with body .Message}}<pre class="message">{{.}}</pre>{{end}}
   <dl class="meta">
     <dt>Author</dt><dd><bdi>{{.Author.Name}}</bdi> &lt;{{.Author.Email}}&gt; · <time datetime="{{.Author.When.Format "2006-01-02T15:04:05Z07:00"}}">{{.Author.When.Format "2 Jan 2006 15:04"}}</time></dd>
-    <dt>Commit</dt><dd><code>{{.SHA}}</code></dd>
+    <dt>Commit</dt><dd><code id="commit-sha">{{.SHA}}</code><button type="button" class="copybtn" data-copy="commit-sha" aria-label="Copy the commit hash" title="Copy" hidden>{{icon "copy"}}{{icon "check"}}</button></dd>
     {{with .Signature}}<dt>Signature</dt><dd>{{template "signature" .}}</dd>{{end}}
     {{if .Parents}}<dt>Parent{{if gt (len .Parents) 1}}s{{end}}</dt><dd>{{range .Parents}}<a href="{{repoURL $.Repo.Name (printf "commit/%s" .) "" ""}}"><code>{{short .}}</code></a> {{end}}</dd>{{end}}
     <dt>Browse</dt><dd><a href="{{repoURL $.Repo.Name "tree" .SHA ""}}">Files at this commit</a> · Download <a href="{{archiveURL $.Repo.Name .SHA "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .SHA "zip"}}" download>.zip</a></dd>
@@ -194,7 +194,7 @@
   <tbody>
   {{range .Files}}
   <tr>
-    <td class="status {{.Status}}">{{.Status}}</td>
+    <td class="status {{.Status}}" title="{{.Status}}">{{diffIcon .Status}}<span class="visually-hidden">{{.Status}}</span></td>
     <td class="name"><a href="#{{.ID}}">{{if .OldPath}}{{.OldPath}} → {{end}}{{.Path}}</a></td>
     <td class="stat">{{if .Binary}}binary{{else}}<span class="add">+{{.Additions}}</span> <span class="del">−{{.Deletions}}</span>{{end}}</td>
   </tr>
@@ -206,7 +206,7 @@
 {{$split := .Split}}
 {{range .Files}}
 <details class="filediff" id="{{.ID}}" open>
-  <summary><span class="fname">{{if .OldPath}}{{.OldPath}} → {{end}}{{.Path}}</span><span class="grow"></span>{{if not .Binary}}<span class="stat"><span class="add">+{{.Additions}}</span> <span class="del">−{{.Deletions}}</span></span>{{end}}</summary>
+  <summary>{{icon "chevron"}}<span class="dstatus {{.Status}}" title="{{.Status}}">{{diffIcon .Status}}<span class="visually-hidden">{{.Status}}: </span></span><span class="fname">{{if .OldPath}}{{.OldPath}} → {{end}}{{.Path}}</span><span class="grow"></span>{{if not .Binary}}<span class="stat"><span class="add">+{{.Additions}}</span> <span class="del">−{{.Deletions}}</span></span>{{end}}</summary>
   {{if .Binary}}<p class="empty">Binary file, not shown.</p>
   {{else if not .Shown}}<p class="empty">Not shown, to keep the page under 1 MiB. <a href="{{.FullURL}}">Show this file's diff</a></p>
   {{else if not .Lines}}<p class="empty">{{if eq .Status "renamed"}}Renamed without changes.{{else}}No changes to the content.{{end}}</p>

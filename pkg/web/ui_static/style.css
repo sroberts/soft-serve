@@ -1299,3 +1299,56 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 5px; border: 1px solid
   .imeta time { min-width: 0; text-align: left; }
   .issuehead h1 { font-size: var(--text-title); }
 }
+
+/* Icons that do a job: copy buttons, how a file changed, the ref being
+   shown, and whether a message is good news or a problem. */
+.copybtn {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  vertical-align: middle;
+}
+.copybtn[hidden] { display: none; }
+.copybtn:hover { color: var(--text); border-color: var(--field-border); }
+.copybtn > .ic { grid-area: 1 / 1; width: 15px; height: 15px; }
+.copybtn > .ic-check, .copybtn.copied > .ic-copy { visibility: hidden; }
+.copybtn.copied > .ic-check { visibility: visible; color: var(--add); }
+.clone .cloneline { align-items: center; }
+.clone .cloneline > span { align-self: baseline; padding-top: 7px; }
+dd > code + .copybtn { width: 26px; height: 26px; margin-left: 6px; }
+dd > code + .copybtn > .ic { width: 13px; height: 13px; }
+.tokenline { display: flex; gap: 8px; align-items: center; }
+.tokenline code.token { flex: 1; min-width: 0; }
+
+.changes .status { line-height: 0; }
+.changes .status .ic { width: 15px; height: 15px; }
+.changes .status.modified, .filediff .dstatus.modified { color: var(--st-progress); }
+.changes .status.renamed, .filediff .dstatus.renamed { color: var(--accent); }
+.filediff .dstatus { display: inline-flex; color: var(--muted); }
+.filediff .dstatus.added { color: var(--add); }
+.filediff .dstatus.deleted { color: var(--del); }
+.filediff .dstatus .ic { width: 14px; height: 14px; }
+.filediff > summary { gap: 8px; }
+.filediff > summary > .ic-chevron { flex: none; width: 12px; height: 12px; color: var(--muted); transition: transform .15s cubic-bezier(.2, .8, .2, 1); }
+.filediff[open] > summary > .ic-chevron { transform: rotate(90deg); }
+.filediff > summary .grow { margin-left: 4px; }
+@media (prefers-reduced-motion: reduce) { .filediff > summary > .ic-chevron { transition: none; } }
+
+.refmenu > summary .ic { width: 13px; height: 13px; color: var(--muted); margin-right: -2px; }
+
+.notice > .ic:first-child, .formerror > .ic:first-child { width: 15px; height: 15px; margin-right: 7px; vertical-align: -3px; }
+.notice > .ic:first-child { color: var(--add); }
+
+.scope a .ic-feed { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; }
+.tokenline code.token { margin: 0; }
+@media (pointer: coarse) {
+  .copybtn, dd > code + .copybtn { width: 40px; height: 40px; }
+}

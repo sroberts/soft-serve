@@ -1,4 +1,4 @@
-{{define "formerror"}}{{if .}}<p class="formerror" role="alert">{{.}}</p>{{end}}{{end}}
+{{define "formerror"}}{{if .}}<p class="formerror" role="alert">{{icon "alert"}}{{.}}</p>{{end}}{{end}}
 
 {{define "newrepo"}}{{template "head" .}}
 {{with .Data}}

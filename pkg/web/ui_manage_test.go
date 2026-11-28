@@ -81,7 +81,7 @@ func TestUINewRepository(t *testing.T) {
 
 	loc := seeOther(t, f.post("/-/new", auth, url.Values{"name": {"made"}, "description": {"from a form"}, "private": {"on"}}), "/made?done=created")
 	w = f.do(req{path: loc, auth: auth})
-	has(t, w, `<p class="notice" role="status">Repository created.</p>`, "from a form", `<span class="badge">private</span>`)
+	has(t, w, `<p class="notice" role="status"><svg class="ic ic-done"`, `</svg>Repository created.</p>`, "from a form", `<span class="badge">private</span>`)
 
 	// A failed create shows the form again, with what was typed.
 	w = f.post("/-/new", auth, url.Values{"name": {"bad name!"}, "description": {"kept"}})

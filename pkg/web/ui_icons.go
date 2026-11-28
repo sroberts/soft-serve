@@ -37,6 +37,36 @@ var icons = map[string]string{
 	"parent":  `<path d="M4 2v7a2 2 0 0 0 2 2h7"/><path d="M10.5 8.5 13 11l-2.5 2.5"/>`,
 	"project": `<rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2"/><path d="M5.5 5.25v5.5M8 5.25v3M10.5 5.25v4.25"/>`,
 	"cycle":   `<path d="M13.25 8a5.25 5.25 0 0 1-9.4 3.2"/><path d="M2.75 8a5.25 5.25 0 0 1 9.4-3.2"/><path d="M12.5 1.75V5H9.25"/><path d="M3.5 14.25V11h3.25"/>`,
+	// Diffs: how a file changed, and the fold on each file.
+	"diff-added":    `<rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2.5"/><path d="M8 5.25v5.5M5.25 8h5.5"/>`,
+	"diff-modified": `<rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2.5"/><circle cx="8" cy="8" r="1.75" fill="currentColor" stroke="none"/>`,
+	"diff-deleted":  `<rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2.5"/><path d="M5.25 8h5.5"/>`,
+	"diff-renamed":  `<rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2.5"/><path d="M5.25 8h5.5M8.5 5.75 10.75 8 8.5 10.25"/>`,
+	"chevron":       `<path d="M6 4l4 4-4 4"/>`,
+	// Actions and messages.
+	"copy":  `<rect x="5.25" y="5.25" width="8.5" height="8.5" rx="1.5"/><path d="M10.75 5.25V3.75a1.5 1.5 0 0 0-1.5-1.5h-5.5a1.5 1.5 0 0 0-1.5 1.5v5.5a1.5 1.5 0 0 0 1.5 1.5h1.5"/>`,
+	"done":  `<circle cx="8" cy="8" r="6.25"/><path d="M5.4 8.2 7.2 10l3.4-3.7"/>`,
+	"alert": `<circle cx="8" cy="8" r="6.25"/><path d="M8 4.75v3.75"/><circle cx="8" cy="11" r=".9" fill="currentColor" stroke="none"/>`,
+	"feed":  `<path d="M3 2.75a10.25 10.25 0 0 1 10.25 10.25"/><path d="M3 7a6 6 0 0 1 6 6"/><circle cx="3.75" cy="12.25" r="1.25" fill="currentColor" stroke="none"/>`,
+}
+
+// diffIcon draws how a file changed: added, modified, deleted or renamed.
+func diffIcon(status string) template.HTML {
+	return icon("diff-" + status)
+}
+
+// refIcon marks what the page is showing: a branch, a tag, or (for
+// anything else, such as a commit hash) a commit.
+func refIcon(m *RefMenu) template.HTML {
+	switch {
+	case m == nil:
+		return ""
+	case m.CurrentIsBranch:
+		return icon("branch")
+	case m.CurrentIsTag:
+		return icon("tag")
+	}
+	return icon("commit")
 }
 
 // icon draws the named icon, or nothing for a name it doesn't know.

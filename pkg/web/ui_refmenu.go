@@ -25,9 +25,13 @@ const (
 
 // RefMenu is what the switcher lists.
 type RefMenu struct {
-	Current  string
-	Branches []RefChoice
-	Tags     []RefChoice
+	Current string
+	// CurrentIsBranch and CurrentIsTag say what Current names; neither
+	// means a commit.
+	CurrentIsBranch bool
+	CurrentIsTag    bool
+	Branches        []RefChoice
+	Tags            []RefChoice
 	// More is set when there are refs the menu leaves out.
 	More   bool
 	AllURL string
@@ -78,6 +82,12 @@ func refMenuFor(ctx context.Context, b *browser, repo string, u *url.URL) func(s
 				out = append(out, RefChoice{Name: ri.Name, URL: switchURL(repo, u, ri.Name), Current: ri.Name == current})
 			}
 			return out
+		}
+		for _, ri := range refs.Branches {
+			m.CurrentIsBranch = m.CurrentIsBranch || ri.Name == current
+		}
+		for _, ri := range refs.Tags {
+			m.CurrentIsTag = m.CurrentIsTag || ri.Name == current
 		}
 		m.Branches = pick(refs.Branches, menuBranches)
 		m.Tags = pick(refs.Tags, menuTags)

@@ -52,3 +52,11 @@ func TestIconsExist(t *testing.T) {
 		}
 	}
 }
+
+// TestCopyScriptServed checks the copy buttons' script is one the server
+// hands out, not an empty file under a hash.
+func TestCopyScriptServed(t *testing.T) {
+	if len(staticBody("copy.js")) == 0 {
+		t.Fatal("copy.js isn't served")
+	}
+}
