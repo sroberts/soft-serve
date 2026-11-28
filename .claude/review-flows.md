@@ -75,10 +75,33 @@ Check every flow at 1280px and at 390px (phone) wide.
    **New issue**.
 2. Create one from **New issue** with a label that doesn't exist yet: it's
    created, and the issue page says so.
-3. On an issue, open **Change properties**, set a status and an unknown
-   assignee: the form stays open and says no user has that name. Fix it
-   and save: the activity records each change.
+3. On an issue, change status, priority, project and cycle from the side
+   panel's menus: each changes in place, and the toast offers Undo. With a
+   second user, open **Labels and more** and give an unknown assignee: the
+   form stays open and says no user has that name. Fix it and save: the
+   activity records each change.
 4. Comment, edit the comment, delete it (with a confirmation).
-5. Open `/-/issues`: issues assigned to you across repositories.
+5. Open `/-/issues`: every open issue across the repositories you can read.
 6. At 390px, rows wrap under their title and the properties sit above the
    description.
+
+## 11. Projects and cycles
+1. From Issues, switch to **Projects**. Add one with a target date before
+   its start: refused, and the form keeps what was typed. Fix it and add it.
+2. Put two issues in it (one done) from their property forms. The project's
+   page lists them by status, with "1 of 2 done · 50%"; the list shows it.
+3. Switch to **Cycles**. Add a cycle, then another with no dates: it starts
+   the day after the first ends and runs two weeks. A cycle overlapping
+   another is refused.
+4. Filter the issue list by project and by **Current cycle**.
+
+## 12. Board and shortcuts
+1. Open `/icecream/-/issues/board`: a column per status (no Canceled), all
+   five visible at 1280px, one at a time with the next peeking in at 390px.
+2. Change a card's status from its menu: it moves without the page
+   reloading, and a message says so. With script off, the same menu posts
+   and comes back to the board.
+3. Drag a card to the top of another column with a mouse: it lands there.
+4. On the list: press `j`, then `s`; the row's status menu opens with its
+   current status focused; arrows move; Escape closes it. `?` shows the
+   shortcuts.

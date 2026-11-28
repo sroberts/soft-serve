@@ -77,6 +77,12 @@ var notices = map[string]string{
 	"key-saved":       "Issue key changed.",
 	"label-created":   "Label added.",
 	"label-deleted":   "Label deleted.",
+	"project-created": "Project added.",
+	"project-saved":   "Project saved.",
+	"project-deleted": "Project deleted.",
+	"cycle-created":   "Cycle added.",
+	"cycle-saved":     "Cycle saved.",
+	"cycle-deleted":   "Cycle deleted.",
 
 	"key-added":        "SSH key added.",
 	"key-removed":      "SSH key removed.",

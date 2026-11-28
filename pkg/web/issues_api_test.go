@@ -176,6 +176,34 @@ func TestMCPIssues(t *testing.T) {
 		}
 	}
 
+	// Projects and cycles, and issues in them.
+	pr := ok(owner, "create_issue_project", `{"repo":"group/open","name":"Board","status":"started","target_date":"2026-12-15"}`)
+	if pr["status"] != "started" {
+		t.Errorf("create_issue_project: %v", pr)
+	}
+	cy := ok(owner, "create_issue_cycle", `{"repo":"group/open"}`)
+	if cy["number"] != float64(1) || cy["current"] != true {
+		t.Errorf("create_issue_cycle: %v", cy)
+	}
+	u = ok(owner, "update_issue", `{"id":"OPE-1","project":"board","cycle":"current"}`)
+	if u["project"] != "Board" || u["cycle"] != float64(1) {
+		t.Errorf("into a project and cycle: %v", u)
+	}
+	if l := ok(owner, "list_issues", `{"repo":"group/open","project":"Board","cycle":"current"}`); l["total"] != float64(1) {
+		t.Errorf("list_issues by project and cycle: %v", l)
+	}
+	if ps := ok(owner, "list_issue_projects", `{"repo":"group/open"}`)["projects"].([]any); len(ps) != 1 {
+		t.Errorf("list_issue_projects: %v", ps)
+	}
+	if cs := ok(owner, "list_issue_cycles", `{"repo":"group/open"}`)["cycles"].([]any); len(cs) != 1 {
+		t.Errorf("list_issue_cycles: %v", cs)
+	}
+	ok(owner, "update_issue_project", `{"repo":"group/open","project":"Board","status":"completed"}`)
+	ok(owner, "update_issue_cycle", `{"repo":"group/open","cycle":"1","name":"First"}`)
+	if isErr, _, text := call(owner, "list_issues", `{"project":"Board"}`); !isErr || !strings.Contains(text, "within one repository") {
+		t.Errorf("project filter without repo: %v %q", isErr, text)
+	}
+
 	d := ok(owner, "delete_issue", `{"id":"OPE-2"}`)
 	if d["deleted"] != "OPE-2" {
 		t.Errorf("delete_issue: %v", d)
@@ -191,17 +219,59 @@ func TestOpenAPIIssues(t *testing.T) {
 		t.Fatal(err)
 	}
 	for path, methods := range map[string][]string{
-		"/v1/issues":                         {"get"},
-		"/v1/issues/{id}":                    {"get", "patch", "delete"},
-		"/v1/repos/{repo}/-/issues":          {"get", "post"},
-		"/v1/repos/{repo}/-/issues/{number}": {"get", "patch", "delete"},
-		"/v1/repos/{repo}/-/issue-tracker":   {"get", "patch"},
-		"/v1/repos/{repo}/-/labels/{label}":  {"patch", "delete"},
+		"/v1/issues":                            {"get"},
+		"/v1/issues/{id}":                       {"get", "patch", "delete"},
+		"/v1/repos/{repo}/-/issues":             {"get", "post"},
+		"/v1/repos/{repo}/-/issues/{number}":    {"get", "patch", "delete"},
+		"/v1/repos/{repo}/-/issue-tracker":      {"get", "patch"},
+		"/v1/repos/{repo}/-/labels/{label}":     {"patch", "delete"},
+		"/v1/repos/{repo}/-/projects":           {"get", "post"},
+		"/v1/repos/{repo}/-/projects/{project}": {"get", "patch", "delete"},
+		"/v1/repos/{repo}/-/cycles":             {"get", "post"},
+		"/v1/repos/{repo}/-/cycles/{cycle}":     {"get", "patch", "delete"},
 	} {
 		for _, m := range methods {
 			if doc.Paths[path][m] == nil {
 				t.Errorf("openapi.json has no %s %s", m, path)
 			}
 		}
+	}
+}
+
+func TestAPIProjectsAndCycles(t *testing.T) {
+	f := newViewFixture(t)
+	auth := f.owner()
+	w := f.do(req{method: http.MethodPost, path: "/v1/repos/group/open/-/projects", auth: auth, body: `{"name":"Board","status":"started"}`})
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create project: %d %s", w.Code, w.Body)
+	}
+	f.do(req{method: http.MethodPost, path: "/v1/repos/group/open/-/issues", auth: auth, body: `{"title":"Columns","project":"board","status":"done"}`})
+	p := decodeJSON[ops.IssueProject](t, f.do(req{path: "/v1/repos/group/open/-/projects/Board", auth: auth}).Body.Bytes())
+	if p.Progress.Completed != 1 || p.Progress.Percent != 100 {
+		t.Errorf("project %+v", p)
+	}
+	if w := f.do(req{method: http.MethodPatch, path: "/v1/repos/group/open/-/projects/Board", auth: auth, body: `{"target_date":"someday"}`}); w.Code != http.StatusBadRequest {
+		t.Errorf("bad date: %d", w.Code)
+	}
+	w = f.do(req{method: http.MethodPost, path: "/v1/repos/group/open/-/cycles", auth: auth, body: `{}`})
+	if c := decodeJSON[ops.IssueCycle](t, w.Body.Bytes()); w.Code != http.StatusCreated || c.Number != 1 || !c.Current {
+		t.Errorf("create cycle: %d %+v", w.Code, c)
+	}
+	if w := f.do(req{path: "/v1/repos/group/open/-/cycles/current", auth: auth}); w.Code != http.StatusOK {
+		t.Errorf("current cycle: %d", w.Code)
+	}
+	f.do(req{method: http.MethodPatch, path: "/v1/repos/group/open/-/issues/1", auth: auth, body: `{"cycle":"current"}`})
+	l := decodeJSON[ops.IssueList](t, f.do(req{path: "/v1/repos/group/open/-/issues?cycle=current&project=Board", auth: auth}).Body.Bytes())
+	if l.Total != 1 || l.Issues[0].Cycle != 1 || l.Issues[0].Project != "Board" {
+		t.Errorf("filtered: %+v", l)
+	}
+	if w := f.do(req{path: "/v1/issues?project=Board", auth: auth}); w.Code != http.StatusBadRequest {
+		t.Errorf("project filter across repositories: %d", w.Code)
+	}
+	if w := f.do(req{method: http.MethodDelete, path: "/v1/repos/group/open/-/cycles/1", auth: auth}); w.Code != http.StatusNoContent {
+		t.Errorf("delete cycle: %d", w.Code)
+	}
+	if w := f.do(req{method: http.MethodDelete, path: "/v1/repos/group/open/-/projects/Board", auth: auth}); w.Code != http.StatusNoContent {
+		t.Errorf("delete project: %d", w.Code)
 	}
 }

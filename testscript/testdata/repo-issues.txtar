@@ -81,6 +81,28 @@ soft repo issue label create icecream bug -c '#e5484d'
 soft repo issue label list icecream
 stdout 'bug.*#e5484d'
 
+# projects and cycles
+soft repo issue project create icecream Sundaes --status started --target 2027-06-01
+stdout 'Project "Sundaes" added'
+soft repo issue cycle create icecream --start 2027-01-04
+stdout 'Cycle 1: 2027-01-04 to 2027-01-17'
+soft repo issue cycle create icecream
+stdout 'Cycle 2: 2027-01-18 to 2027-01-31'
+soft repo issue edit CREAM-2 --project sundaes
+! stderr .
+soft repo issue edit CREAM-1 --cycle 2
+soft repo issue project list icecream
+stdout 'Sundaes.*Started.*0 of 1 done.*due 2027-06-01'
+soft repo issue cycle list icecream
+stdout 'Cycle 2.*2027-01-18 to 2027-01-31.*1 of 1 done'
+soft repo issue list icecream --cycle 2 --all
+stdout 'CREAM-1'
+! soft repo issue cycle create icecream --start 2027-01-10 --end 2027-01-12
+stderr 'overlap cycle 1'
+soft repo issue project delete icecream Sundaes
+soft repo issue view CREAM-2
+! stdout 'Project:'
+
 # delete
 soft repo issue delete CREAM-3
 ! soft repo issue view CREAM-3

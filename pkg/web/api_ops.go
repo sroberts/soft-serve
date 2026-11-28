@@ -156,7 +156,9 @@ func serveOps(w http.ResponseWriter, r *http.Request, svc ops.Service, anonymous
 		c.webhook(name, strings.Split(strings.TrimPrefix(action, "webhooks/"), "/"))
 
 	case action == "issues" || strings.HasPrefix(action, "issues/") || action == "issue-tracker" ||
-		action == "labels" || strings.HasPrefix(action, "labels/"):
+		action == "labels" || strings.HasPrefix(action, "labels/") ||
+		action == "projects" || strings.HasPrefix(action, "projects/") ||
+		action == "cycles" || strings.HasPrefix(action, "cycles/"):
 		c.issues(name, action)
 
 	default:

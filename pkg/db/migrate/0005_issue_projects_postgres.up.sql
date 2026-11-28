@@ -1,0 +1,44 @@
+CREATE TABLE IF NOT EXISTS issue_projects (
+  id SERIAL PRIMARY KEY,
+  repo_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL,
+  lead_id INTEGER,
+  start_date TEXT NOT NULL DEFAULT '',
+  target_date TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT repo_id_fk
+  FOREIGN KEY(repo_id) REFERENCES repos(id)
+  ON DELETE CASCADE
+  ON UPDATE CASCADE,
+  CONSTRAINT lead_id_fk
+  FOREIGN KEY(lead_id) REFERENCES users(id)
+  ON DELETE SET NULL
+  ON UPDATE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS issue_projects_repo_name ON issue_projects (repo_id, name);
+
+CREATE TABLE IF NOT EXISTS issue_cycles (
+  id SERIAL PRIMARY KEY,
+  repo_id INTEGER NOT NULL,
+  number INTEGER NOT NULL,
+  name TEXT NOT NULL DEFAULT '',
+  start_date TEXT NOT NULL,
+  end_date TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (repo_id, number),
+  CONSTRAINT repo_id_fk
+  FOREIGN KEY(repo_id) REFERENCES repos(id)
+  ON DELETE CASCADE
+  ON UPDATE CASCADE
+);
+
+ALTER TABLE issues ADD COLUMN project_id INTEGER REFERENCES issue_projects(id) ON DELETE SET NULL;
+ALTER TABLE issues ADD COLUMN cycle_id INTEGER REFERENCES issue_cycles(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS issues_project ON issues (project_id);
+CREATE INDEX IF NOT EXISTS issues_cycle ON issues (cycle_id);

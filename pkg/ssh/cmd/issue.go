@@ -79,6 +79,8 @@ branch named for an issue, such as you/ice-12-thing, moves it to in progress.`,
 		issueDeleteCommand(),
 		issueKeyCommand(),
 		issueLabelCommand(),
+		issueProjectCommand(),
+		issueCycleCommand(),
 	)
 	return cmd
 }
@@ -139,6 +141,8 @@ func issueListCommand() *cobra.Command {
 	cmd.Flags().StringSliceVarP(&q.Priority, "priority", "p", nil, "only these priorities")
 	cmd.Flags().StringVar(&q.Assignee, "assignee", "", `only issues assigned to this user, "me" or "none"`)
 	cmd.Flags().StringSliceVarP(&q.Label, "label", "l", nil, "only issues with all these labels")
+	cmd.Flags().StringVar(&q.Project, "project", "", `only issues in this project, or "none"`)
+	cmd.Flags().StringVar(&q.Cycle, "cycle", "", `only issues in this cycle (a number, current, next, previous), or "none"`)
 	cmd.Flags().StringVarP(&q.Query, "query", "q", "", "only issues whose title or description contains this")
 	cmd.Flags().StringVar(&q.Sort, "sort", "", "priority (the default), updated, created or number")
 	cmd.Flags().IntVarP(&q.Limit, "limit", "n", 50, "how many to show, up to 500")
@@ -178,6 +182,12 @@ func issueViewCommand() *cobra.Command {
 			}
 			if d.Parent != "" {
 				cmd.Printf("Parent:    %s\n", d.Parent)
+			}
+			if d.Project != "" {
+				cmd.Printf("Project:   %s\n", d.Project)
+			}
+			if d.Cycle != 0 {
+				cmd.Printf("Cycle:     %d\n", d.Cycle)
 			}
 			if d.Creator != "" {
 				cmd.Printf("Created:   %s by %s\n", d.CreatedAt.Format("2 Jan 2006 15:04"), d.Creator)
@@ -240,12 +250,14 @@ func issueCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&c.Assignee, "assignee", "", `who it's assigned to, or "me"`)
 	cmd.Flags().StringSliceVarP(&c.Labels, "label", "l", nil, "labels, created if new")
 	cmd.Flags().StringVar(&c.Parent, "parent", "", "the issue it's part of")
+	cmd.Flags().StringVar(&c.Project, "project", "", "the project it's in")
+	cmd.Flags().StringVar(&c.Cycle, "cycle", "", "the cycle it's in: a number, current or next")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print JSON")
 	return cmd
 }
 
 func issueEditCommand() *cobra.Command {
-	var title, desc, status, priority, assignee, parent string
+	var title, desc, status, priority, assignee, parent, project, cycle, after string
 	var add, remove []string
 	cmd := &cobra.Command{
 		Use:   "edit ISSUE",
@@ -270,6 +282,7 @@ func issueEditCommand() *cobra.Command {
 			}
 			u.Title, u.Description, u.Status = set("title", title), set("description", desc), set("status", status)
 			u.Priority, u.Assignee, u.Parent = set("priority", priority), set("assignee", assignee), set("parent", parent)
+			u.Project, u.Cycle, u.After = set("project", project), set("cycle", cycle), set("after", after)
 			i, err := svc.UpdateIssue(cmd.Context(), repo, n, u)
 			if err != nil {
 				return err
@@ -284,6 +297,9 @@ func issueEditCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&priority, "priority", "p", "", "priority")
 	cmd.Flags().StringVar(&assignee, "assignee", "", `who it's assigned to, "me", or "" for nobody`)
 	cmd.Flags().StringVar(&parent, "parent", "", `the issue it's part of, or "" for none`)
+	cmd.Flags().StringVar(&project, "project", "", `the project it's in, or "" for none`)
+	cmd.Flags().StringVar(&cycle, "cycle", "", `the cycle it's in (a number, current, next), or "" for none`)
+	cmd.Flags().StringVar(&after, "after", "", `its place on the board: "top", or the issue it goes after`)
 	cmd.Flags().StringSliceVar(&add, "add-label", nil, "labels to add, created if new")
 	cmd.Flags().StringSliceVar(&remove, "remove-label", nil, "labels to take off")
 	return cmd
@@ -442,5 +458,213 @@ func issueLabelCommand() *cobra.Command {
 			},
 		},
 	)
+	return cmd
+}
+
+func progressText(p ops.IssueProgress) string {
+	return fmt.Sprintf("%d of %d done (%d%%)", p.Completed, p.Total, p.Percent)
+}
+
+func issueProjectCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "project",
+		Aliases: []string{"projects"},
+		Short:   "Manage a repository's projects",
+		Long:    "A project is a body of work: issues put in it count toward its progress. Statuses: " + strings.Join(issue.ProjectStatuses, ", ") + ". Dates are written 2026-12-15.",
+	}
+	list := &cobra.Command{
+		Use:   "list REPOSITORY",
+		Short: "List projects and their progress",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			svc, err := issueService(cmd.Context())
+			if err != nil {
+				return err
+			}
+			ps, err := svc.IssueProjects(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
+			for _, p := range ps {
+				target := ""
+				if p.TargetDate != "" {
+					target = "due " + p.TargetDate
+				}
+				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", p.Name, issue.ProjectStatusLabel(p.Status), progressText(p.Progress), target, p.Lead) //nolint:errcheck
+			}
+			return tw.Flush()
+		},
+	}
+	var in ops.IssueProjectInput
+	create := &cobra.Command{
+		Use:   "create REPOSITORY NAME...",
+		Short: "Add a project",
+		Args:  cobra.MinimumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			svc, err := issueService(cmd.Context())
+			if err != nil {
+				return err
+			}
+			in.Name = strings.Join(args[1:], " ")
+			p, err := svc.CreateIssueProject(cmd.Context(), args[0], in)
+			if err != nil {
+				return err
+			}
+			cmd.Printf("Project %q added.\n", p.Name)
+			return nil
+		},
+	}
+	create.Flags().StringVarP(&in.Description, "description", "d", "", "what it's for")
+	create.Flags().StringVarP(&in.Status, "status", "s", "", "status; planned when left out")
+	create.Flags().StringVar(&in.Lead, "lead", "", `who leads it, or "me"`)
+	create.Flags().StringVar(&in.StartDate, "start", "", "start date, such as 2026-12-01")
+	create.Flags().StringVar(&in.TargetDate, "target", "", "target date, such as 2026-12-15")
+
+	var name, desc, status, lead, start, target string
+	edit := &cobra.Command{
+		Use:   "edit REPOSITORY PROJECT...",
+		Short: "Change a project",
+		Args:  cobra.MinimumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			svc, err := issueService(cmd.Context())
+			if err != nil {
+				return err
+			}
+			set := func(flag, v string) *string {
+				if cmd.Flags().Changed(flag) {
+					return &v
+				}
+				return nil
+			}
+			p, err := svc.UpdateIssueProject(cmd.Context(), args[0], strings.Join(args[1:], " "), ops.IssueProjectUpdate{
+				Name: set("name", name), Description: set("description", desc), Status: set("status", status),
+				Lead: set("lead", lead), StartDate: set("start", start), TargetDate: set("target", target),
+			})
+			if err != nil {
+				return err
+			}
+			cmd.Printf("%s  %s  %s\n", p.Name, issue.ProjectStatusLabel(p.Status), progressText(p.Progress))
+			return nil
+		},
+	}
+	edit.Flags().StringVarP(&name, "name", "n", "", "new name")
+	edit.Flags().StringVarP(&desc, "description", "d", "", "description")
+	edit.Flags().StringVarP(&status, "status", "s", "", "status")
+	edit.Flags().StringVar(&lead, "lead", "", `lead, "me", or "" for none`)
+	edit.Flags().StringVar(&start, "start", "", `start date, or "" for none`)
+	edit.Flags().StringVar(&target, "target", "", `target date, or "" for none`)
+
+	del := &cobra.Command{
+		Use:   "delete REPOSITORY PROJECT...",
+		Short: "Delete a project; its issues stay, in no project",
+		Args:  cobra.MinimumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			svc, err := issueService(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return svc.DeleteIssueProject(cmd.Context(), args[0], strings.Join(args[1:], " "))
+		},
+	}
+	cmd.AddCommand(list, create, edit, del)
+	return cmd
+}
+
+func issueCycleCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "cycle",
+		Aliases: []string{"cycles"},
+		Short:   "Manage a repository's cycles",
+		Long:    "A cycle is a numbered, time-boxed sprint. Name one by its number, or as current, next or previous. Dates are written 2026-12-15.",
+	}
+	list := &cobra.Command{
+		Use:   "list REPOSITORY",
+		Short: "List cycles, newest first",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			svc, err := issueService(cmd.Context())
+			if err != nil {
+				return err
+			}
+			cs, err := svc.IssueCycles(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
+			for _, c := range cs {
+				cur := ""
+				if c.Current {
+					cur = "current"
+				}
+				fmt.Fprintf(tw, "Cycle %d\t%s\t%s to %s\t%s\t%s\n", c.Number, c.Name, c.StartDate, c.EndDate, progressText(c.Progress), cur) //nolint:errcheck
+			}
+			return tw.Flush()
+		},
+	}
+	var in ops.IssueCycleInput
+	create := &cobra.Command{
+		Use:   "create REPOSITORY",
+		Short: "Add the next cycle",
+		Long:  "Add the next cycle. Without dates it starts the day after the last one ends, or today, and lasts two weeks.",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			svc, err := issueService(cmd.Context())
+			if err != nil {
+				return err
+			}
+			c, err := svc.CreateIssueCycle(cmd.Context(), args[0], in)
+			if err != nil {
+				return err
+			}
+			cmd.Printf("Cycle %d: %s to %s\n", c.Number, c.StartDate, c.EndDate)
+			return nil
+		},
+	}
+	create.Flags().StringVarP(&in.Name, "name", "n", "", "a name")
+	create.Flags().StringVar(&in.StartDate, "start", "", "start date")
+	create.Flags().StringVar(&in.EndDate, "end", "", "end date")
+
+	var name, start, end string
+	edit := &cobra.Command{
+		Use:   "edit REPOSITORY CYCLE",
+		Short: "Change a cycle's name or dates",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			svc, err := issueService(cmd.Context())
+			if err != nil {
+				return err
+			}
+			set := func(flag, v string) *string {
+				if cmd.Flags().Changed(flag) {
+					return &v
+				}
+				return nil
+			}
+			c, err := svc.UpdateIssueCycle(cmd.Context(), args[0], args[1], ops.IssueCycleUpdate{Name: set("name", name), StartDate: set("start", start), EndDate: set("end", end)})
+			if err != nil {
+				return err
+			}
+			cmd.Printf("Cycle %d: %s to %s\n", c.Number, c.StartDate, c.EndDate)
+			return nil
+		},
+	}
+	edit.Flags().StringVarP(&name, "name", "n", "", "name")
+	edit.Flags().StringVar(&start, "start", "", "start date")
+	edit.Flags().StringVar(&end, "end", "", "end date")
+
+	del := &cobra.Command{
+		Use:   "delete REPOSITORY CYCLE",
+		Short: "Delete a cycle; its issues stay, in no cycle",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			svc, err := issueService(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return svc.DeleteIssueCycle(cmd.Context(), args[0], args[1])
+		},
+	}
+	cmd.AddCommand(list, create, edit, del)
 	return cmd
 }
