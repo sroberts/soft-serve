@@ -143,7 +143,7 @@
     <dt>Commit</dt><dd><code id="commit-sha">{{.SHA}}</code><button type="button" class="copybtn" data-copy="commit-sha" aria-label="Copy the commit hash" hidden>{{icon "copy"}}{{icon "check"}}</button></dd>
     {{with .Signature}}<dt>Signature</dt><dd>{{template "signature" .}}</dd>{{end}}
     {{if .Parents}}<dt>Parent{{if gt (len .Parents) 1}}s{{end}}</dt><dd>{{range .Parents}}<a href="{{repoURL $.Repo.Name (printf "commit/%s" .) "" ""}}"><code>{{short .}}</code></a> {{end}}</dd>{{end}}
-    <dt>Browse</dt><dd><a href="{{repoURL $.Repo.Name "tree" .SHA ""}}">Files at this commit</a> · {{icon "download"}}Download <a href="{{archiveURL $.Repo.Name .SHA "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .SHA "zip"}}" download>.zip</a></dd>
+    <dt>Browse</dt><dd><a href="{{repoURL $.Repo.Name "tree" .SHA ""}}">Files at this commit</a> · <span class="nowrap">{{icon "download"}}Download <a href="{{archiveURL $.Repo.Name .SHA "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .SHA "zip"}}" download>.zip</a></span></dd>
   </dl>
   {{template "diffview" .Diff}}
 </article>

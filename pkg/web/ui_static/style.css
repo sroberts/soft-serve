@@ -1388,7 +1388,7 @@ details[open] > summary > .ic-chevron:first-child { transform: rotate(90deg); }
 summary.button > .ic-plus { --ic: var(--ic-m); width: var(--ic); height: var(--ic); margin: 0 6px 0 -2px; vertical-align: -2px; }
 .badd > .ic-plus { --ic: var(--ic-m); width: var(--ic); height: var(--ic); }
 .refname > .ic { --ic: var(--ic-m); width: var(--ic); height: var(--ic); margin-right: 6px; vertical-align: -2px; color: var(--muted); }
-dd > .ic-download { --ic: var(--ic-s); width: var(--ic); height: var(--ic); margin-right: 4px; vertical-align: -1px; color: var(--muted); }
+dd .ic-download { --ic: var(--ic-s); width: var(--ic); height: var(--ic); margin-right: 4px; vertical-align: -1px; color: var(--muted); }
 
 /* The commit hash keeps its copy button on its own line's end. */
 dd:has(> code + .copybtn) { display: flex; gap: 6px; align-items: flex-start; }
@@ -1398,3 +1398,4 @@ dd:has(> code + .copybtn) > code { min-width: 0; overflow-wrap: anywhere; }
 @media (max-width: 600px) {
   .viewnav a[aria-current="page"] > .ic { display: inline; }
 }
+.nowrap { white-space: nowrap; }
