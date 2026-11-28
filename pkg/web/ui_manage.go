@@ -68,6 +68,22 @@ var notices = map[string]string{
 	"hook-deleted":   "Webhook deleted.",
 	"redelivered":    "Delivery sent again.",
 
+	"issue-created":   "Issue created.",
+	"issue-saved":     "Issue saved.",
+	"issue-deleted":   "Issue deleted.",
+	"comment-added":   "Comment added.",
+	"comment-saved":   "Comment saved.",
+	"comment-deleted": "Comment deleted.",
+	"key-saved":       "Issue key changed.",
+	"label-created":   "Label added.",
+	"label-deleted":   "Label deleted.",
+	"project-created": "Project added.",
+	"project-saved":   "Project saved.",
+	"project-deleted": "Project deleted.",
+	"cycle-created":   "Cycle added.",
+	"cycle-saved":     "Cycle saved.",
+	"cycle-deleted":   "Cycle deleted.",
+
 	"key-added":        "SSH key added.",
 	"key-removed":      "SSH key removed.",
 	"token-deleted":    "Access token deleted.",
@@ -95,7 +111,7 @@ func isFormAction(action string) bool {
 	case "settings", "rename", "sync", "delete", "refs/delete", "access/add", "access/remove", "webhooks":
 		return true
 	}
-	return strings.HasPrefix(action, "webhooks/")
+	return strings.HasPrefix(action, "webhooks/") || strings.HasPrefix(action, "issues/")
 }
 
 // canWrite reports whether an access level lets its holder change a

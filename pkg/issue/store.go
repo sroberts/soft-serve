@@ -32,6 +32,8 @@ type Row struct {
 	AssigneeID  sql.NullInt64 `db:"assignee_id"`
 	CreatorID   sql.NullInt64 `db:"creator_id"`
 	ParentID    sql.NullInt64 `db:"parent_id"`
+	ProjectID   sql.NullInt64 `db:"project_id"`
+	CycleID     sql.NullInt64 `db:"cycle_id"`
 	SortOrder   float64       `db:"sort_order"`
 	CreatedAt   time.Time     `db:"created_at"`
 	UpdatedAt   time.Time     `db:"updated_at"`
@@ -44,6 +46,8 @@ type Row struct {
 	Assignee     sql.NullString `db:"assignee"`
 	Creator      sql.NullString `db:"creator"`
 	ParentNumber sql.NullInt64  `db:"parent_number"`
+	ProjectName  sql.NullString `db:"project_name"`
+	CycleNumber  sql.NullInt64  `db:"cycle_number"`
 }
 
 // ID is the issue's identifier, such as ICE-12.
@@ -99,6 +103,8 @@ const (
 	EventLabelAdded  = "label_added"
 	EventLabelRemove = "label_removed"
 	EventParent      = "parent"
+	EventProject     = "project"
+	EventCycle       = "cycle"
 	EventCommit      = "commit"
 	EventBranch      = "branch"
 )
@@ -188,15 +194,18 @@ func nextNumber(ctx context.Context, h db.Handler, repoID int64) (int64, error) 
 // --- Issues ---
 
 const selectIssue = `SELECT i.id, i.repo_id, i.number, i.title, i.description, i.status, i.priority,
-	i.assignee_id, i.creator_id, i.parent_id, i.sort_order, i.created_at, i.updated_at,
+	i.assignee_id, i.creator_id, i.parent_id, i.project_id, i.cycle_id, i.sort_order, i.created_at, i.updated_at,
 	i.started_at, i.completed_at, i.canceled_at,
-	r.name AS repo_name, t.key AS key, a.username AS assignee, c.username AS creator, p.number AS parent_number
+	r.name AS repo_name, t.key AS key, a.username AS assignee, c.username AS creator, p.number AS parent_number,
+	pj.name AS project_name, cy.number AS cycle_number
 FROM issues i
 JOIN repos r ON r.id = i.repo_id
 JOIN issue_trackers t ON t.repo_id = i.repo_id
 LEFT JOIN users a ON a.id = i.assignee_id
 LEFT JOIN users c ON c.id = i.creator_id
-LEFT JOIN issues p ON p.id = i.parent_id`
+LEFT JOIN issues p ON p.id = i.parent_id
+LEFT JOIN issue_projects pj ON pj.id = i.project_id
+LEFT JOIN issue_cycles cy ON cy.id = i.cycle_id`
 
 // New is an issue to create.
 type New struct {
@@ -207,6 +216,8 @@ type New struct {
 	AssigneeID  sql.NullInt64
 	CreatorID   sql.NullInt64
 	ParentID    sql.NullInt64
+	ProjectID   sql.NullInt64
+	CycleID     sql.NullInt64
 }
 
 // Create adds an issue with the repository's next number, and returns it.
@@ -220,9 +231,9 @@ func Create(ctx context.Context, h db.Handler, repoID int64, n New) (Row, error)
 		return Row{}, wrap(err)
 	}
 	var id int64
-	if err := h.GetContext(ctx, &id, h.Rebind(`INSERT INTO issues (repo_id, number, title, description, status, priority, assignee_id, creator_id, parent_id, sort_order)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`),
-		repoID, num, n.Title, n.Description, n.Status, n.Priority, n.AssigneeID, n.CreatorID, n.ParentID, order); err != nil {
+	if err := h.GetContext(ctx, &id, h.Rebind(`INSERT INTO issues (repo_id, number, title, description, status, priority, assignee_id, creator_id, parent_id, project_id, cycle_id, sort_order)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`),
+		repoID, num, n.Title, n.Description, n.Status, n.Priority, n.AssigneeID, n.CreatorID, n.ParentID, n.ProjectID, n.CycleID, order); err != nil {
 		return Row{}, wrap(err)
 	}
 	if err := setStatusTimes(ctx, h, id, n.Status); err != nil {
@@ -256,14 +267,21 @@ func Children(ctx context.Context, h db.Handler, id int64) ([]Row, error) {
 // changes, the started, completed and canceled times follow it.
 func Update(ctx context.Context, h db.Handler, r Row, statusChanged bool) error {
 	if _, err := h.ExecContext(ctx, h.Rebind(`UPDATE issues SET title = ?, description = ?, status = ?, priority = ?,
-		assignee_id = ?, parent_id = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`),
-		r.Title, r.Description, r.Status, r.Priority, r.AssigneeID, r.ParentID, r.SortOrder, r.ID); err != nil {
+		assignee_id = ?, parent_id = ?, project_id = ?, cycle_id = ?, sort_order = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`),
+		r.Title, r.Description, r.Status, r.Priority, r.AssigneeID, r.ParentID, r.ProjectID, r.CycleID, r.SortOrder, r.ID); err != nil {
 		return wrap(err)
 	}
 	if statusChanged {
 		return setStatusTimes(ctx, h, r.ID, r.Status)
 	}
 	return nil
+}
+
+// SetOrder sets an issue's place in the manual order, without counting it
+// as a change to the issue.
+func SetOrder(ctx context.Context, h db.Handler, id int64, order float64) error {
+	_, err := h.ExecContext(ctx, h.Rebind(`UPDATE issues SET sort_order = ? WHERE id = ?`), order, id)
+	return wrap(err)
 }
 
 // Touch marks an issue as changed now, for changes stored elsewhere
@@ -313,6 +331,10 @@ type Filter struct {
 	Labels []string
 	// ParentID, if set, lists that issue's sub-issues.
 	ParentID *int64
+	// ProjectID and CycleID, if set, are the project and cycle to include;
+	// 0 means none.
+	ProjectID *int64
+	CycleID   *int64
 	// Query matches the title, the description or the identifier.
 	Query string
 	// Sort is priority (the default), updated, created or number.
@@ -359,6 +381,16 @@ func List(ctx context.Context, h db.Handler, f Filter) ([]Row, int, error) {
 	if f.ParentID != nil {
 		where = append(where, "i.parent_id = ?")
 		args = append(args, *f.ParentID)
+	}
+	for col, v := range map[string]*int64{"i.project_id": f.ProjectID, "i.cycle_id": f.CycleID} {
+		switch {
+		case v == nil:
+		case *v == 0:
+			where = append(where, col+" IS NULL")
+		default:
+			where = append(where, col+" = ?")
+			args = append(args, *v)
+		}
 	}
 	if q := strings.TrimSpace(f.Query); q != "" {
 		like := "%" + escapeLike(strings.ToLower(q)) + "%"

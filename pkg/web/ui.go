@@ -21,12 +21,16 @@ import (
 	"charm.land/log/v2"
 	"github.com/charmbracelet/soft-serve/pkg/access"
 	"github.com/charmbracelet/soft-serve/pkg/config"
+	"github.com/charmbracelet/soft-serve/pkg/issue"
+	"github.com/charmbracelet/soft-serve/pkg/ops"
 	"github.com/charmbracelet/soft-serve/pkg/utils"
 	"github.com/dustin/go-humanize"
 )
 
 // The web pages. Every page is server-rendered HTML with no script, under a
-// strict Content-Security-Policy; changes are plain form posts.
+// strict Content-Security-Policy; changes are plain form posts. The issue
+// views add one script of our own (issues.js) for shortcuts, menus and the
+// board; every page works without it.
 //
 // Routes, with repository names that may contain slashes:
 //
@@ -91,6 +95,44 @@ var uiTemplates = template.Must(template.New("").Funcs(template.FuncMap{
 	"deleteRefURL":   deleteRefURL,
 	"keyShort":       keyShort,
 	"adminUserURL":   adminUserURL,
+	"statusIcon":     statusIcon,
+	"priorityIcon":   priorityIcon,
+	"statusLabel":    issue.StatusLabel,
+	"priorityLabel":  func(name string) string { n, _ := issue.ParsePriority(name); return issue.PriorityLabel(n) },
+	"labelDot":       labelDot,
+	"labelColors":    labelColors,
+	"dotFor":         dotFor,
+	"eventText":      eventText,
+	"lower":          strings.ToLower,
+	"showWho":        showWho,
+	"idURL":          idURL,
+	"projectURL":     func(repo string, id int64) string { return projectURL(repo, id) },
+	"cycleURL":       func(repo string, n int64) string { return cycleURL(repo, n) },
+	"projectStatus":  issue.ProjectStatusLabel,
+	"qArgs": func(i ops.Issue, back string) qArgs {
+		return qArgs{Issue: i, Back: back, Statuses: issue.Statuses, Priorities: issue.PriorityNames}
+	},
+	"qWide": func(i ops.Issue, back string) qArgs {
+		return qArgs{Issue: i, Back: back, Statuses: issue.Statuses, Priorities: issue.PriorityNames, Wide: true}
+	},
+	"row": func(i ops.Issue, colors map[string]string, canWrite bool, back, viewer string, solo, global bool) rowArgs {
+		return rowArgs{Issue: i, Colors: colors, CanWrite: canWrite, Back: back, Viewer: viewer, Solo: solo, Global: global}
+	},
+	"filterArgs": func(d *issueListData, viewer string, solo bool) filterArgs {
+		return filterArgs{D: d, Viewer: viewer, Solo: solo}
+	},
+	"inc": func(n int) int { return n + 1 },
+	"projectNameURL": func(repo, name string) string {
+		return repoURL(repo, "issues/project", "", "") + "?name=" + url.QueryEscape(name)
+	},
+	"groupArgs": func(gs []issueGroup, colors map[string]string, canWrite bool, back, viewer string, solo bool) groupArgs {
+		return groupArgs{Groups: gs, Colors: colors, CanWrite: canWrite, Back: back, Viewer: viewer, Solo: solo}
+	},
+	"issuesNav": func(repo, current string) issuesNavArgs { return issuesNavArgs{Repo: repo, Current: current} },
+	"issueURL":  func(repo string, n int64, rest ...string) string { return issueURL(repo, n, rest...) },
+	"commentURL": func(repo string, n, id int64, op string) string {
+		return issueURL(repo, n, "comments", strconv.FormatInt(id, 10), op)
+	},
 }).ParseFS(uiFS, "ui_templates/*.html"))
 
 // uiHandler serves the web pages.
@@ -117,6 +159,13 @@ type page struct {
 	RepoHome bool
 	// Feed is an Atom feed for the page, if it has one.
 	Feed string
+	// Solo is set on issue views when the server has one user, so the
+	// views leave out who's assigned or leads: it's always them.
+	Solo bool
+	// Script loads the issue views' script, which adds keyboard shortcuts,
+	// menus that change things in place, and dragging on the board. Every
+	// page works without it.
+	Script bool
 	// Notice says what the change that led here did, and Undo, if set, is
 	// a one-click way to reverse it, shown beside it.
 	Notice string
@@ -174,6 +223,11 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case "-/admin":
 		h.admin(w, r, b, p, "")
 		return
+	case "-/issues":
+		if !post {
+			h.myIssues(w, r, b, p)
+			return
+		}
 	}
 	if action, ok := strings.CutPrefix(rest, "-/admin/"); ok {
 		h.admin(w, r, b, p, action)
@@ -254,6 +308,8 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.deleteRepo(w, r, b, p)
 	case action == "refs/delete":
 		h.deleteRef(w, r, b, p)
+	case action == "issues" || strings.HasPrefix(action, "issues/"):
+		h.issues(w, r, b, p, strings.TrimPrefix(strings.TrimPrefix(action, "issues"), "/"))
 	case action == "webhooks":
 		h.webhooks(w, r, b, p, "")
 	case strings.HasPrefix(action, "webhooks/"):
@@ -686,7 +742,7 @@ func (h uiHandler) write(w http.ResponseWriter, r *http.Request, name string, p 
 func setPageHeaders(w http.ResponseWriter) {
 	h := w.Header()
 	h.Set("Content-Type", "text/html; charset=utf-8")
-	h.Set("Content-Security-Policy", "default-src 'none'; style-src 'self'; img-src 'self' https: data:; manifest-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
+	h.Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; connect-src 'self'; style-src 'self'; img-src 'self' https: data:; manifest-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Referrer-Policy", "same-origin")
 	h.Set("Cache-Control", "no-cache")
@@ -695,7 +751,7 @@ func setPageHeaders(w http.ResponseWriter) {
 // staticBody is a stylesheet's or icon's content, by name.
 func staticBody(name string) []byte {
 	switch name {
-	case "style.css", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png":
+	case "style.css", "issues.js", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png":
 		b, _ := uiFS.ReadFile("ui_static/" + name)
 		return b
 	case "code.css":
@@ -711,6 +767,8 @@ func staticType(name string) string {
 		return "image/png"
 	case ".webmanifest":
 		return "application/manifest+json"
+	case ".js":
+		return "text/javascript; charset=utf-8"
 	}
 	return "text/css; charset=utf-8"
 }

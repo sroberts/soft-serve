@@ -205,3 +205,56 @@ func TestIssueRefs(t *testing.T) {
 		}
 	}
 }
+
+func TestIssueOrder(t *testing.T) {
+	f := newFixture(t)
+	ctx := f.ctx
+	w := f.as(f.writer)
+	for _, title := range []string{"a", "b", "c", "d"} {
+		if _, err := w.CreateIssue(ctx, "secret", IssueCreate{Title: title}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	order := func() string {
+		l, err := w.ListIssues(ctx, IssueQuery{Repo: "secret", Sort: "manual"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := ""
+		for _, i := range l.Issues {
+			s += i.Title
+		}
+		return s
+	}
+	if got := order(); got != "abcd" {
+		t.Fatalf("created in order: %s", got)
+	}
+	if _, err := w.UpdateIssue(ctx, "secret", 4, IssueUpdate{After: ptr("top")}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.UpdateIssue(ctx, "secret", 1, IssueUpdate{After: ptr("SEC-3")}); err != nil {
+		t.Fatal(err)
+	}
+	if got := order(); got != "dbca" {
+		t.Errorf("after moves: %s", got)
+	}
+	// Many moves into the same gap stay in order.
+	for range 60 {
+		if _, err := w.UpdateIssue(ctx, "secret", 1, IssueUpdate{After: ptr("4")}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.UpdateIssue(ctx, "secret", 2, IssueUpdate{After: ptr("4")}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := order(); got != "dbac" {
+		t.Errorf("after many moves: %s", got)
+	}
+	// Moving to another column places it there.
+	if _, err := w.UpdateIssue(ctx, "secret", 3, IssueUpdate{Status: ptr("done"), After: ptr("4")}); !IsInvalid(err) {
+		t.Errorf("after an issue in another column: %v", err)
+	}
+	if _, err := w.UpdateIssue(ctx, "secret", 3, IssueUpdate{Status: ptr("done"), After: ptr("top")}); err != nil {
+		t.Error(err)
+	}
+}
