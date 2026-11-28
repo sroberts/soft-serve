@@ -157,6 +157,7 @@ button.link:hover { text-decoration: underline; }
   color: var(--muted);
   vertical-align: 2px;
 }
+.badge + .badge { margin-left: 4px; }
 
 .muted { color: var(--muted); }
 .note { color: var(--muted); max-width: 72ch; }
@@ -353,7 +354,10 @@ table { border-collapse: collapse; width: 100%; }
   overflow: hidden;
 }
 .files td { padding: 7px 12px; border-top: 1px solid var(--line); }
-.files .icon { width: 20px; color: var(--muted); padding-right: 0; }
+.files .icon { width: 16px; color: var(--muted); padding-right: 0; line-height: 0; }
+.files .icon .ic { vertical-align: -3px; }
+.files .ic-folder { color: var(--accent); }
+.files .ic-folder path { fill: currentColor; fill-opacity: .24; }
 .files .name { overflow-wrap: break-word; }
 .files .size { text-align: right; color: var(--muted); white-space: nowrap; font-size: var(--text-meta); width: 1%; }
 .files .last { color: var(--muted); font-size: var(--text-meta); max-width: 0; width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -486,7 +490,7 @@ pre.plain { white-space: pre-wrap; overflow-wrap: anywhere; }
 .difftools .seg a:hover { color: var(--text); text-decoration: none; }
 .difftools .seg a[aria-current] { background: var(--accent-soft); color: var(--text); font-weight: var(--weight-strong); }
 .difftools .toggle[aria-current] { font-weight: var(--weight-strong); }
-.difftools .toggle[aria-current]::before { content: "✓ "; }
+.difftools .toggle .ic { --ic: var(--ic-m); width: var(--ic); height: var(--ic); margin-right: 4px; vertical-align: -2px; }
 
 .filediff { margin-top: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
 .filediff > summary {
@@ -529,6 +533,7 @@ pre.plain { white-space: pre-wrap; overflow-wrap: anywhere; }
 .sig { font-weight: var(--weight-strong); }
 .sig.verified { color: var(--add); }
 .sig.bad { color: var(--del); }
+.sig .ic { --ic: var(--ic-m); width: var(--ic); height: var(--ic); margin-right: 4px; vertical-align: -3px; }
 
 /* Refs */
 
@@ -543,6 +548,7 @@ pre.plain { white-space: pre-wrap; overflow-wrap: anywhere; }
 .refs .meta a:not(.sha) { color: var(--muted); }
 .refs .meta a:hover { color: var(--accent); }
 .refs .refactions { font-size: var(--text-meta); color: var(--muted); white-space: nowrap; }
+.refs .refactions .ic-download { --ic: var(--ic-s); width: var(--ic); height: var(--ic); margin-right: 4px; vertical-align: -2px; }
 .refs .notes { margin-top: 6px; font-size: var(--text-meta); }
 .refs .notes summary { cursor: pointer; color: var(--accent); width: max-content; }
 .refs .notes .message { margin: 6px 0 0; padding: 10px 12px; background: var(--bg); border-radius: 6px; white-space: pre-wrap; font-size: var(--text-meta); }
@@ -1123,12 +1129,14 @@ main {
 .icommits ul { list-style: none; margin: 0; padding: 0; }
 .icommits li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 4px 0; font-size: var(--text-ui); }
 .icommits .csum { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; }
-.timeline { list-style: none; margin: 0 0 16px; padding: 0 0 0 14px; border-left: 1px solid var(--line); }
+.timeline { list-style: none; margin: 0 0 16px; padding: 0 0 0 22px; border-left: 1px solid var(--line); }
 .timeline .who { font-weight: var(--weight-strong); color: var(--text); }
 .tevent { position: relative; padding: 5px 0; color: var(--muted); font-size: var(--text-ui); overflow-wrap: anywhere; }
 .tevent time { white-space: nowrap; }
-.tevent::before { content: ""; position: absolute; left: -18px; top: 13px; width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
-.tcomment { margin: 10px 0; }
+.tevent > svg:first-child { position: absolute; left: -32.5px; top: 5px; box-sizing: content-box; --ic: var(--ic-m); width: var(--ic); height: var(--ic); padding: 3px; border-radius: 50%; background: var(--bg); }
+.tevent > .ic { color: var(--muted); }
+.tcomment { position: relative; margin: 10px 0; }
+.tcomment > .ic:first-child { position: absolute; left: -32.5px; top: 9px; box-sizing: content-box; --ic: var(--ic-m); width: var(--ic); height: var(--ic); padding: 3px; border-radius: 50%; background: var(--bg); color: var(--muted); }
 .tcomment article { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .tcomment header { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: baseline; padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: var(--text-ui); color: var(--muted); }
 .tcomment header .grow { flex: 1; }
@@ -1289,3 +1297,105 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 5px; border: 1px solid
   .imeta time { min-width: 0; text-align: left; }
   .issuehead h1 { font-size: var(--text-title); }
 }
+
+/* Icons that do a job: copy buttons, how a file changed, the ref being
+   shown, and whether a message is good news or a problem. */
+.copybtn {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  vertical-align: middle;
+}
+.copybtn[hidden] { display: none; }
+.copybtn:hover { color: var(--text); border-color: var(--field-border); }
+.copybtn > .ic { grid-area: 1 / 1; --ic: var(--ic-m); width: var(--ic); height: var(--ic); }
+.copybtn > .ic-check, .copybtn.copied > .ic-copy { visibility: hidden; }
+.copybtn.copied > .ic-check { visibility: visible; color: var(--add); }
+.clone .cloneline { align-items: center; }
+.clone .cloneline > span { align-self: baseline; padding-top: 7px; }
+dd > code + .copybtn { width: 26px; height: 26px; margin-left: 6px; }
+dd > code + .copybtn > .ic { --ic: var(--ic-s); width: var(--ic); height: var(--ic); }
+.tokenline { display: flex; gap: 8px; align-items: center; }
+.tokenline code.token { flex: 1; min-width: 0; margin: 0; }
+
+.changes .status { line-height: 1; }
+.changes .status .ic { vertical-align: -3px; margin-right: 6px; }
+.changes .status.added .dword, .changes .status.deleted .dword, .changes .status.modified .dword, .changes .status.renamed .dword { color: var(--muted); }
+.changes .status .ic { --ic: var(--ic-m); width: var(--ic); height: var(--ic); }
+.changes .status.modified, .filediff .dstatus.modified { color: var(--st-progress); }
+.changes .status.renamed, .filediff .dstatus.renamed { color: var(--accent); }
+.filediff .dstatus { display: inline-flex; color: var(--muted); }
+.filediff .dstatus.added { color: var(--add); }
+.filediff .dstatus.deleted { color: var(--del); }
+.filediff .dstatus .ic { --ic: var(--ic-m); width: var(--ic); height: var(--ic); }
+.filediff > summary { gap: 8px; }
+.filediff > summary > .ic-chevron:first-child { margin-right: 0; }
+.filediff > summary .grow { margin-left: 4px; }
+
+.refmenu > summary .ic { --ic: var(--ic-s); width: var(--ic); height: var(--ic); color: var(--muted); margin-right: -2px; }
+
+.notice > .ic:first-child, .formerror > .ic:first-child { --ic: var(--ic-m); width: var(--ic); height: var(--ic); margin-right: 7px; vertical-align: -3px; }
+.notice > .ic:first-child { color: var(--add); }
+
+.scope a .ic-feed { --ic: var(--ic-s); width: var(--ic); height: var(--ic); margin-right: 4px; vertical-align: -2px; }
+@media (pointer: coarse) {
+  .copybtn, dd > code + .copybtn { width: 40px; height: 40px; }
+}
+
+/* The home page: each repository leads with what kind it is, branch names
+   carry the branch mark, and New repository its plus. */
+.repos li { position: relative; padding-left: 28px; }
+.repos li > .ic:first-child { position: absolute; left: 0; top: 19px; --ic: var(--ic-l); width: var(--ic); height: var(--ic); color: var(--muted); }
+.branch .ic { --ic: var(--ic-s); width: var(--ic); height: var(--ic); margin-right: 3px; vertical-align: -1px; }
+a.button > .ic-plus { --ic: var(--ic-m); width: var(--ic); height: var(--ic); margin: 0 6px 0 -2px; vertical-align: -2px; }
+
+/* The repository header: the title leads with the repository's kind, the
+   tabs each carry a quiet mark, and Clone or download folds like a diff. */
+.repohead h1 > .ic:first-child { --ic: var(--ic-xl); width: var(--ic); height: var(--ic); margin-right: 8px; vertical-align: -2px; color: var(--muted); }
+:is(.tabs, .tablinks) > a > .ic { --ic: var(--ic-m); width: var(--ic); height: var(--ic); margin-right: 6px; vertical-align: -3px; color: var(--muted); }
+:is(.tabs, .tablinks) > a[aria-current="page"] > .ic { color: var(--accent); }
+@media (hover: hover) { :is(.tabs, .tablinks) > a:hover > .ic { color: var(--text); } }
+.clone .downloads > .ic { --ic: var(--ic-s); width: var(--ic); height: var(--ic); margin-right: 5px; vertical-align: -2px; }
+.viewnav a { display: inline-flex; align-items: center; gap: 6px; }
+.viewnav a > .ic { --ic: var(--ic-m); width: var(--ic); height: var(--ic); color: var(--muted); }
+.viewnav a[aria-current="page"] > .ic { color: var(--accent); }
+/* On a phone the tab row scrolls and the view switcher must fit: there
+   the pill shapes already set the items apart, and room for words wins. */
+@media (max-width: 600px) {
+  :is(.tabs, .tablinks) > a > .ic, .viewnav a > .ic { display: none; }
+}
+
+/* One icon scale. Strokes don't scale with the icon, so every mark draws
+   the same 1.5px line whatever size it sits at. */
+:root { --ic-s: 12px; --ic-m: 14px; --ic-l: 16px; --ic-xl: 20px; }
+.ic { flex: none; }
+.ic :is(path, circle, rect) { vector-effect: non-scaling-stroke; }
+
+/* Every fold opens the same way: a leading chevron that turns down. */
+summary:has(> .ic-chevron:first-child) { list-style: none; }
+summary:has(> .ic-chevron:first-child)::-webkit-details-marker { display: none; }
+summary > .ic-chevron:first-child { --ic: var(--ic-s); width: var(--ic); height: var(--ic); margin-right: 6px; vertical-align: -1px; color: var(--muted); transition: transform .15s cubic-bezier(.2, .8, .2, 1); }
+details[open] > summary > .ic-chevron:first-child { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { summary > .ic-chevron:first-child { transition: none; } }
+summary.button > .ic-plus { --ic: var(--ic-m); width: var(--ic); height: var(--ic); margin: 0 6px 0 -2px; vertical-align: -2px; }
+.badd > .ic-plus { --ic: var(--ic-m); width: var(--ic); height: var(--ic); }
+.refname > .ic { --ic: var(--ic-m); width: var(--ic); height: var(--ic); margin-right: 6px; vertical-align: -2px; color: var(--muted); }
+dd .ic-download { --ic: var(--ic-s); width: var(--ic); height: var(--ic); margin-right: 4px; vertical-align: -1px; color: var(--muted); }
+
+/* The commit hash keeps its copy button on its own line's end. */
+dd:has(> code + .copybtn) { display: flex; gap: 6px; align-items: flex-start; }
+dd:has(> code + .copybtn) > code { min-width: 0; overflow-wrap: anywhere; }
+
+/* On a phone the tab icons are hidden, except on the tab you're on. */
+@media (max-width: 600px) {
+  .viewnav a[aria-current="page"] > .ic { display: inline; }
+}
+.nowrap { white-space: nowrap; }

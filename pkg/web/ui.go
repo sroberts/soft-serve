@@ -27,10 +27,11 @@ import (
 	"github.com/dustin/go-humanize"
 )
 
-// The web pages. Every page is server-rendered HTML with no script, under a
-// strict Content-Security-Policy; changes are plain form posts. The issue
-// views add one script of our own (issues.js) for shortcuts, menus and the
-// board; every page works without it.
+// The web pages. Every page is server-rendered HTML under a strict
+// Content-Security-Policy; changes are plain form posts. Two scripts of our
+// own add to that: copy.js shows copy buttons on every page, and issues.js
+// gives the issue views shortcuts, menus and the board. Every page works
+// without them.
 //
 // Routes, with repository names that may contain slashes:
 //
@@ -96,6 +97,11 @@ var uiTemplates = template.Must(template.New("").Funcs(template.FuncMap{
 	"keyShort":       keyShort,
 	"adminUserURL":   adminUserURL,
 	"statusIcon":     statusIcon,
+	"icon":           icon,
+	"entryIcon":      entryIcon,
+	"eventIcon":      eventIcon,
+	"diffIcon":       diffIcon,
+	"refIcon":        refIcon,
 	"priorityIcon":   priorityIcon,
 	"statusLabel":    issue.StatusLabel,
 	"priorityLabel":  func(name string) string { n, _ := issue.ParsePriority(name); return issue.PriorityLabel(n) },
@@ -751,7 +757,7 @@ func setPageHeaders(w http.ResponseWriter) {
 // staticBody is a stylesheet's or icon's content, by name.
 func staticBody(name string) []byte {
 	switch name {
-	case "style.css", "issues.js", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png":
+	case "style.css", "issues.js", "copy.js", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png":
 		b, _ := uiFS.ReadFile("ui_static/" + name)
 		return b
 	case "code.css":

@@ -98,7 +98,7 @@ func TestUIAccountKeys(t *testing.T) {
 	wantStatus(t, f.post("/-/me/nope", auth, url.Values{}), http.StatusNotFound, "unknown action")
 }
 
-var tokenRE = regexp.MustCompile(`<code class="token">([^<]+)</code>`)
+var tokenRE = regexp.MustCompile(`<code class="token"[^>]*>([^<]+)</code>`)
 
 func TestUIAccountTokens(t *testing.T) {
 	f := newViewFixture(t)

@@ -81,7 +81,7 @@ func TestUINewRepository(t *testing.T) {
 
 	loc := seeOther(t, f.post("/-/new", auth, url.Values{"name": {"made"}, "description": {"from a form"}, "private": {"on"}}), "/made?done=created")
 	w = f.do(req{path: loc, auth: auth})
-	has(t, w, `<p class="notice" role="status">Repository created.</p>`, "from a form", `<span class="badge">private</span>`)
+	has(t, w, `<p class="notice" role="status"><svg class="ic ic-done"`, `</svg>Repository created.</p>`, "from a form", `<span class="badge">private</span>`)
 
 	// A failed create shows the form again, with what was typed.
 	w = f.post("/-/new", auth, url.Values{"name": {"bad name!"}, "description": {"kept"}})
@@ -329,7 +329,7 @@ func TestUIWebhooks(t *testing.T) {
 	// Webhooks are under Manage: one tab, then its own row of pages. Manage
 	// stands outside the tabs' scrolling row, so a phone never hides it.
 	// (Any whitespace between: templates check out with CRLF on Windows.)
-	pinned := regexp.MustCompile(`</div>\s*<a href="/group/open/-/settings"( aria-current="page")?>Manage</a>`)
+	pinned := regexp.MustCompile(`</div>\s*<a href="/group/open/-/settings"( aria-current="page")?><svg class="ic ic-settings"[^>]*>.*?</svg>Manage</a>`)
 	for path, current := range map[string]bool{"/group/open": false, "/group/open/-/settings": true} {
 		m := pinned.FindStringSubmatch(f.do(req{path: path, auth: auth}).Body.String())
 		if m == nil || (m[1] != "") != current {

@@ -105,3 +105,17 @@ Check every flow at 1280px and at 390px (phone) wide.
 4. On the list: press `j`, then `s`; the row's status menu opens with its
    current status focused; arrows move; Escape closes it. `?` shows the
    shortcuts.
+
+## 13. Icons and copy
+1. Open `/icecream`. Expect folders tinted, files outlined, a symlink named
+   "symlink"; tabs with quiet icons at 1280 and none at 390. Open
+   **Clone or download** (chevron turns): each command has a copy button;
+   pressing it shows a check and announces "Copied.".
+2. Open a commit: the full hash has a copy button beside it; changed files
+   show added/modified/deleted/renamed as a mark and a word; each file's
+   header has a turning chevron.
+3. Open `/icecream/-/tree?ref=v0.1`: the ref pill shows a tag mark; on
+   `main` a branch mark.
+4. On an issue, each activity entry has a mark on the rail: the new status
+   or priority itself for those changes, a bubble for comments.
+5. A form error leads with an alert mark; a notice with a check.

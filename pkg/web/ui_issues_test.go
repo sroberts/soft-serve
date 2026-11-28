@@ -14,7 +14,7 @@ func TestUIIssues(t *testing.T) {
 
 	// An empty list offers to create one; anonymous visitors can read but
 	// get no way to write.
-	has(t, f.do(req{path: "/group/open/-/issues", auth: auth}), "No open issues.", `href="/group/open/-/issues/new"`, `aria-current="page">Issues</a>`)
+	has(t, f.do(req{path: "/group/open/-/issues", auth: auth}), "No open issues.", `href="/group/open/-/issues/new"`, `aria-current="page"><svg class="ic ic-issue"`)
 	hasNot(t, f.do(req{path: "/group/open/-/issues"}), `href="/group/open/-/issues/new"`)
 	if w := f.do(req{path: "/group/open/-/issues/new"}); w.Code == http.StatusOK {
 		t.Errorf("anonymous new issue form: %d", w.Code)
@@ -127,7 +127,7 @@ func TestUIProjectsAndCycles(t *testing.T) {
 	f := newViewFixture(t)
 	auth := f.owner()
 
-	has(t, f.do(req{path: "/group/open/-/issues/projects", auth: auth}), "No projects yet.", `aria-current="page">Projects</a>`, "New project", `<details class="addnew" open>`)
+	has(t, f.do(req{path: "/group/open/-/issues/projects", auth: auth}), "No projects yet.", `aria-current="page"><svg class="ic ic-project"`, "New project", `<details class="addnew" open>`)
 	hasNot(t, f.do(req{path: "/group/open/-/issues/projects"}), "New project")
 
 	// A project with a slash in its name, and a mistake first.

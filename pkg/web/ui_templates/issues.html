@@ -7,7 +7,7 @@
     {{if .Global}}<h1>{{$.Title}}</h1>{{else}}<h1 class="visually-hidden">{{$.Repo.Name}}: issues</h1>{{end}}
     <nav class="subnav scopes" aria-label="Which issues">{{range .Scopes}}<a href="{{.URL}}"{{if .Current}} aria-current="page"{{end}}>{{.Label}}</a>{{end}}</nav>
     <span class="grow"></span>
-    {{if .CanWrite}}<a class="button" href="{{repoURL $.Repo.Name "issues/new" "" ""}}">New issue</a>{{end}}
+    {{if .CanWrite}}<a class="button" href="{{repoURL $.Repo.Name "issues/new" "" ""}}">{{icon "plus"}}New issue</a>{{end}}
   </div>
   {{template "issuefilters" (filterArgs $d $.SoftServe $.Solo)}}
 
@@ -128,7 +128,7 @@
     </dl>
     {{if .CanWrite}}
     <details class="editprops"{{if .Err}} open{{end}}>
-      <summary>Labels and more</summary>
+      <summary>{{icon "chevron"}}Labels and more</summary>
       {{template "formerror" .Err}}
       <form class="manage" method="post" action="{{issueURL $repo $i.Number}}">
         {{template "issuemoreprops" .}}
@@ -169,10 +169,10 @@
     <section class="iactivity" aria-labelledby="activity">
       <h2 id="activity">Activity</h2>
       <ol class="timeline">
-        <li class="tevent"><span class="who">{{if $i.Creator}}{{$i.Creator}}{{else}}Someone{{end}}</span> opened {{$i.ID}} · <time datetime="{{$i.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{ago $i.CreatedAt}}</time></li>
+        <li class="tevent">{{icon "opened"}}<span class="who">{{if $i.Creator}}{{$i.Creator}}{{else}}Someone{{end}}</span> opened {{$i.ID}} · <time datetime="{{$i.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{ago $i.CreatedAt}}</time></li>
         {{range .Timeline}}
-        {{with .Event}}<li class="tevent"><span class="who">{{if .Actor}}{{.Actor}}{{else}}Someone{{end}}</span> {{eventText .}}{{if eq .Kind "commit"}} <a class="sha" href="{{repoURL .From (printf "commit/%s" .To) "" ""}}">{{short .To}}</a>{{end}} · <time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .CreatedAt}}</time></li>{{end}}
-        {{if .Comment}}<li class="tcomment" id="comment-{{.Comment.ID}}">
+        {{with .Event}}<li class="tevent">{{eventIcon .}}<span class="who">{{if .Actor}}{{.Actor}}{{else}}Someone{{end}}</span> {{eventText .}}{{if eq .Kind "commit"}} <a class="sha" href="{{repoURL .From (printf "commit/%s" .To) "" ""}}">{{short .To}}</a>{{end}} · <time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .CreatedAt}}</time></li>{{end}}
+        {{if .Comment}}<li class="tcomment" id="comment-{{.Comment.ID}}">{{icon "comment"}}
           <article>
             <header><span class="who">{{if .Comment.Author}}{{.Comment.Author}}{{else}}Someone{{end}}</span> <time datetime="{{.Comment.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .Comment.CreatedAt}}</time>{{if .Comment.Edited}} <span class="muted">· edited</span>{{end}}
               {{if .CanEdit}}<span class="grow"></span><a href="{{commentURL $repo $i.Number .Comment.ID "edit"}}">Edit</a> <a class="danger" href="{{commentURL $repo $i.Number .Comment.ID "delete"}}">Delete…</a>{{end}}
@@ -250,7 +250,7 @@
   </label>
   {{template "issuecoreprops" .}}
   <details class="moreprops"{{if or .MoreOpen .Err}} open{{end}}>
-    <summary>Labels, project and more</summary>
+    <summary>{{icon "chevron"}}Labels, project and more</summary>
     {{template "issuemoreprops" .}}
   </details>
   <div class="actions"><button type="submit">Create issue</button> <a class="button secondary" href="{{repoURL $.Repo.Name "issues" "" ""}}">Cancel</a></div>
@@ -311,7 +311,7 @@
   </ul>
   {{if .CanWrite}}
   <details class="addnew"{{if or .LabelErr (not .Tracker.Labels)}} open{{end}}>
-    <summary class="button secondary">New label</summary>
+    <summary class="button secondary">{{icon "plus"}}New label</summary>
     <form class="manage" method="post" action="{{repoURL $.Repo.Name "issues/settings" "" ""}}" aria-label="New label">
       <input type="hidden" name="op" value="label">
       <div class="fieldrow">
@@ -344,10 +344,10 @@
 
 {{define "issuesnav"}}{{/* . is issuesNavArgs */}}
 <nav class="viewnav" aria-label="Issue views">
-  <a href="{{repoURL .Repo "issues" "" ""}}"{{if eq .Current "issues"}} aria-current="page"{{end}}>Issues</a>
-  <a href="{{repoURL .Repo "issues/board" "" ""}}"{{if eq .Current "board"}} aria-current="page"{{end}}>Board</a>
-  <a href="{{repoURL .Repo "issues/projects" "" ""}}"{{if eq .Current "projects"}} aria-current="page"{{end}}>Projects</a>
-  <a href="{{repoURL .Repo "issues/cycles" "" ""}}"{{if eq .Current "cycles"}} aria-current="page"{{end}}>Cycles</a>
+  <a href="{{repoURL .Repo "issues" "" ""}}"{{if eq .Current "issues"}} aria-current="page"{{end}}>{{icon "issue"}}Issues</a>
+  <a href="{{repoURL .Repo "issues/board" "" ""}}"{{if eq .Current "board"}} aria-current="page"{{end}}>{{icon "board"}}Board</a>
+  <a href="{{repoURL .Repo "issues/projects" "" ""}}"{{if eq .Current "projects"}} aria-current="page"{{end}}>{{icon "project"}}Projects</a>
+  <a href="{{repoURL .Repo "issues/cycles" "" ""}}"{{if eq .Current "cycles"}} aria-current="page"{{end}}>{{icon "cycle"}}Cycles</a>
 </nav>
 {{end}}
 
@@ -373,7 +373,7 @@
 {{else}}<div class="empty iempty"><p>No projects yet.</p><p class="note">A project gathers the issues for one piece of work, and shows how far along it is.</p></div>{{end}}
 {{if .CanWrite}}
 <details class="addnew"{{if or .Err (not .Projects)}} open{{end}}>
-  <summary class="button secondary">New project</summary>
+  <summary class="button secondary">{{icon "plus"}}New project</summary>
   {{template "formerror" .Err}}
   <form class="manage" method="post" action="{{repoURL $.Repo.Name "issues/projects" "" ""}}" aria-label="New project">
     {{template "projectfields" .}}
@@ -404,7 +404,7 @@
 <nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues/projects" "" ""}}">Projects</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">{{$pr.Name}}</span></nav>
 <header class="issuehead">
   <h1>{{$pr.Name}}</h1>
-  {{if .CanWrite}}<a class="button" href="{{repoURL $.Repo.Name "issues/new" "" ""}}?project={{$pr.Name}}">New issue</a>{{end}}
+  {{if .CanWrite}}<a class="button" href="{{repoURL $.Repo.Name "issues/new" "" ""}}?project={{$pr.Name}}">{{icon "plus"}}New issue</a>{{end}}
 </header>
 <div class="issuepage">
   <aside class="issueside" aria-label="Project">
@@ -417,7 +417,7 @@
     </dl>
     {{if .CanWrite}}
     <details class="editprops"{{if .Err}} open{{end}}>
-      <summary>Change project</summary>
+      <summary>{{icon "chevron"}}Change project</summary>
       {{template "formerror" .Err}}
       <form class="manage" method="post" action="{{projectURL $.Repo.Name $pr.ID}}">
         {{template "projectfields" .}}
@@ -453,7 +453,7 @@
 {{else}}<div class="empty iempty"><p>No cycles yet.</p><p class="note">A cycle is a stretch of time, two weeks by default, with the issues you mean to finish in it.</p></div>{{end}}
 {{if .CanWrite}}
 <details class="addnew"{{if or .Err (not .Cycles)}} open{{end}}>
-  <summary class="button secondary">New cycle</summary>
+  <summary class="button secondary">{{icon "plus"}}New cycle</summary>
   <p class="note">Leave the dates empty to start the day after the last cycle ends, or today, and run two weeks.</p>
   {{template "formerror" .Err}}
   <form class="manage" method="post" action="{{repoURL $.Repo.Name "issues/cycles" "" ""}}" aria-label="New cycle">
@@ -476,7 +476,7 @@
 <nav class="pathbar ipath" aria-label="Breadcrumb"><a href="{{repoURL $.Repo.Name "issues/cycles" "" ""}}">Cycles</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Cycle {{$c.Number}}</span></nav>
 <header class="issuehead">
   <h1>Cycle {{$c.Number}}{{with $c.Name}}: {{.}}{{end}}{{if $c.Current}} <span class="badge current">Current</span>{{end}}</h1>
-  {{if .CanWrite}}<a class="button" href="{{repoURL $.Repo.Name "issues/new" "" ""}}?cycle={{$c.Number}}">New issue</a>{{end}}
+  {{if .CanWrite}}<a class="button" href="{{repoURL $.Repo.Name "issues/new" "" ""}}?cycle={{$c.Number}}">{{icon "plus"}}New issue</a>{{end}}
 </header>
 <div class="issuepage">
   <aside class="issueside" aria-label="Cycle">
@@ -486,7 +486,7 @@
     </dl>
     {{if .CanWrite}}
     <details class="editprops"{{if .Err}} open{{end}}>
-      <summary>Change cycle</summary>
+      <summary>{{icon "chevron"}}Change cycle</summary>
       {{template "formerror" .Err}}
       <form class="manage" method="post" action="{{cycleURL $.Repo.Name $c.Number}}">
         <label class="field">Name <span class="hint">optional</span><input type="text" name="name" value="{{.Form.Name}}" maxlength="80" autocomplete="off"></label>
@@ -560,7 +560,7 @@
 
 {{define "shortcuts"}}{{/* Shown by the script, since the keys need it; never on touch screens. */}}
 <details class="shortcuts" id="shortcuts" hidden>
-  <summary>Keyboard shortcuts</summary>
+  <summary>{{icon "chevron"}}Keyboard shortcuts</summary>
   <dl>
     {{/* data-needs names what a key acts on; the script drops keys whose target the page lacks. */}}
     <dt data-needs='a.button[href*="/-/issues/new"]'><kbd>c</kbd></dt><dd>New issue</dd>
@@ -590,7 +590,7 @@
     {{range .Groups}}
     <section class="bcol" data-status="{{.Status}}" aria-labelledby="col-{{.Status}}">
       <h2 class="bcol-head" id="col-{{.Status}}">{{statusIcon .Status}}<span>{{statusLabel .Status}}</span> <span class="count">{{len .Issues}}</span>
-        {{if $d.CanWrite}}<a class="badd" href="{{repoURL $.Repo.Name "issues/new" "" ""}}?status={{.Status}}" title="New issue in {{statusLabel .Status}}"><svg viewBox="0 0 14 14" width="14" height="14" aria-hidden="true"><path d="M7 2.5v9M2.5 7h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span class="visually-hidden">New issue in {{statusLabel .Status}}</span></a>{{end}}
+        {{if $d.CanWrite}}<a class="badd" href="{{repoURL $.Repo.Name "issues/new" "" ""}}?status={{.Status}}" title="New issue in {{statusLabel .Status}}">{{icon "plus"}}<span class="visually-hidden">New issue in {{statusLabel .Status}}</span></a>{{end}}
       </h2>
       <ol class="bcards">
         {{range .Issues}}<li class="bcard" data-issue="{{.Number}}" data-quick="{{issueURL .Repo .Number "quick"}}">

@@ -336,7 +336,7 @@ func TestAccessAndCollaborators(t *testing.T) {
 	w = f.do(req{path: "/group/open/-/settings", auth: ownerAuth})
 	is.True(strings.Contains(w.Body.String(), `/group/open/-/access`))
 	w = f.do(req{path: "/group/open", auth: ownerAuth})
-	is.True(strings.Contains(w.Body.String(), `/group/open/-/settings">Manage</a>`))
+	is.True(strings.Contains(w.Body.String(), `/group/open/-/settings"><svg class="ic ic-settings"`))
 	is.True(strings.Contains(w.Body.String(), "You&#39;re an admin of this repository."))
 	w = f.do(req{path: "/group/open", identity: stranger})
 	is.True(!strings.Contains(w.Body.String(), `/group/open/-/access`))
