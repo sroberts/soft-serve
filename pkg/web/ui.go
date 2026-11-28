@@ -193,6 +193,15 @@ func (h uiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		serveStatic(w, r)
 		return
 	}
+	if r.URL.Path == "/favicon.ico" {
+		// Browsers and tools ask here whatever the page links; answer
+		// with the mark rather than a not-found page.
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		writeBody(w, r, http.StatusOK, staticBody("favicon-32.png"))
+		return
+	}
 
 	c, err := identifyCaller(r, h.verifier)
 	if err != nil {
@@ -757,7 +766,7 @@ func setPageHeaders(w http.ResponseWriter) {
 // staticBody is a stylesheet's or icon's content, by name.
 func staticBody(name string) []byte {
 	switch name {
-	case "style.css", "issues.js", "copy.js", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png":
+	case "style.css", "issues.js", "copy.js", "mark.svg", "favicon-32.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png":
 		b, _ := uiFS.ReadFile("ui_static/" + name)
 		return b
 	case "code.css":
@@ -771,6 +780,8 @@ func staticType(name string) string {
 	switch gopath.Ext(name) {
 	case ".png":
 		return "image/png"
+	case ".svg":
+		return "image/svg+xml"
 	case ".webmanifest":
 		return "application/manifest+json"
 	case ".js":

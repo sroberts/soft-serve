@@ -1399,3 +1399,12 @@ dd:has(> code + .copybtn) > code { min-width: 0; overflow-wrap: anywhere; }
   .viewnav a[aria-current="page"] > .ic { display: inline; }
 }
 .nowrap { white-space: nowrap; }
+
+/* The site's mark beside its name, the same one the favicon draws. */
+.site .brand { display: inline-flex; align-items: center; gap: 8px; }
+.site .brand .mark { flex: none; display: block; width: 20px; height: 20px; }
+/* On a phone inside a repository, the mark stands for the site's name so
+   the repository's name has the room; the name stays for screen readers. */
+@media (max-width: 600px) {
+  .site:has(.crumb) .brand .name { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
