@@ -169,9 +169,9 @@
     <section class="iactivity" aria-labelledby="activity">
       <h2 id="activity">Activity</h2>
       <ol class="timeline">
-        <li class="tevent"><span class="who">{{if $i.Creator}}{{$i.Creator}}{{else}}Someone{{end}}</span> opened {{$i.ID}} · <time datetime="{{$i.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{ago $i.CreatedAt}}</time></li>
+        <li class="tevent">{{icon "opened"}}<span class="who">{{if $i.Creator}}{{$i.Creator}}{{else}}Someone{{end}}</span> opened {{$i.ID}} · <time datetime="{{$i.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{ago $i.CreatedAt}}</time></li>
         {{range .Timeline}}
-        {{with .Event}}<li class="tevent"><span class="who">{{if .Actor}}{{.Actor}}{{else}}Someone{{end}}</span> {{eventText .}}{{if eq .Kind "commit"}} <a class="sha" href="{{repoURL .From (printf "commit/%s" .To) "" ""}}">{{short .To}}</a>{{end}} · <time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .CreatedAt}}</time></li>{{end}}
+        {{with .Event}}<li class="tevent">{{eventIcon .}}<span class="who">{{if .Actor}}{{.Actor}}{{else}}Someone{{end}}</span> {{eventText .}}{{if eq .Kind "commit"}} <a class="sha" href="{{repoURL .From (printf "commit/%s" .To) "" ""}}">{{short .To}}</a>{{end}} · <time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .CreatedAt}}</time></li>{{end}}
         {{if .Comment}}<li class="tcomment" id="comment-{{.Comment.ID}}">
           <article>
             <header><span class="who">{{if .Comment.Author}}{{.Comment.Author}}{{else}}Someone{{end}}</span> <time datetime="{{.Comment.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .Comment.CreatedAt}}</time>{{if .Comment.Edited}} <span class="muted">· edited</span>{{end}}

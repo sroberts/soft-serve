@@ -116,10 +116,10 @@
   </thead>
   {{end}}
   <tbody>
-  {{if .Path}}<tr><td class="icon" aria-hidden="true">↰</td><td class="name" colspan="4"><a href="{{repoURL $repo "tree" $ref (parentDir .Path)}}">..</a></td></tr>{{end}}
+  {{if .Path}}<tr><td class="icon">{{icon "up"}}</td><td class="name" colspan="4"><a href="{{repoURL $repo "tree" $ref (parentDir .Path)}}">..</a></td></tr>{{end}}
   {{range .Entries}}
   <tr>
-    <td class="icon" aria-hidden="true">{{if eq .Type "dir"}}▸{{else if eq .Type "submodule"}}⇢{{else}}·{{end}}</td>
+    <td class="icon">{{entryIcon .Type}}</td>
     <td class="name">{{if eq .Type "dir"}}<a href="{{repoURL $repo "tree" $ref .Path}}">{{breakable .Name}}/</a>{{else if eq .Type "submodule"}}{{.Name}} <span class="muted">submodule</span>{{else}}<a href="{{repoURL $repo "blob" $ref .Path}}">{{breakable .Name}}</a>{{end}}</td>
     <td class="last">{{with .LastCommit}}<a href="{{repoURL $repo (printf "commit/%s" .SHA) "" ""}}" title="{{.Summary}}">{{.Summary}}</a>{{end}}</td>
     <td class="size">{{if eq .Type "file"}}{{bytes .Size}}{{end}}</td>

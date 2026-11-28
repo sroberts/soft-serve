@@ -157,6 +157,8 @@ button.link:hover { text-decoration: underline; }
   color: var(--muted);
   vertical-align: 2px;
 }
+.badge .ic { width: 11px; height: 11px; margin-right: 3px; vertical-align: -1px; stroke-width: 1.75; }
+.badge + .badge { margin-left: 4px; }
 
 .muted { color: var(--muted); }
 .note { color: var(--muted); max-width: 72ch; }
@@ -353,7 +355,10 @@ table { border-collapse: collapse; width: 100%; }
   overflow: hidden;
 }
 .files td { padding: 7px 12px; border-top: 1px solid var(--line); }
-.files .icon { width: 20px; color: var(--muted); padding-right: 0; }
+.files .icon { width: 16px; color: var(--muted); padding-right: 0; line-height: 0; }
+.files .icon .ic { vertical-align: -3px; }
+.files .ic-folder { color: var(--accent); }
+.files .ic-folder path { fill: currentColor; fill-opacity: .16; }
 .files .name { overflow-wrap: break-word; }
 .files .size { text-align: right; color: var(--muted); white-space: nowrap; font-size: var(--text-meta); width: 1%; }
 .files .last { color: var(--muted); font-size: var(--text-meta); max-width: 0; width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -486,7 +491,8 @@ pre.plain { white-space: pre-wrap; overflow-wrap: anywhere; }
 .difftools .seg a:hover { color: var(--text); text-decoration: none; }
 .difftools .seg a[aria-current] { background: var(--accent-soft); color: var(--text); font-weight: var(--weight-strong); }
 .difftools .toggle[aria-current] { font-weight: var(--weight-strong); }
-.difftools .toggle[aria-current]::before { content: "✓ "; }
+.difftools .toggle .ic { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; }
+
 
 .filediff { margin-top: 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
 .filediff > summary {
@@ -529,6 +535,7 @@ pre.plain { white-space: pre-wrap; overflow-wrap: anywhere; }
 .sig { font-weight: var(--weight-strong); }
 .sig.verified { color: var(--add); }
 .sig.bad { color: var(--del); }
+.sig .ic { width: 15px; height: 15px; margin-right: 4px; vertical-align: -3px; }
 
 /* Refs */
 
@@ -543,6 +550,8 @@ pre.plain { white-space: pre-wrap; overflow-wrap: anywhere; }
 .refs .meta a:not(.sha) { color: var(--muted); }
 .refs .meta a:hover { color: var(--accent); }
 .refs .refactions { font-size: var(--text-meta); color: var(--muted); white-space: nowrap; }
+.refs .refname .ic { width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; color: var(--muted); }
+.refs .refactions .ic-download { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; }
 .refs .notes { margin-top: 6px; font-size: var(--text-meta); }
 .refs .notes summary { cursor: pointer; color: var(--accent); width: max-content; }
 .refs .notes .message { margin: 6px 0 0; padding: 10px 12px; background: var(--bg); border-radius: 6px; white-space: pre-wrap; font-size: var(--text-meta); }
@@ -1123,11 +1132,12 @@ main {
 .icommits ul { list-style: none; margin: 0; padding: 0; }
 .icommits li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 4px 0; font-size: var(--text-ui); }
 .icommits .csum { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; }
-.timeline { list-style: none; margin: 0 0 16px; padding: 0 0 0 14px; border-left: 1px solid var(--line); }
+.timeline { list-style: none; margin: 0 0 16px; padding: 0 0 0 22px; border-left: 1px solid var(--line); }
 .timeline .who { font-weight: var(--weight-strong); color: var(--text); }
 .tevent { position: relative; padding: 5px 0; color: var(--muted); font-size: var(--text-ui); overflow-wrap: anywhere; }
 .tevent time { white-space: nowrap; }
-.tevent::before { content: ""; position: absolute; left: -18px; top: 13px; width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.tevent > svg:first-child { position: absolute; left: -32.5px; top: 5px; box-sizing: content-box; width: 14px; height: 14px; padding: 3px; border-radius: 50%; background: var(--bg); }
+.tevent > .ic { color: var(--muted); }
 .tcomment { margin: 10px 0; }
 .tcomment article { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .tcomment header { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: baseline; padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: var(--text-ui); color: var(--muted); }

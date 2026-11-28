@@ -25,7 +25,7 @@
   {{range .Data.Repos}}
   <li>
     <a class="repo" href="{{repoURL .Name "" "" ""}}">{{.Name}}</a>
-    {{if .Private}}<span class="badge">private</span>{{end}}{{if .Mirror}}<span class="badge">mirror</span>{{end}}{{if .Empty}}<span class="badge">empty</span>{{end}}
+    {{if .Private}}<span class="badge">{{icon "lock"}}private</span>{{end}}{{if .Mirror}}<span class="badge">{{icon "mirror"}}mirror</span>{{end}}{{if .Empty}}<span class="badge">empty</span>{{end}}
     {{if .Description}}<p class="desc">{{.Description}}</p>{{end}}
     {{with .LastCommit}}<p class="meta latest"><time datetime="{{.When.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.When.Format "2 Jan 2006 15:04 MST"}}">{{ago .When}}</time> on <span class="branch">{{.Branch}}</span> · {{.Summary}}</p>{{else}}<p class="meta">Updated {{ago .UpdatedAt}}</p>{{end}}
   </li>
@@ -160,10 +160,10 @@
   <ul>
     {{range .Branches}}<li>
       <div class="refmain">
-        <a class="refname" href="{{$.Data.Link .Name}}">{{.Name}}</a>{{if eq .Name $.Data.DefaultBranch}} <span class="badge">default</span>{{end}}
+        <a class="refname" href="{{$.Data.Link .Name}}">{{icon "branch"}}{{.Name}}</a>{{if eq .Name $.Data.DefaultBranch}} <span class="badge">default</span>{{end}}
         <p class="meta"><a href="{{repoURL $.Repo.Name (printf "commit/%s" .Commit) "" ""}}">{{.Summary}}</a> · <time datetime="{{.Date.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .Date}}</time>{{with distance . $.Data.DefaultBranch}} · <span class="distance">{{.}}</span>{{end}}</p>
       </div>
-      <span class="refactions">{{if ne .Name $.Data.DefaultBranch}}<a href="{{compareURL $.Repo.Name "" .Name}}" aria-label="Compare {{.Name}}">Compare</a> · {{end}}<a href="{{archiveURL $.Repo.Name .Name "tar.gz"}}" download aria-label="Download {{.Name}} as .tar.gz">.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .Name "zip"}}" download aria-label="Download {{.Name}} as .zip">.zip</a>{{if and (canWrite $.Repo.Access) (ne .Name $.Data.DefaultBranch)}} <a class="danger delete" href="{{deleteRefURL $.Repo.Name "branch" .Name}}" aria-label="Delete branch {{.Name}}">Delete…</a>{{end}}</span>
+      <span class="refactions">{{if ne .Name $.Data.DefaultBranch}}<a href="{{compareURL $.Repo.Name "" .Name}}" aria-label="Compare {{.Name}}">Compare</a> · {{end}}{{icon "download"}}<a href="{{archiveURL $.Repo.Name .Name "tar.gz"}}" download aria-label="Download {{.Name}} as .tar.gz">.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .Name "zip"}}" download aria-label="Download {{.Name}} as .zip">.zip</a>{{if and (canWrite $.Repo.Access) (ne .Name $.Data.DefaultBranch)}} <a class="danger delete" href="{{deleteRefURL $.Repo.Name "branch" .Name}}" aria-label="Delete branch {{.Name}}">Delete…</a>{{end}}</span>
     </li>
     {{else}}<li class="muted">No branches.</li>{{end}}
   </ul>
@@ -171,11 +171,11 @@
   <ul>
     {{range .Tags}}<li>
       <div class="refmain">
-        <a class="refname" href="{{$.Data.Link .Name}}">{{.Name}}</a>
+        <a class="refname" href="{{$.Data.Link .Name}}">{{icon "tag"}}{{.Name}}</a>
         <p class="meta">{{if .Tagger}}Tagged by <bdi>{{.Tagger.Name}}</bdi> · {{end}}<time datetime="{{.Date.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .Date}}</time> · <a class="sha" href="{{repoURL $.Repo.Name (printf "commit/%s" .Commit) "" ""}}">{{short .Commit}}</a></p>
         {{if .Message}}<details class="notes"><summary>Release notes</summary><pre class="message">{{.Message}}</pre></details>{{end}}
       </div>
-      <span class="refactions"><a href="{{archiveURL $.Repo.Name .Name "tar.gz"}}" download aria-label="Download {{.Name}} as .tar.gz">.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .Name "zip"}}" download aria-label="Download {{.Name}} as .zip">.zip</a>{{if canWrite $.Repo.Access}} <a class="danger delete" href="{{deleteRefURL $.Repo.Name "tag" .Name}}" aria-label="Delete tag {{.Name}}">Delete…</a>{{end}}</span>
+      <span class="refactions">{{icon "download"}}<a href="{{archiveURL $.Repo.Name .Name "tar.gz"}}" download aria-label="Download {{.Name}} as .tar.gz">.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .Name "zip"}}" download aria-label="Download {{.Name}} as .zip">.zip</a>{{if canWrite $.Repo.Access}} <a class="danger delete" href="{{deleteRefURL $.Repo.Name "tag" .Name}}" aria-label="Delete tag {{.Name}}">Delete…</a>{{end}}</span>
     </li>
     {{else}}<li class="muted">No tags.</li>{{end}}
   </ul>
@@ -186,7 +186,7 @@
 {{define "diffview"}}{{/* . is a diffView */}}
 <nav class="difftools" aria-label="Diff options">
   <span class="seg"><a href="{{.UnifiedURL}}"{{if not .Split}} aria-current="true"{{end}}>Unified</a><a href="{{.SplitURL}}"{{if .Split}} aria-current="true"{{end}}>Split</a></span>
-  <a href="{{.WhitespaceURL}}" class="toggle"{{if .IgnoreWhitespace}} aria-current="true"{{end}}>{{if .IgnoreWhitespace}}Showing{{else}}Show{{end}} without whitespace changes</a>
+  <a href="{{.WhitespaceURL}}" class="toggle"{{if .IgnoreWhitespace}} aria-current="true"{{end}}>{{if .IgnoreWhitespace}}{{icon "check"}}{{end}}{{if .IgnoreWhitespace}}Showing{{else}}Show{{end}} without whitespace changes</a>
   {{if .Path}}<span class="grow"></span><span class="muted">Only <code>{{.Path}}</code> · <a href="{{.AllFilesURL}}">All files</a></span>{{end}}
 </nav>
 {{if .Files}}
@@ -231,8 +231,8 @@
 {{end}}
 
 {{define "signature"}}{{/* . is a CommitSignature */}}
-{{if eq .Status "verified"}}<span class="sig verified">✓ Verified</span> Signed with <strong>{{.Signer}}</strong>’s SSH key{{with .Key}} <code title="Key fingerprint">{{.}}</code>{{end}}
-{{else if eq .Status "bad"}}<span class="sig bad">✗ Bad signature</span> {{.Reason}}{{with .Key}} <code title="Key fingerprint">{{.}}</code>{{end}}
+{{if eq .Status "verified"}}<span class="sig verified">{{icon "verified"}}Verified</span> Signed with <strong>{{.Signer}}</strong>’s SSH key{{with .Key}} <code title="Key fingerprint">{{.}}</code>{{end}}
+{{else if eq .Status "bad"}}<span class="sig bad">{{icon "unverified"}}Bad signature</span> {{.Reason}}{{with .Key}} <code title="Key fingerprint">{{.}}</code>{{end}}
 {{else}}<span class="sig">Signed</span>, not verified: {{.Reason}}{{with .Key}} <code title="Key fingerprint">{{.}}</code>{{end}}{{end}}
 {{end}}
 

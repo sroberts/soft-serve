@@ -342,7 +342,8 @@ func TestCommitSignatures(t *testing.T) {
 	is.Equal(s.Signer, "owner")
 	is.Equal(s.Key, gossh.FingerprintSHA256(signer.PublicKey()))
 	w := f.do(req{path: "/group/open/-/commit/" + good})
-	is.True(strings.Contains(w.Body.String(), "✓ Verified"))
+	is.True(strings.Contains(w.Body.String(), "ic-verified\""))
+	is.True(strings.Contains(w.Body.String(), "</svg>Verified</span>"))
 
 	unknown := writeSignedCommit(t, dir, "unknown", func(p []byte) string { return sshSign(t, other, "git", p) }, nil)
 	is.Equal(get(unknown).Status, sigUnverified)
