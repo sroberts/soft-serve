@@ -6,14 +6,14 @@
   <ol class="commits">
     {{range .}}<li>
       <a class="summary" href="{{repoURL .Repo (printf "commit/%s" .SHA) "" ""}}">{{.Summary}}</a>
-      <p class="meta"><a class="where" href="{{repoURL .Repo "" "" ""}}">{{.Repo}}</a> · <a class="branch" href="{{repoURL .Repo "tree" .Branch ""}}">{{.Branch}}</a> · <bdi>{{.Author}}</bdi> · <time datetime="{{.When.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.When.Format "2 Jan 2006 15:04 MST"}}">{{ago .When}}</time></p>
+      <p class="meta"><a class="where" href="{{repoURL .Repo "" "" ""}}">{{.Repo}}</a> · <a class="branch" href="{{repoURL .Repo "tree" .Branch ""}}">{{icon "branch"}}{{.Branch}}</a> · <bdi>{{.Author}}</bdi> · <time datetime="{{.When.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.When.Format "2 Jan 2006 15:04 MST"}}">{{ago .When}}</time></p>
       <a class="sha" href="{{repoURL .Repo (printf "commit/%s" .SHA) "" ""}}">{{.ShortSHA}}</a>
     </li>{{end}}
   </ol>
 </section>
 {{end}}
 <section class="intro">
-  <div class="introhead"><h2>Repositories</h2>{{if .SoftServe}}<a class="button" href="/-/new">New repository</a>{{end}}</div>
+  <div class="introhead"><h2>Repositories</h2>{{if .SoftServe}}<a class="button" href="/-/new">{{icon "plus"}}New repository</a>{{end}}</div>
   {{if and .SignedIn (not .SoftServe)}}<p class="note">You're signed in as <strong>{{.SignedIn}}</strong>, but no Soft Serve user has that name, so you see public repositories only.</p>{{end}}
   {{if gt .Data.Total 0}}<form class="search" method="get" action="/" role="search">
     <input type="search" name="q" value="{{.Data.Query}}" placeholder="Filter by name or description" aria-label="Filter repositories">
@@ -24,10 +24,10 @@
 <ul class="repos">
   {{range .Data.Repos}}
   <li>
-    <a class="repo" href="{{repoURL .Name "" "" ""}}">{{.Name}}</a>
-    {{if .Private}}<span class="badge">{{icon "lock"}}private</span>{{end}}{{if .Mirror}}<span class="badge">{{icon "mirror"}}mirror</span>{{end}}{{if .Empty}}<span class="badge">empty</span>{{end}}
+    {{if .Private}}{{icon "lock"}}{{else if .Mirror}}{{icon "mirror"}}{{else}}{{icon "repo"}}{{end}}<a class="repo" href="{{repoURL .Name "" "" ""}}">{{.Name}}</a>
+    {{if .Private}}<span class="badge">private</span>{{end}}{{if .Mirror}}<span class="badge">mirror</span>{{end}}{{if .Empty}}<span class="badge">empty</span>{{end}}
     {{if .Description}}<p class="desc">{{.Description}}</p>{{end}}
-    {{with .LastCommit}}<p class="meta latest"><time datetime="{{.When.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.When.Format "2 Jan 2006 15:04 MST"}}">{{ago .When}}</time> on <span class="branch">{{.Branch}}</span> · {{.Summary}}</p>{{else}}<p class="meta">Updated {{ago .UpdatedAt}}</p>{{end}}
+    {{with .LastCommit}}<p class="meta latest"><time datetime="{{.When.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.When.Format "2 Jan 2006 15:04 MST"}}">{{ago .When}}</time> on <span class="branch">{{icon "branch"}}{{.Branch}}</span> · {{.Summary}}</p>{{else}}<p class="meta">Updated {{ago .UpdatedAt}}</p>{{end}}
   </li>
   {{end}}
 </ul>

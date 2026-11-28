@@ -1352,3 +1352,11 @@ dd > code + .copybtn > .ic { width: 13px; height: 13px; }
 @media (pointer: coarse) {
   .copybtn, dd > code + .copybtn { width: 40px; height: 40px; }
 }
+
+/* The home page: each repository leads with what kind it is, branch names
+   carry the branch mark, and New repository its plus. */
+.repos li { position: relative; padding-left: 28px; }
+.repos li > .ic:first-child { position: absolute; left: 0; top: 19px; width: 17px; height: 17px; color: var(--muted); }
+.repos li > .ic-lock:first-child { color: var(--text); }
+.branch .ic { width: 11px; height: 11px; margin-right: 3px; vertical-align: -1px; }
+a.button > .ic-plus { width: 14px; height: 14px; margin: 0 6px 0 -2px; vertical-align: -2px; stroke-width: 2; }

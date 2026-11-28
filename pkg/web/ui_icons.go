@@ -24,6 +24,8 @@ var icons = map[string]string{
 	"commit":   `<circle cx="8" cy="8" r="2.5"/><path d="M1.5 8h4M10.5 8h4"/>`,
 	"download": `<path d="M8 2v8"/><path d="M4.75 6.75 8 10l3.25-3.25"/><path d="M2.5 13.25h11"/>`,
 	// Repositories.
+	"repo":   `<path d="M3.25 12.75V3a1.25 1.25 0 0 1 1.25-1.25h8.25v10H4.5a1.25 1.25 0 0 0 0 2.5h8.25"/><path d="M6 1.75v4.5l1.5-1 1.5 1v-4.5"/>`,
+	"plus":   `<path d="M8 3.25v9.5M3.25 8h9.5"/>`,
 	"lock":   `<rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.25 7V5a2.75 2.75 0 0 1 5.5 0v2"/>`,
 	"mirror": `<path d="M2.5 5.75h10.5L10.5 3.25"/><path d="M13.5 10.25H3l2.5 2.5"/>`,
 	// Signatures.
