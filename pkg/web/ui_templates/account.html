@@ -14,7 +14,7 @@
 <section class="card newtoken" role="status" aria-labelledby="new-token">
   <h2 id="new-token">Your new token: {{.Name}}</h2>
   <p><strong>Copy it now. It won't be shown again.</strong></p>
-  <p class="tokenline"><code class="token" id="new-token-value">{{.Token}}</code><button type="button" class="copybtn" data-copy="new-token-value" aria-label="Copy the token" title="Copy" hidden>{{icon "copy"}}{{icon "check"}}</button></p>
+  <p class="tokenline"><code class="token" id="new-token-value">{{.Token}}</code><button type="button" class="copybtn" data-copy="new-token-value" aria-label="Copy the token" hidden>{{icon "copy"}}{{icon "check"}}</button></p>
   <p class="note small">Use it as the password, with your username, or send it in an <code>Authorization: Token …</code> header.</p>
 </section>
 {{end}}
@@ -90,7 +90,7 @@
 <section class="refs">
   <h2>Repositories you can push to</h2>
   <ul>
-    {{range .Repos}}<li><a class="refname" href="{{repoURL .Name "" "" ""}}">{{.Name}}</a>{{if .Private}} <span class="badge">private</span>{{end}}{{if .Hidden}} <span class="badge">hidden</span>{{end}}<span class="badge">{{accessLabel .Access}}</span></li>
+    {{range .Repos}}<li><a class="refname" href="{{repoURL .Name "" "" ""}}">{{if .Private}}{{icon "lock"}}{{end}}{{.Name}}</a>{{if .Private}} <span class="badge">private</span>{{end}}{{if .Hidden}} <span class="badge">hidden</span>{{end}}<span class="badge">{{accessLabel .Access}}</span></li>
     {{else}}<li class="muted">None yet.</li>{{end}}
   </ul>
 </section>

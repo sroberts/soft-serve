@@ -14,7 +14,7 @@ func TestUIIssues(t *testing.T) {
 
 	// An empty list offers to create one; anonymous visitors can read but
 	// get no way to write.
-	has(t, f.do(req{path: "/group/open/-/issues", auth: auth}), "No open issues.", `href="/group/open/-/issues/new"`, `aria-current="page"><svg class="ic ic-list"`)
+	has(t, f.do(req{path: "/group/open/-/issues", auth: auth}), "No open issues.", `href="/group/open/-/issues/new"`, `aria-current="page"><svg class="ic ic-issue"`)
 	hasNot(t, f.do(req{path: "/group/open/-/issues"}), `href="/group/open/-/issues/new"`)
 	if w := f.do(req{path: "/group/open/-/issues/new"}); w.Code == http.StatusOK {
 		t.Errorf("anonymous new issue form: %d", w.Code)

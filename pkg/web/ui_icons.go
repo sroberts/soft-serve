@@ -15,7 +15,7 @@ var icons = map[string]string{
 	// Files.
 	"folder":    `<path d="M1.75 4a1 1 0 0 1 1-1h3.4l1.6 1.75h5.5a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1H2.75a1 1 0 0 1-1-1z"/>`,
 	"file":      `<path d="M4 1.75h4.75L12.5 5.5v7.75a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2.75a1 1 0 0 1 1-1z"/><path d="M8.75 1.75V5.5h3.75"/>`,
-	"symlink":   `<path d="M4 1.75h4.75L12.5 5.5v7.75a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2.75a1 1 0 0 1 1-1z"/><path d="M8.75 1.75V5.5h3.75"/><path d="M5.75 12c0-1.9 1.1-2.75 3.25-2.75"/><path d="M7.75 7.75 9.25 9.25l-1.5 1.5"/>`,
+	"symlink":   `<path d="M4 1.75h4.75L12.5 5.5v7.75a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2.75a1 1 0 0 1 1-1z"/><path d="M5.75 11.75 9.75 7.75M7 7.75h2.75v2.75"/>`,
 	"submodule": `<path d="M8 1.75 13.5 4.6v6.8L8 14.25 2.5 11.4V4.6z"/><path d="M2.5 4.6 8 7.5l5.5-2.9M8 7.5v6.75"/>`,
 	"up":        `<path d="M13 13H7.25a2 2 0 0 1-2-2V3"/><path d="M2.5 5.75 5.25 3 8 5.75"/>`,
 	// Refs and history.
@@ -24,7 +24,6 @@ var icons = map[string]string{
 	"commit":   `<circle cx="8" cy="8" r="2.5"/><path d="M1.5 8h4M10.5 8h4"/>`,
 	"download": `<path d="M8 2v8"/><path d="M4.75 6.75 8 10l3.25-3.25"/><path d="M2.5 13.25h11"/>`,
 	// Repositories.
-	"repo":   `<path d="M3.25 12.75V3a1.25 1.25 0 0 1 1.25-1.25h8.25v10H4.5a1.25 1.25 0 0 0 0 2.5h8.25"/><path d="M6 1.75v4.5l1.5-1 1.5 1v-4.5"/>`,
 	"plus":   `<path d="M8 3.25v9.5M3.25 8h9.5"/>`,
 	"lock":   `<rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.25 7V5a2.75 2.75 0 0 1 5.5 0v2"/>`,
 	"mirror": `<path d="M2.5 5.75h10.5L10.5 3.25"/><path d="M13.5 10.25H3l2.5 2.5"/>`,
@@ -33,20 +32,20 @@ var icons = map[string]string{
 	"unverified": `<path d="M8 1.5 13.25 3.5v4c0 3.15-2.2 5.6-5.25 7-3.05-1.4-5.25-3.85-5.25-7v-4z"/><path d="M6.25 6.25l3.5 3.5M9.75 6.25l-3.5 3.5"/>`,
 	"check":      `<path d="M3 8.5 6.25 11.5 13 4.75"/>`,
 	// Issue activity.
-	"opened":  `<circle cx="8" cy="8" r="5.75"/><path d="M8 5.5v5M5.5 8h5"/>`,
+	"opened":  `<path d="M8 3.25v9.5M3.25 8h9.5"/>`,
+	"comment": `<path d="M2.75 4a1.25 1.25 0 0 1 1.25-1.25h8A1.25 1.25 0 0 1 13.25 4v5.75A1.25 1.25 0 0 1 12 11H7.25L4.5 13.25V11H4a1.25 1.25 0 0 1-1.25-1.25z"/>`,
 	"person":  `<circle cx="8" cy="5.25" r="2.75"/><path d="M2.75 14c.6-2.6 2.7-4 5.25-4s4.65 1.4 5.25 4"/>`,
+	"label":   `<rect x="1.75" y="4.5" width="12.5" height="7" rx="3.5"/><circle cx="5.25" cy="8" r="1.25" fill="currentColor" stroke="none"/>`,
 	"pencil":  `<path d="M10.75 2.25 13.75 5.25 5.5 13.5H2.5v-3z"/><path d="M9 4l3 3"/>`,
 	"parent":  `<path d="M4 2v7a2 2 0 0 0 2 2h7"/><path d="M10.5 8.5 13 11l-2.5 2.5"/>`,
 	"project": `<path d="M3.75 14.25V2.25"/><path d="M3.75 2.75h8.5l-2 3 2 3h-8.5"/>`,
-	"cycle":   `<path d="M13.25 8a5.25 5.25 0 0 1-9.4 3.2"/><path d="M2.75 8a5.25 5.25 0 0 1 9.4-3.2"/><path d="M12.5 1.75V5H9.25"/><path d="M3.5 14.25V11h3.25"/>`,
+	"cycle":   `<path d="M8 2.75a5.25 5.25 0 1 1-5.25 5.25"/><path d="M6 .75 8 2.75 6 4.75"/><circle cx="8" cy="8" r="1.25" fill="currentColor" stroke="none"/>`,
 	// The repository tabs and the issue views.
-	"code":     `<path d="M5.5 4.25 1.75 8l3.75 3.75M10.5 4.25 14.25 8 10.5 11.75"/>`,
-	"issue":    `<circle cx="8" cy="8" r="5.75"/><circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/>`,
+	"issue":    `<rect x="2.25" y="2.75" width="11.5" height="10.5" rx="2"/><path d="M5.25 6.5h5.5M5.25 9.5h3.5"/>`,
 	"compare":  `<path d="M5 2.5v8.75M2.75 9 5 11.25 7.25 9"/><path d="M11 13.5V4.75M8.75 7 11 4.75 13.25 7"/>`,
 	"search":   `<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 13.75 13.75"/>`,
 	"insights": `<path d="M2.25 13.75h11.5"/><path d="M4.75 11V8.25M8 11V3.75M11.25 11V6.25"/>`,
 	"settings": `<path d="M2.25 4.75h6.25M12.75 4.75h1M2.25 11.25h1.5M7.5 11.25h6.25"/><circle cx="10.5" cy="4.75" r="1.75"/><circle cx="5.5" cy="11.25" r="1.75"/>`,
-	"list":     `<path d="M6 4h7.75M6 8h7.75M6 12h7.75"/><circle cx="2.75" cy="4" r=".9" fill="currentColor" stroke="none"/><circle cx="2.75" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="2.75" cy="12" r=".9" fill="currentColor" stroke="none"/>`,
 	"board":    `<rect x="1.75" y="2.25" width="12.5" height="11.5" rx="2"/><path d="M6 2.25v11.5M10 2.25v11.5"/>`,
 	// Diffs: how a file changed, and the fold on each file.
 	"diff-added":    `<rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2.5"/><path d="M8 5.25v5.5M5.25 8h5.5"/>`,
@@ -114,7 +113,7 @@ func eventIcon(e ops.IssueEvent) template.HTML {
 	case issue.EventTitle, issue.EventDescription:
 		return icon("pencil")
 	case issue.EventLabelAdded, issue.EventLabelRemove:
-		return icon("tag")
+		return icon("label")
 	case issue.EventParent:
 		return icon("parent")
 	case issue.EventProject:

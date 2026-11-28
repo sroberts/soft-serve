@@ -24,12 +24,15 @@
     const from = btn.previousElementSibling;
     if (!from || from.id !== btn.dataset.copy) continue;
     let timer;
+    btn.title = btn.getAttribute("aria-label");
     btn.hidden = false;
     btn.addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(from.textContent.trim());
       } catch {
-        announce("Couldn't copy. Select the text instead.");
+        // Select it instead, so it can be copied by hand.
+        getSelection().selectAllChildren(from);
+        announce("Couldn't copy. The text is selected; copy it by hand.");
         return;
       }
       btn.classList.add("copied");

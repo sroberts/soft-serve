@@ -24,7 +24,7 @@
 <ul class="repos">
   {{range .Data.Repos}}
   <li>
-    {{if .Private}}{{icon "lock"}}{{else if .Mirror}}{{icon "mirror"}}{{else}}{{icon "repo"}}{{end}}<a class="repo" href="{{repoURL .Name "" "" ""}}">{{.Name}}</a>
+    {{if .Private}}{{icon "lock"}}{{else if .Mirror}}{{icon "mirror"}}{{end}}<a class="repo" href="{{repoURL .Name "" "" ""}}">{{.Name}}</a>
     {{if .Private}}<span class="badge">private</span>{{end}}{{if .Mirror}}<span class="badge">mirror</span>{{end}}{{if .Empty}}<span class="badge">empty</span>{{end}}
     {{if .Description}}<p class="desc">{{.Description}}</p>{{end}}
     {{with .LastCommit}}<p class="meta latest"><time datetime="{{.When.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.When.Format "2 Jan 2006 15:04 MST"}}">{{ago .When}}</time> on <span class="branch">{{icon "branch"}}{{.Branch}}</span> · {{.Summary}}</p>{{else}}<p class="meta">Updated {{ago .UpdatedAt}}</p>{{end}}
@@ -140,10 +140,10 @@
   {{with body .Message}}<pre class="message">{{.}}</pre>{{end}}
   <dl class="meta">
     <dt>Author</dt><dd><bdi>{{.Author.Name}}</bdi> &lt;{{.Author.Email}}&gt; · <time datetime="{{.Author.When.Format "2006-01-02T15:04:05Z07:00"}}">{{.Author.When.Format "2 Jan 2006 15:04"}}</time></dd>
-    <dt>Commit</dt><dd><code id="commit-sha">{{.SHA}}</code><button type="button" class="copybtn" data-copy="commit-sha" aria-label="Copy the commit hash" title="Copy" hidden>{{icon "copy"}}{{icon "check"}}</button></dd>
+    <dt>Commit</dt><dd><code id="commit-sha">{{.SHA}}</code><button type="button" class="copybtn" data-copy="commit-sha" aria-label="Copy the commit hash" hidden>{{icon "copy"}}{{icon "check"}}</button></dd>
     {{with .Signature}}<dt>Signature</dt><dd>{{template "signature" .}}</dd>{{end}}
     {{if .Parents}}<dt>Parent{{if gt (len .Parents) 1}}s{{end}}</dt><dd>{{range .Parents}}<a href="{{repoURL $.Repo.Name (printf "commit/%s" .) "" ""}}"><code>{{short .}}</code></a> {{end}}</dd>{{end}}
-    <dt>Browse</dt><dd><a href="{{repoURL $.Repo.Name "tree" .SHA ""}}">Files at this commit</a> · Download <a href="{{archiveURL $.Repo.Name .SHA "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .SHA "zip"}}" download>.zip</a></dd>
+    <dt>Browse</dt><dd><a href="{{repoURL $.Repo.Name "tree" .SHA ""}}">Files at this commit</a> · {{icon "download"}}Download <a href="{{archiveURL $.Repo.Name .SHA "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .SHA "zip"}}" download>.zip</a></dd>
   </dl>
   {{template "diffview" .Diff}}
 </article>
@@ -173,7 +173,7 @@
       <div class="refmain">
         <a class="refname" href="{{$.Data.Link .Name}}">{{icon "tag"}}{{.Name}}</a>
         <p class="meta">{{if .Tagger}}Tagged by <bdi>{{.Tagger.Name}}</bdi> · {{end}}<time datetime="{{.Date.Format "2006-01-02T15:04:05Z07:00"}}">{{ago .Date}}</time> · <a class="sha" href="{{repoURL $.Repo.Name (printf "commit/%s" .Commit) "" ""}}">{{short .Commit}}</a></p>
-        {{if .Message}}<details class="notes"><summary>Release notes</summary><pre class="message">{{.Message}}</pre></details>{{end}}
+        {{if .Message}}<details class="notes"><summary>{{icon "chevron"}}Release notes</summary><pre class="message">{{.Message}}</pre></details>{{end}}
       </div>
       <span class="refactions">{{icon "download"}}<a href="{{archiveURL $.Repo.Name .Name "tar.gz"}}" download aria-label="Download {{.Name}} as .tar.gz">.tar.gz</a> · <a href="{{archiveURL $.Repo.Name .Name "zip"}}" download aria-label="Download {{.Name}} as .zip">.zip</a>{{if canWrite $.Repo.Access}} <a class="danger delete" href="{{deleteRefURL $.Repo.Name "tag" .Name}}" aria-label="Delete tag {{.Name}}">Delete…</a>{{end}}</span>
     </li>
@@ -194,7 +194,7 @@
   <tbody>
   {{range .Files}}
   <tr>
-    <td class="status {{.Status}}" title="{{.Status}}">{{diffIcon .Status}}<span class="visually-hidden">{{.Status}}</span></td>
+    <td class="status {{.Status}}" title="{{.Status}}">{{diffIcon .Status}}<span class="dword">{{.Status}}</span></td>
     <td class="name"><a href="#{{.ID}}">{{if .OldPath}}{{.OldPath}} → {{end}}{{.Path}}</a></td>
     <td class="stat">{{if .Binary}}binary{{else}}<span class="add">+{{.Additions}}</span> <span class="del">−{{.Deletions}}</span>{{end}}</td>
   </tr>
@@ -407,7 +407,7 @@
     <figcaption><span>A year ago</span>{{if .Split}}<span class="legend"><span class="key mine"></span>Yours <span class="key others"></span>Everyone else's</span>{{end}}<span>This week</span></figcaption>
   </figure>
   <details class="weeks">
-    <summary>Commits in each week</summary>
+    <summary>{{icon "chevron"}}Commits in each week</summary>
     <table>
       <thead><tr><th scope="col">Week of</th><th scope="col">Commits</th>{{if .Split}}<th scope="col">Yours</th>{{end}}</tr></thead>
       <tbody>
@@ -433,7 +433,7 @@
     <section>
       {{if .Split}}<h2>Contributors</h2>{{else}}<h2>Top contributors</h2>{{end}}
       {{if .Stats.Contributors}}
-      {{if .Split}}<details class="weeks"><summary>All {{.Stats.TotalContributors}} contributor{{if ne .Stats.TotalContributors 1}}s{{end}}</summary>{{end}}
+      {{if .Split}}<details class="weeks"><summary>{{icon "chevron"}}All {{.Stats.TotalContributors}} contributor{{if ne .Stats.TotalContributors 1}}s{{end}}</summary>{{end}}
       <ol class="people">
         {{range .Stats.Contributors}}<li><a href="{{authorURL $.Repo.Name $.Ref .Name}}">{{.Name}}</a><span class="muted">{{.Commits}} commit{{if ne .Commits 1}}s{{end}}</span></li>
         {{end}}

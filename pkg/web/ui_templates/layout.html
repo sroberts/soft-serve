@@ -45,7 +45,7 @@
 {{define "repohead"}}{{/* The full header is the front page's; deeper pages get the tabs and lead with their own heading. */}}
 {{if .RepoHome}}
 <section class="repohead">
-  <h1>{{if .Repo.Private}}{{icon "lock"}}{{else if .Repo.Mirror}}{{icon "mirror"}}{{else}}{{icon "repo"}}{{end}}{{if .Repo.ProjectName}}{{.Repo.ProjectName}}{{else}}{{.Repo.Name}}{{end}}
+  <h1>{{if .Repo.Private}}{{icon "lock"}}{{else if .Repo.Mirror}}{{icon "mirror"}}{{end}}{{if .Repo.ProjectName}}{{.Repo.ProjectName}}{{else}}{{.Repo.Name}}{{end}}
     {{if .Repo.Private}}<span class="badge">private</span>{{end}}
     {{if .Repo.Mirror}}<span class="badge">mirror</span>{{end}}
     {{if .Repo.Hidden}}<span class="badge">hidden</span>{{end}}
@@ -56,9 +56,9 @@
   {{$sshNote := and .Admin .Repo.Clone.SSHHidden}}
   {{if or .Repo.Clone.SSH .Repo.Clone.HTTPS (not .Repo.Empty) $sshNote}}
   <details class="clone">
-    <summary>{{icon "download"}}Clone or download{{icon "chevron"}}</summary>
-    {{if .Repo.Clone.SSH}}<div class="cloneline"><span>SSH</span> <code class="copy" id="clone-ssh">git clone {{.Repo.Clone.SSH}}</code><button type="button" class="copybtn" data-copy="clone-ssh" aria-label="Copy the SSH clone command" title="Copy" hidden>{{icon "copy"}}{{icon "check"}}</button></div>{{end}}
-    {{if .Repo.Clone.HTTPS}}<div class="cloneline"><span>HTTPS</span> <code class="copy" id="clone-https">git clone {{.Repo.Clone.HTTPS}}</code><button type="button" class="copybtn" data-copy="clone-https" aria-label="Copy the HTTPS clone command" title="Copy" hidden>{{icon "copy"}}{{icon "check"}}</button></div>{{end}}
+    <summary>{{icon "chevron"}}Clone or download</summary>
+    {{if .Repo.Clone.SSH}}<div class="cloneline"><span>SSH</span> <code class="copy" id="clone-ssh">git clone {{.Repo.Clone.SSH}}</code><button type="button" class="copybtn" data-copy="clone-ssh" aria-label="Copy the SSH clone command" hidden>{{icon "copy"}}{{icon "check"}}</button></div>{{end}}
+    {{if .Repo.Clone.HTTPS}}<div class="cloneline"><span>HTTPS</span> <code class="copy" id="clone-https">git clone {{.Repo.Clone.HTTPS}}</code><button type="button" class="copybtn" data-copy="clone-https" aria-label="Copy the HTTPS clone command" hidden>{{icon "copy"}}{{icon "check"}}</button></div>{{end}}
     {{if $sshNote}}<p class="note sshnote">No SSH clone command is shown because the server's SSH address isn't known. Set <code>SOFT_SERVE_SSH_PUBLIC_URL</code> (or <code>ssh.public_url</code> in <code>config.yaml</code>) to the address people reach it at, such as <code>ssh://git.example.com</code>. Only admins see this.</p>{{end}}
     {{if not .Repo.Empty}}<p class="downloads">{{icon "download"}}Download {{if .Ref}}<code>{{.Ref}}</code>{{else}}the default branch{{end}}: <a href="{{archiveURL .Repo.Name .Ref "tar.gz"}}" download>.tar.gz</a> · <a href="{{archiveURL .Repo.Name .Ref "zip"}}" download>.zip</a></p>{{end}}
   </details>
@@ -82,7 +82,7 @@
 {{define "tabs"}}
   <nav class="tabs" aria-label="Repository">
     <div class="tablinks">
-    <a href="{{repoURL .Repo.Name "" .Ref ""}}"{{if eq .Tab "files"}} aria-current="page"{{end}}>{{icon "code"}}Files</a>
+    <a href="{{repoURL .Repo.Name "" .Ref ""}}"{{if eq .Tab "files"}} aria-current="page"{{end}}>{{icon "folder"}}Files</a>
     <a href="{{repoURL .Repo.Name "commits" .Ref ""}}"{{if eq .Tab "commits"}} aria-current="page"{{end}}>{{icon "commit"}}Commits</a>
     <a href="{{repoURL .Repo.Name "issues" "" ""}}"{{if eq .Tab "issues"}} aria-current="page"{{end}}>{{icon "issue"}}Issues</a>
     <a href="{{repoURL .Repo.Name "refs" "" ""}}"{{if eq .Tab "refs"}} aria-current="page"{{end}}>{{icon "branch"}}Branches &amp; tags</a>
@@ -121,7 +121,7 @@
   {{range .Entries}}
   <tr>
     <td class="icon">{{entryIcon .Type}}</td>
-    <td class="name">{{if eq .Type "dir"}}<a href="{{repoURL $repo "tree" $ref .Path}}">{{breakable .Name}}/</a>{{else if eq .Type "submodule"}}{{.Name}} <span class="muted">submodule</span>{{else}}<a href="{{repoURL $repo "blob" $ref .Path}}">{{breakable .Name}}</a>{{end}}</td>
+    <td class="name">{{if eq .Type "dir"}}<a href="{{repoURL $repo "tree" $ref .Path}}">{{breakable .Name}}/</a>{{else if eq .Type "submodule"}}{{.Name}} <span class="muted">submodule</span>{{else}}<a href="{{repoURL $repo "blob" $ref .Path}}">{{breakable .Name}}</a>{{if eq .Type "symlink"}} <span class="muted">symlink</span>{{end}}{{end}}</td>
     <td class="last">{{with .LastCommit}}<a href="{{repoURL $repo (printf "commit/%s" .SHA) "" ""}}" title="{{.Summary}}">{{.Summary}}</a>{{end}}</td>
     <td class="size">{{if eq .Type "file"}}{{bytes .Size}}{{end}}</td>
     <td class="when">{{with .LastCommit}}<time datetime="{{.When.Format "2006-01-02T15:04:05Z07:00"}}" title="{{.When.Format "2 Jan 2006 15:04 MST"}}">{{ago .When}}</time>{{end}}</td>
