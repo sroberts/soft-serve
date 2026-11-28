@@ -37,8 +37,17 @@ var icons = map[string]string{
 	"person":  `<circle cx="8" cy="5.25" r="2.75"/><path d="M2.75 14c.6-2.6 2.7-4 5.25-4s4.65 1.4 5.25 4"/>`,
 	"pencil":  `<path d="M10.75 2.25 13.75 5.25 5.5 13.5H2.5v-3z"/><path d="M9 4l3 3"/>`,
 	"parent":  `<path d="M4 2v7a2 2 0 0 0 2 2h7"/><path d="M10.5 8.5 13 11l-2.5 2.5"/>`,
-	"project": `<rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2"/><path d="M5.5 5.25v5.5M8 5.25v3M10.5 5.25v4.25"/>`,
+	"project": `<path d="M3.75 14.25V2.25"/><path d="M3.75 2.75h8.5l-2 3 2 3h-8.5"/>`,
 	"cycle":   `<path d="M13.25 8a5.25 5.25 0 0 1-9.4 3.2"/><path d="M2.75 8a5.25 5.25 0 0 1 9.4-3.2"/><path d="M12.5 1.75V5H9.25"/><path d="M3.5 14.25V11h3.25"/>`,
+	// The repository tabs and the issue views.
+	"code":     `<path d="M5.5 4.25 1.75 8l3.75 3.75M10.5 4.25 14.25 8 10.5 11.75"/>`,
+	"issue":    `<circle cx="8" cy="8" r="5.75"/><circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none"/>`,
+	"compare":  `<path d="M5 2.5v8.75M2.75 9 5 11.25 7.25 9"/><path d="M11 13.5V4.75M8.75 7 11 4.75 13.25 7"/>`,
+	"search":   `<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 13.75 13.75"/>`,
+	"insights": `<path d="M2.25 13.75h11.5"/><path d="M4.75 11V8.25M8 11V3.75M11.25 11V6.25"/>`,
+	"settings": `<path d="M2.25 4.75h6.25M12.75 4.75h1M2.25 11.25h1.5M7.5 11.25h6.25"/><circle cx="10.5" cy="4.75" r="1.75"/><circle cx="5.5" cy="11.25" r="1.75"/>`,
+	"list":     `<path d="M6 4h7.75M6 8h7.75M6 12h7.75"/><circle cx="2.75" cy="4" r=".9" fill="currentColor" stroke="none"/><circle cx="2.75" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="2.75" cy="12" r=".9" fill="currentColor" stroke="none"/>`,
+	"board":    `<rect x="1.75" y="2.25" width="12.5" height="11.5" rx="2"/><path d="M6 2.25v11.5M10 2.25v11.5"/>`,
 	// Diffs: how a file changed, and the fold on each file.
 	"diff-added":    `<rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2.5"/><path d="M8 5.25v5.5M5.25 8h5.5"/>`,
 	"diff-modified": `<rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2.5"/><circle cx="8" cy="8" r="1.75" fill="currentColor" stroke="none"/>`,

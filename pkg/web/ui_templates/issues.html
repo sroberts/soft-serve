@@ -344,10 +344,10 @@
 
 {{define "issuesnav"}}{{/* . is issuesNavArgs */}}
 <nav class="viewnav" aria-label="Issue views">
-  <a href="{{repoURL .Repo "issues" "" ""}}"{{if eq .Current "issues"}} aria-current="page"{{end}}>Issues</a>
-  <a href="{{repoURL .Repo "issues/board" "" ""}}"{{if eq .Current "board"}} aria-current="page"{{end}}>Board</a>
-  <a href="{{repoURL .Repo "issues/projects" "" ""}}"{{if eq .Current "projects"}} aria-current="page"{{end}}>Projects</a>
-  <a href="{{repoURL .Repo "issues/cycles" "" ""}}"{{if eq .Current "cycles"}} aria-current="page"{{end}}>Cycles</a>
+  <a href="{{repoURL .Repo "issues" "" ""}}"{{if eq .Current "issues"}} aria-current="page"{{end}}>{{icon "list"}}Issues</a>
+  <a href="{{repoURL .Repo "issues/board" "" ""}}"{{if eq .Current "board"}} aria-current="page"{{end}}>{{icon "board"}}Board</a>
+  <a href="{{repoURL .Repo "issues/projects" "" ""}}"{{if eq .Current "projects"}} aria-current="page"{{end}}>{{icon "project"}}Projects</a>
+  <a href="{{repoURL .Repo "issues/cycles" "" ""}}"{{if eq .Current "cycles"}} aria-current="page"{{end}}>{{icon "cycle"}}Cycles</a>
 </nav>
 {{end}}
 

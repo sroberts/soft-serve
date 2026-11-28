@@ -526,7 +526,7 @@ func TestPages(t *testing.T) {
 	is.True(!strings.Contains(file, "Back to top"))
 	commit := f.do(req{path: "/group/open/-/commits"}).Body.String()
 	is.Equal(strings.Count(commit, "<h1"), 1)
-	is.True(strings.Contains(commit, `aria-current="page">Commits</a>`))
+	is.True(strings.Contains(commit, `aria-current="page"><svg class="ic ic-commit"`))
 
 	// A directory opened as a file, and the reverse, redirect.
 	is.Equal(f.do(req{path: "/group/open/-/blob?path=src"}).Code, http.StatusFound)

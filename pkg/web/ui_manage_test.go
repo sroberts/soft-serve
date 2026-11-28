@@ -329,7 +329,7 @@ func TestUIWebhooks(t *testing.T) {
 	// Webhooks are under Manage: one tab, then its own row of pages. Manage
 	// stands outside the tabs' scrolling row, so a phone never hides it.
 	// (Any whitespace between: templates check out with CRLF on Windows.)
-	pinned := regexp.MustCompile(`</div>\s*<a href="/group/open/-/settings"( aria-current="page")?>Manage</a>`)
+	pinned := regexp.MustCompile(`</div>\s*<a href="/group/open/-/settings"( aria-current="page")?><svg class="ic ic-settings"[^>]*>.*?</svg>Manage</a>`)
 	for path, current := range map[string]bool{"/group/open": false, "/group/open/-/settings": true} {
 		m := pinned.FindStringSubmatch(f.do(req{path: path, auth: auth}).Body.String())
 		if m == nil || (m[1] != "") != current {
