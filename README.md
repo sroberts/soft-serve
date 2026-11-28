@@ -931,6 +931,63 @@ Flags:
   -h, --help   help for webhook
 ```
 
+### Repository issues
+
+Every repository can track issues, after [Linear](https://linear.app). An issue
+is named by the repository's key and a number, such as `ICE-12`; the key comes
+from the repository's name and can be changed (`repo issue key icecream CREAM`
+renames every issue). Issues move along one workflow, _backlog_, _todo_,
+_in progress_, _in review_, _done_, _canceled_, and have a priority (_urgent_,
+_high_, _medium_, _low_ or none), labels, an assignee, a parent issue,
+comments and an activity log.
+
+```sh
+ssh -p 23231 localhost repo issue create icecream Add sprinkles -p high -l topping
+ssh -p 23231 localhost repo issue list --assignee me          # yours, across repositories
+ssh -p 23231 localhost repo issue edit ICE-1 -s in_progress --assignee me
+ssh -p 23231 localhost repo issue comment ICE-1 Halfway there.
+ssh -p 23231 localhost repo issue view ICE-1
+```
+
+Issues can also belong to a **project**, a named body of work with a status
+(planned, started, paused, completed, canceled), a lead, start and target dates,
+and progress counted from its issues, and to a **cycle**, a numbered,
+time-boxed sprint. Cycles follow one another: `repo issue cycle create icecream`
+starts the next one the day after the last ends and runs two weeks. Name a cycle
+by its number, or as `current`, `next` or `previous`.
+
+```sh
+ssh -p 23231 localhost repo issue project create icecream Summer --target 2027-06-01
+ssh -p 23231 localhost repo issue edit ICE-1 --project summer --cycle current
+ssh -p 23231 localhost repo issue list icecream --cycle current
+```
+
+Pushes update issues by themselves:
+
+- a commit that mentions `ICE-12` is linked to it;
+- one on the default branch that says `Fixes ICE-12` (or _closes_, _resolves_)
+  moves it to done;
+- a new branch named for an issue, such as `you/ice-12-sprinkles`, moves it
+  from backlog or todo to in progress.
+
+In the web view, a repository's **Issues** tab lists them by status, with
+filters and search, and each issue has a page for its properties, sub-issues,
+linked commits, activity and comments. The **Board** shows a column per status:
+move a card with its status menu, or drag it with a mouse. **My issues**, in
+the header, lists everything open across your repositories, most urgent first.
+
+The issue views load one small script of the server's own for keyboard
+shortcuts (<kbd>c</kbd> new issue, <kbd>/</kbd> search, <kbd>j</kbd>/<kbd>k</kbd>
+to move, <kbd>s</kbd>/<kbd>p</kbd> for status and priority, <kbd>g</kbd> then
+<kbd>b</kbd> for the board, <kbd>?</kbd> for the rest), menus that change an issue
+without reloading, and dragging on the board. Everything works without it.
+
+Anyone who can read a repository can read its issues. Creating, changing and
+commenting need read-write access; only a comment's author or a repository
+admin can change the comment, and changing the key needs admin access. The
+same issues and rules are in the REST API and the MCP tools below, and in the
+`soft` client.
+
 ## The Web View, REST API and MCP
 
 Soft Serve's HTTP port also serves its repositories three ways, each showing
@@ -1056,13 +1113,28 @@ exactly what the caller may read and allowing what they may change:
   curl -H "$auth" -X PATCH -d '{"anon_access":"no-access"}' http://localhost:23232/v1/settings
   ```
 
+- **Issues** at `/v1/issues` (across repositories; `?assignee=me` for yours),
+  `/v1/issues/ICE-12`, and per repository under `/v1/repos/NAME/-/issues`,
+  `/-/labels`, `/-/projects`, `/-/cycles` and `/-/issue-tracker`. Lists filter by `status`, `priority`,
+  `label`, `assignee`, `parent` and `q`.
+
+  ```sh
+  curl -H "$auth" -d '{"title":"Add sprinkles","priority":"high"}' http://localhost:23232/v1/repos/icecream/-/issues
+  curl -H "$auth" -X PATCH -d '{"status":"done"}' http://localhost:23232/v1/issues/ICE-1
+  ```
+
 - **MCP** at `/mcp` (Streamable HTTP), with read-only tools to list
   repositories and the newest commits across them (`recent_activity`),
   branches, tags and commits (or search them by message or
   author), read a README, list a directory, find files by name, read and
   blame a file, get a commit's diff and signature, compare two refs, search
   the files, get a repository's stats, say who you are (`whoami`), and (for
-  admins) list collaborators. A request that reaches `/mcp` over loopback
+  admins) list collaborators. Its issue tools read and write as you:
+  `list_issues`, `get_issue`, `get_issue_tracker`, `list_issue_labels`,
+  `create_issue`, `update_issue`, `comment_on_issue`, `edit_issue_comment`,
+  `create_issue_label`, `list_issue_projects`, `create_issue_project`,
+  `update_issue_project`, `list_issue_cycles`, `create_issue_cycle`,
+  `update_issue_cycle` and `delete_issue` (the one marked destructive). A request that reaches `/mcp` over loopback
   must be addressed to `localhost`, to the host of
   `SOFT_SERVE_HTTP_PUBLIC_URL`, or come through Outpost's login gateway;
   anything else is refused, as a guard against DNS rebinding. Behind a

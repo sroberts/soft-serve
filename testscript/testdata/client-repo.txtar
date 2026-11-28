@@ -85,6 +85,19 @@ env SOFT_SERVE_TOKEN=
 stderr 'unauthorized'
 env SOFT_SERVE_TOKEN=$ADMIN_TOKEN
 
+# issues, through the same commands
+exec soft repo issue create repo1 'From the client' -p urgent -l cli
+stdout 'REP-1'
+exec soft repo issue edit REP-1 -s in_progress
+stdout 'REP-1  In Progress  From the client'
+exec soft repo issue comment repo1 1 'Working on it.'
+exec soft repo issue list
+stdout 'REP-1.*repo1.*In Progress.*Urgent.*From the client \[cli\]'
+exec soft repo issue view REP-1
+stdout 'Working on it.'
+! exec soft repo issue view REP-9
+stderr 'not found'
+
 # rename and delete
 exec soft repo rename repo1 repo2
 exec soft repo info repo2

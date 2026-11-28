@@ -1,0 +1,138 @@
+CREATE TABLE IF NOT EXISTS issue_trackers (
+  repo_id INTEGER PRIMARY KEY,
+  key TEXT NOT NULL UNIQUE,
+  next_number INTEGER NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT repo_id_fk
+  FOREIGN KEY(repo_id) REFERENCES repos(id)
+  ON DELETE CASCADE
+  ON UPDATE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS issues (
+  id SERIAL PRIMARY KEY,
+  repo_id INTEGER NOT NULL,
+  number INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL,
+  priority INTEGER NOT NULL DEFAULT 0,
+  assignee_id INTEGER,
+  creator_id INTEGER,
+  parent_id INTEGER,
+  sort_order DOUBLE PRECISION NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  started_at TIMESTAMP,
+  completed_at TIMESTAMP,
+  canceled_at TIMESTAMP,
+  UNIQUE (repo_id, number),
+  CONSTRAINT repo_id_fk
+  FOREIGN KEY(repo_id) REFERENCES repos(id)
+  ON DELETE CASCADE
+  ON UPDATE CASCADE,
+  CONSTRAINT assignee_id_fk
+  FOREIGN KEY(assignee_id) REFERENCES users(id)
+  ON DELETE SET NULL
+  ON UPDATE CASCADE,
+  CONSTRAINT creator_id_fk
+  FOREIGN KEY(creator_id) REFERENCES users(id)
+  ON DELETE SET NULL
+  ON UPDATE CASCADE,
+  CONSTRAINT parent_id_fk
+  FOREIGN KEY(parent_id) REFERENCES issues(id)
+  ON DELETE SET NULL
+  ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS issues_repo_status ON issues (repo_id, status);
+CREATE INDEX IF NOT EXISTS issues_assignee ON issues (assignee_id);
+CREATE INDEX IF NOT EXISTS issues_parent ON issues (parent_id);
+
+CREATE TABLE IF NOT EXISTS issue_labels (
+  id SERIAL PRIMARY KEY,
+  repo_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (repo_id, name),
+  CONSTRAINT repo_id_fk
+  FOREIGN KEY(repo_id) REFERENCES repos(id)
+  ON DELETE CASCADE
+  ON UPDATE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS issue_label_links (
+  issue_id INTEGER NOT NULL,
+  label_id INTEGER NOT NULL,
+  PRIMARY KEY (issue_id, label_id),
+  CONSTRAINT issue_id_fk
+  FOREIGN KEY(issue_id) REFERENCES issues(id)
+  ON DELETE CASCADE
+  ON UPDATE CASCADE,
+  CONSTRAINT label_id_fk
+  FOREIGN KEY(label_id) REFERENCES issue_labels(id)
+  ON DELETE CASCADE
+  ON UPDATE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS issue_comments (
+  id SERIAL PRIMARY KEY,
+  issue_id INTEGER NOT NULL,
+  author_id INTEGER,
+  body TEXT NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT issue_id_fk
+  FOREIGN KEY(issue_id) REFERENCES issues(id)
+  ON DELETE CASCADE
+  ON UPDATE CASCADE,
+  CONSTRAINT author_id_fk
+  FOREIGN KEY(author_id) REFERENCES users(id)
+  ON DELETE SET NULL
+  ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS issue_comments_issue ON issue_comments (issue_id);
+
+CREATE TABLE IF NOT EXISTS issue_events (
+  id SERIAL PRIMARY KEY,
+  issue_id INTEGER NOT NULL,
+  actor_id INTEGER,
+  kind TEXT NOT NULL,
+  from_value TEXT NOT NULL DEFAULT '',
+  to_value TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT issue_id_fk
+  FOREIGN KEY(issue_id) REFERENCES issues(id)
+  ON DELETE CASCADE
+  ON UPDATE CASCADE,
+  CONSTRAINT actor_id_fk
+  FOREIGN KEY(actor_id) REFERENCES users(id)
+  ON DELETE SET NULL
+  ON UPDATE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS issue_events_issue ON issue_events (issue_id);
+
+CREATE TABLE IF NOT EXISTS issue_commits (
+  id SERIAL PRIMARY KEY,
+  issue_id INTEGER NOT NULL,
+  repo_id INTEGER NOT NULL,
+  sha TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '',
+  closes BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (issue_id, repo_id, sha),
+  CONSTRAINT issue_id_fk
+  FOREIGN KEY(issue_id) REFERENCES issues(id)
+  ON DELETE CASCADE
+  ON UPDATE CASCADE,
+  CONSTRAINT repo_id_fk
+  FOREIGN KEY(repo_id) REFERENCES repos(id)
+  ON DELETE CASCADE
+  ON UPDATE CASCADE
+);

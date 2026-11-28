@@ -48,6 +48,7 @@ func serviceRepoCommands() []*cobra.Command {
 		hiddenCommand(),
 		importCommand(),
 		infoRepoCommand(),
+		issueCommand(),
 		listCommand(),
 		mirrorCommand(),
 		privateCommand(),

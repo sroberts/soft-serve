@@ -12,9 +12,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// MCP over the Streamable HTTP transport at /mcp: read-only tools over the
-// same view as the web pages and the REST API, answering with what the
-// caller may read.
+// MCP over the Streamable HTTP transport at /mcp: tools over the same view
+// as the web pages and the REST API, answering with what the caller may
+// read. The repository tools only read; the issue tools (mcp_issues.go) can
+// also create and change issues, as the caller.
 
 type callerKey struct{}
 
@@ -53,12 +54,12 @@ func mcpHandler(v *outpostVerifier) http.Handler {
 	})
 }
 
-const mcpInstructions = `Read-only access to the Git repositories on this Soft Serve server.
+const mcpInstructions = `The Git repositories on this Soft Serve server, and their issues.
 Start with list_repositories, or search_code inside one. A repository name
 may contain slashes. Every
 tool that takes a ref accepts a branch, a tag or a commit hash, and uses the
 default branch when it is left out. Files and patches longer than 1 MiB are
-cut off, and say so.`
+cut off, and say so. The repository tools only read.` + issueToolsGuide
 
 func readOnly(title string) *mcp.ToolAnnotations {
 	f := false
@@ -313,6 +314,7 @@ func newMCPServer(b *browser, outpostUser string, cache *mcp.SchemaCache) *mcp.S
 		return collaboratorList{Collaborators: cs}, err
 	}))
 
+	addIssueTools(s, b)
 	return s
 }
 

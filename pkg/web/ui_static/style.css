@@ -14,6 +14,10 @@
   --del: #b42318;
   --del-bg: #fdecea;
   --hunk: #5b52b8;
+  /* Issue statuses: what's moving is yellow, review green, done the accent. */
+  --st-progress: #8f5b00; /* 5.6:1 on white, for "Started" as text too */
+  --st-review: #1a7f37;
+  --st-done: #6d3fd8;
   --radius: 8px;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -46,6 +50,9 @@
     --del: #ff7b72;
     --del-bg: #2d1515;
     --hunk: #a5a0ff;
+    --st-progress: #e3b341;
+    --st-review: #56d364;
+    --st-done: #b49cff;
   }
 }
 
@@ -749,7 +756,7 @@ label.field { display: grid; gap: 4px; margin: 0 0 12px; font-size: var(--text-u
 label.field .hint { font-weight: 400; color: var(--muted); font-size: var(--text-meta); }
 label.check { display: flex; gap: 8px; align-items: baseline; margin: 6px 0; font-size: var(--text-ui); }
 label.check input { flex: none; margin: 0; width: 16px; height: 16px; accent-color: var(--accent); transform: translateY(2px); }
-input[type="text"], input[type="url"], input[type="password"], select {
+input[type="text"], input[type="url"], input[type="password"], input[type="date"], select {
   font: inherit;
   font-size: var(--text-ui);
   padding: 7px 10px;
@@ -916,7 +923,7 @@ pre.payload { margin: 0; padding: 10px 12px; background: var(--bg); border: 1px 
   a.button { display: inline-flex; align-items: center; min-height: 44px; }
   /* A row's own action fills the row's height, not just its word. */
   .refs li a.rowaction { padding: 12px 8px; margin: -12px -8px -12px 0; }
-  input[type="text"], input[type="url"], input[type="password"], select { height: 44px; font-size: 16px; }
+  input[type="text"], input[type="url"], input[type="password"], input[type="date"], select { height: 44px; font-size: 16px; }
   .compareform .dots { padding-bottom: 12px; }
 
   /* Tabs: wide screens keep the underline, so the links grow down to it. */
@@ -1028,4 +1035,257 @@ main {
    a browser tab, pulling down still reloads. */
 @media (display-mode: standalone) {
   html { overscroll-behavior: none; }
+}
+
+/* Issues */
+
+.issuebar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 0 0 12px; }
+.issuebar h1 { margin: 0; font-size: var(--text-display); }
+.issuebar .subnav { margin: 0; }
+.issuefilter { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 18px; font-size: var(--text-ui); }
+.issuefilter input[type="search"] { flex: 1 1 16rem; height: 2.375rem; }
+.issuefilter select { width: auto; flex: 0 1 auto; }
+.issuefilter .clear { white-space: nowrap; }
+/* On a phone the scope tabs become this menu; elsewhere the tabs do. */
+.scopepick { display: none; }
+/* The filters fold away until wanted; open when any is on. The menus
+   inside still go with the form when it's closed. */
+.issuefilter .filters { display: contents; }
+.issuefilter .filters > summary { display: inline-flex; align-items: center; gap: 6px; height: 2.375rem; padding: 0 12px; border: 1px solid var(--field-border); border-radius: var(--radius); background: var(--surface); color: var(--text); font-weight: var(--weight-label); cursor: pointer; list-style: none; }
+.issuefilter .filters > summary::-webkit-details-marker { display: none; }
+.issuefilter .filters[open] > summary { border-color: var(--accent); }
+.fcount { padding: 0 6px; border-radius: 999px; background: var(--accent-soft); font-size: var(--text-micro); }
+.filterset { display: flex; flex-wrap: wrap; gap: 8px; flex-basis: 100%; order: 1; }
+.ifoot { margin: 20px 0 0; font-size: var(--text-ui); }
+.ifoot a { color: var(--muted); }
+
+.sicon, .picon, .ldot { flex: none; display: inline-block; vertical-align: -2px; }
+.sicon { color: var(--muted); }
+.sicon.s-in_progress { color: var(--st-progress); }
+.sicon.s-in_review { color: var(--st-review); }
+.sicon.s-done { color: var(--st-done); }
+.picon { color: var(--muted); }
+.picon.p-urgent { color: var(--del); }
+.picon.p-high, .picon.p-medium, .picon.p-low { color: var(--text); }
+.ldot { vertical-align: 0; margin-right: 5px; color: var(--muted); }
+
+.igroup { margin: 0 0 18px; }
+.igroup-head { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: var(--text-ui); font-weight: var(--weight-strong); }
+.igroup-head .count, .isub h2 .count { color: var(--muted); font-weight: 400; }
+.ilist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.irow { position: relative; display: flex; align-items: center; gap: 10px; min-height: 2.75rem; padding: 8px 14px; border-top: 1px solid var(--line); }
+.irow:first-child { border-top: 0; }
+.irow .iid { flex: none; min-width: 4.5em; font-family: var(--mono); font-size: var(--text-meta); color: var(--muted); font-variant-numeric: tabular-nums; }
+.irow .ititle { flex: 1 1 auto; min-width: 0; color: var(--text); font-size: var(--text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The title's link covers the row; nothing else in a row is a link. */
+.irow .ititle::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+@media (hover: hover) {
+  .irow:hover { background: var(--bg); }
+  .irow .ititle:hover { text-decoration: none; }
+}
+.irow:has(.ititle:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
+.irow .ititle:focus-visible { outline: 0; }
+.imeta { flex: none; display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: var(--text-meta); white-space: nowrap; }
+.imeta time { min-width: 3.5em; text-align: right; font-variant-numeric: tabular-nums; }
+.ilabel { display: inline-flex; align-items: center; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: var(--text-micro); color: var(--text); white-space: nowrap; }
+.irepo { font-family: var(--mono); }
+.icount { display: inline-flex; align-items: center; gap: 3px; }
+.iassignee { max-width: 10em; overflow: hidden; text-overflow: ellipsis; }
+.ipager { display: flex; gap: 16px; align-items: center; color: var(--muted); font-size: var(--text-ui); }
+.iempty { padding: 32px 0; }
+.iempty p { margin: 0 0 6px; }
+
+.ipath { font-family: var(--sans); font-size: var(--text-ui); margin-bottom: 6px; }
+/* Mono is for identifiers, not names. */
+.crumbid { font-family: var(--mono); }
+.date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.badge.current { color: var(--accent); border-color: var(--accent); vertical-align: 0.15em; font-weight: var(--weight-label); }
+.issuehead h1 .badge { font-size: var(--text-micro); }
+/* A breadcrumb link is told from the text beside it by more than color. */
+.ipath a { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.issuehead { display: flex; align-items: flex-start; gap: 12px 16px; margin: 0 0 18px; }
+.issuehead h1 { flex: 1; margin: 0; font-size: var(--text-display); line-height: 1.3; overflow-wrap: anywhere; text-wrap: balance; }
+.issuepage { display: grid; grid-template-columns: minmax(0, 1fr) 16rem; gap: 24px 32px; align-items: start; }
+.issueside { grid-column: 2; grid-row: 1; position: sticky; top: 16px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: var(--text-ui); }
+.issuemain { grid-column: 1; grid-row: 1; min-width: 0; }
+.iprops { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; margin: 0; }
+.iprops dt { color: var(--muted); }
+.iprops dd { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; overflow-wrap: anywhere; }
+.editprops { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.editprops summary { cursor: pointer; color: var(--accent); width: max-content; }
+.editprops form.manage { margin: 12px 0 0; }
+.editprops .ilabels { padding: 8px 12px 4px; }
+.idesc { margin: 0 0 24px; }
+.issuemain .markdown { padding: 0; }
+.issuemain h2 { font-size: var(--text-lead); margin: 0 0 8px; }
+.isub, .icommits, .iactivity { margin: 0 0 28px; }
+.addsub { margin: 8px 0 0; font-size: var(--text-ui); }
+.icommits ul { list-style: none; margin: 0; padding: 0; }
+.icommits li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 4px 0; font-size: var(--text-ui); }
+.icommits .csum { flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; }
+.timeline { list-style: none; margin: 0 0 16px; padding: 0 0 0 14px; border-left: 1px solid var(--line); }
+.timeline .who { font-weight: var(--weight-strong); color: var(--text); }
+.tevent { position: relative; padding: 5px 0; color: var(--muted); font-size: var(--text-ui); overflow-wrap: anywhere; }
+.tevent time { white-space: nowrap; }
+.tevent::before { content: ""; position: absolute; left: -18px; top: 13px; width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
+.tcomment { margin: 10px 0; }
+.tcomment article { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.tcomment header { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: baseline; padding: 8px 14px; border-bottom: 1px solid var(--line); font-size: var(--text-ui); color: var(--muted); }
+.tcomment header .grow { flex: 1; }
+.tcomment .markdown { padding: 10px 14px; font-size: var(--text-body); }
+.tcomment:target article { border-color: var(--accent); }
+.commentform, .issueform { max-width: 48rem; }
+.commentform textarea, .issueform textarea { width: 100%; font: var(--text-body)/1.55 var(--sans); }
+.idelete { margin: 0; font-size: var(--text-ui); }
+/* Kept in the side panel's foot, away from the Comment button. */
+.issueside .idelete { margin-top: 16px; }
+.ilabelset .refname { font-family: var(--sans); }
+
+.viewnav { display: flex; gap: 4px; margin: 0 0 16px; padding: 3px; width: max-content; max-width: 100%; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: var(--text-ui); }
+.viewnav a { padding: 4px 12px; border-radius: 6px; color: var(--muted); }
+.viewnav a[aria-current="page"] { background: var(--accent-soft); color: var(--text); font-weight: var(--weight-strong); }
+@media (hover: hover) { .viewnav a:hover { color: var(--text); text-decoration: none; } }
+
+.projlist { list-style: none; margin: 0 0 24px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.projlist li { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.projlist li:first-child { border-top: 0; }
+/* A form for adding sits behind a button-like summary until it's wanted. */
+.addnew { max-width: 40rem; margin: 4px 0 24px; }
+.addnew > summary { list-style: none; cursor: pointer; width: max-content; }
+.addnew > summary.button { display: inline-block; font-size: var(--text-ui); font-weight: var(--weight-strong); padding: 7px 14px; border: 1px solid var(--field-border); border-radius: var(--radius); background: var(--surface); color: var(--text); }
+@media (hover: hover) { .addnew > summary.button:hover { border-color: var(--accent); } }
+.addnew[open] > summary.button { border-color: var(--accent); }
+/* With the script, a filter applies as it changes, so its button can go. */
+/* Filters apply as they change, so the button is only for no script. */
+.scripted .issuefilter > button[type="submit"] { display: none; }
+.addnew > summary::-webkit-details-marker { display: none; }
+.addnew[open] > summary { margin-bottom: 14px; }
+.addnew .note { margin: 0 0 10px; }
+.colorfield { flex: 0 0 auto !important; }
+.colorfield input[type="color"] { width: 3.5rem; height: 2.375rem; padding: 2px; border: 1px solid var(--field-border); border-radius: var(--radius); background: var(--surface); }
+.moreprops { margin: 4px 0 16px; }
+.moreprops > summary { cursor: pointer; color: var(--accent); width: max-content; font-size: var(--text-ui); margin-bottom: 10px; }
+.projmain { flex: 1 1 16rem; min-width: 0; }
+.projname { font-size: var(--text-lead); font-weight: var(--weight-strong); color: var(--text); overflow-wrap: anywhere; }
+.projname::after { content: ""; position: absolute; inset: 0; }
+@media (hover: hover) { .projlist li:hover { background: var(--bg); } .projname:hover { text-decoration: none; } }
+.projlist li:has(.projname:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
+.projname:focus-visible { outline: 0; }
+.projmain .meta { margin: 2px 0 0; color: var(--muted); font-size: var(--text-meta); }
+.progress { display: inline-flex; align-items: center; gap: 10px; color: var(--muted); font-size: var(--text-meta); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.progress progress { width: 7rem; height: 6px; appearance: none; border: 0; border-radius: 3px; background: var(--line); overflow: hidden; accent-color: var(--st-done); }
+.progress progress::-webkit-progress-bar { background: var(--line); border-radius: 3px; }
+.progress progress::-webkit-progress-value { background: var(--st-done); border-radius: 3px; }
+.progress progress::-moz-progress-bar { background: var(--st-done); border-radius: 3px; }
+/* In the narrow side panel, the bar sits above its count. */
+.iprops .progress { flex-direction: column; align-items: stretch; gap: 4px; white-space: normal; width: 100%; }
+.iprops .progress progress { width: 100%; }
+.pstatus { font-weight: var(--weight-label); color: var(--text); }
+.pstatus.ps-started { color: var(--st-progress); }
+.pstatus.ps-completed { color: var(--st-done); }
+.pstatus.ps-paused, .pstatus.ps-canceled { color: var(--muted); }
+.fieldrow { display: flex; flex-wrap: wrap; gap: 0 12px; }
+.fieldrow label.field { flex: 1 1 10rem; }
+
+/* Status and priority menus on rows and cards: a details whose list hangs
+   below its icon. They sit above the row's covering link. */
+.qmenu { position: relative; z-index: 1; flex: none; }
+/* An open menu rises above the rows and cards after it. */
+.qmenu[open] { z-index: 30; }
+.qmenu > summary { list-style: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; cursor: pointer; }
+/* On an issue's page the menu shows its value's name beside the icon. */
+.qmenu.wide > summary { width: auto; height: auto; gap: 6px; padding: 2px 8px 2px 4px; margin-left: -4px; }
+/* A project or cycle menu keeps a link to the thing itself beside it. */
+.iprops dd.qprop { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; }
+.qopen { color: var(--muted); font-size: var(--text-micro); }
+.qlist .badge.current { margin-left: auto; }
+.qkey { margin-left: auto; min-width: 0; padding: 0 4px; border-bottom-width: 1px; color: var(--muted); font-size: var(--text-micro); }
+.qmenu > summary::-webkit-details-marker { display: none; }
+@media (hover: hover) { .qmenu > summary:hover { background: var(--line); } }
+.qmenu[open] > summary { background: var(--line); }
+.qlist { position: absolute; top: calc(100% + 4px); left: -6px; z-index: 20; display: grid; min-width: 11rem; padding: 4px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 8px 24px rgb(0 0 0 / 0.18), 0 2px 6px rgb(0 0 0 / 0.12); }
+.qlist button.qitem[type="submit"] { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text); font: inherit; font-size: var(--text-ui); font-weight: 400; text-align: left; cursor: pointer; filter: none; }
+.qlist button.qitem[type="submit"][aria-current="true"] { font-weight: var(--weight-strong); background: var(--accent-soft); }
+@media (hover: hover) { .qlist button.qitem[type="submit"]:hover { background: var(--bg); filter: none; } }
+.qlist button.qitem:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.bcard .qlist { left: auto; right: -6px; }
+/* The board scrolls sideways, so its first column's menus open rightward
+   rather than being cut off at its left edge. */
+.bcol:first-child .bcard .qlist { left: -6px; right: auto; }
+
+.board { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(11.5rem, 1fr); gap: 12px; overflow-x: auto; padding: 0 0 12px; margin: 0 0 8px; overscroll-behavior-x: contain; }
+.board:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius); }
+.bcol { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); }
+.bcol.over { border-color: var(--accent); }
+.bcol-head { display: flex; align-items: center; gap: 8px; margin: 2px 4px 8px; font-size: var(--text-ui); font-weight: var(--weight-strong); }
+.bcol-head .count { color: var(--muted); font-weight: 400; }
+.badd { margin-left: auto; display: inline-flex; padding: 4px; border-radius: 6px; color: var(--muted); }
+@media (hover: hover) { .badd:hover { background: var(--line); color: var(--text); } }
+.bcards { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; align-content: start; min-height: 3rem; }
+.bcard { position: relative; display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.bcard[draggable="true"] { cursor: grab; }
+.bcard.dragging { opacity: 0.45; }
+.bcard-top { display: flex; align-items: center; gap: 4px; }
+.bcard .iid { font-family: var(--mono); font-size: var(--text-meta); color: var(--muted); }
+.bcard .grow { flex: 1; }
+.bcard .ititle { color: var(--text); font-size: var(--text-ui); line-height: 1.4; overflow-wrap: anywhere; }
+.bcard .ititle::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+@media (hover: hover) { .bcard:hover { border-color: var(--field-border); } .bcard .ititle:hover { text-decoration: none; } }
+.bcard:has(.ititle:focus-visible) { outline: 2px solid var(--accent); outline-offset: -1px; }
+.bcard .ititle:focus-visible { outline: 0; }
+.bcard .imeta { flex-wrap: wrap; white-space: normal; gap: 6px; }
+.iproject { color: var(--muted); }
+.bdrop { height: 3px; margin: -2px 0; border-radius: 2px; background: var(--accent); }
+.boardnote { font-size: var(--text-meta); }
+
+.shortcuts { margin: 24px 0 0; font-size: var(--text-ui); color: var(--muted); }
+/* Asked for with ?, the list floats over the page where you are. */
+.shortcuts.floating[open] { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 40; margin: 0; padding: 12px 16px; max-width: min(24rem, calc(100vw - 32px)); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: 0 12px 32px rgb(0 0 0 / 0.22), 0 2px 6px rgb(0 0 0 / 0.12); }
+/* Keys and dragging need a keyboard and a mouse; a touch screen has neither. */
+@media (pointer: coarse) {
+  .shortcuts, .finehint { display: none; }
+  /* Menu numbers are keys; by touch they are only noise. */
+  .qkey { display: none; }
+  .qmenu > summary { min-width: 44px; min-height: 44px; }
+  .badd { min-width: 44px; min-height: 44px; justify-content: center; align-items: center; }
+  .viewnav a { min-height: 44px; display: inline-flex; align-items: center; }
+}
+.shortcuts summary { cursor: pointer; width: max-content; }
+.shortcuts dl { display: grid; grid-template-columns: minmax(min-content, 7rem) 1fr; gap: 6px 16px; margin: 10px 0 0; }
+.shortcuts dd { margin: 0; color: var(--text); text-wrap: pretty; }
+kbd { display: inline-block; min-width: 1.6em; padding: 0 5px; border: 1px solid var(--field-border); border-bottom-width: 2px; border-radius: 4px; background: var(--surface); color: var(--text); font: var(--text-meta)/1.5 var(--mono); text-align: center; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 50; margin: 0; padding: 9px 16px; border: 1px solid var(--add); border-radius: var(--radius); background: var(--add-bg); color: var(--text); font-size: var(--text-ui); box-shadow: 0 8px 24px rgb(0 0 0 / 0.2); }
+.keyhint { margin: 24px 0 0; color: var(--muted); font-size: var(--text-meta); }
+.toast .link { margin-left: 6px; font-weight: var(--weight-strong); }
+.toast.bad { border-color: var(--del); background: var(--del-bg); }
+@media (prefers-reduced-motion: no-preference) { .toast { animation: toast-in 180ms cubic-bezier(0.16, 1, 0.3, 1); } }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 8px); } }
+
+@media (max-width: 720px) {
+  .issuepage { grid-template-columns: minmax(0, 1fr); }
+  .issueside, .issuemain { grid-column: 1; grid-row: auto; }
+  .issueside { position: static; }
+}
+@media (max-width: 600px) {
+  /* A column at a time, snapping, with the next one peeking in. */
+  .board { grid-auto-columns: 84%; scroll-snap-type: x mandatory; scroll-padding: 0 16px; }
+  .bcol { scroll-snap-align: start; }
+  .qmenu > summary { width: 36px; height: 36px; }
+  .qlist button.qitem[type="submit"] { padding: 10px; }
+  .issuebar h1 { font-size: var(--text-title); }
+  /* The scope tabs become a menu beside the search, and the filters fold
+     behind one button, so the issues start near the top. */
+  .issuebar .scopes { display: none; }
+  .scopepick { display: block; flex: 0 0 auto; }
+  .scopepick select { width: auto; }
+  .issuefilter input[type="search"] { flex: 1 1 8rem; }
+  .issuefilter .filters:not([open]) .filterset { display: none; }
+  .issuefilter select { flex: 1 1 40%; }
+  .issuebar { margin-bottom: 8px; }
+  /* A row wraps: identifier and title first, then what's known about it. */
+  .irow { flex-wrap: wrap; row-gap: 4px; }
+  .irow .ititle { flex-basis: calc(100% - 7.5em); white-space: normal; }
+  .irow .imeta { flex-basis: 100%; flex-wrap: wrap; white-space: normal; }
+  .imeta time { min-width: 0; text-align: left; }
+  .issuehead h1 { font-size: var(--text-title); }
 }

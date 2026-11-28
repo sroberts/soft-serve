@@ -628,10 +628,19 @@ func TestMCP(t *testing.T) {
 
 	_, out := call(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`, nil)
 	tools, _ := out["result"].(map[string]any)["tools"].([]any)
-	is.Equal(len(tools), 16)
+	is.Equal(len(tools), 16+len(issueToolNames))
+	// Only the issue tools that change something are marked so; deleting
+	// is the one destructive tool.
+	writes := map[string]bool{
+		"create_issue": true, "update_issue": true, "comment_on_issue": true, "edit_issue_comment": true, "create_issue_label": true, "delete_issue": true,
+		"create_issue_project": true, "update_issue_project": true, "create_issue_cycle": true, "update_issue_cycle": true,
+	}
 	for _, tl := range tools {
+		name := tl.(map[string]any)["name"].(string)
 		ann := tl.(map[string]any)["annotations"].(map[string]any)
-		is.Equal(ann["readOnlyHint"], true)
+		ro, _ := ann["readOnlyHint"].(bool)
+		is.Equal(ro, !writes[name])
+		is.Equal(ann["destructiveHint"], name == "delete_issue")
 	}
 
 	res := tool("read_file", `{"repo":"group/open","path":"src/main.go"}`, nil)

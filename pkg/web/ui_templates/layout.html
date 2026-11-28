@@ -15,6 +15,7 @@
 <title>{{.Title}}</title>
 <link rel="stylesheet" href="{{static "style.css"}}">
 <link rel="stylesheet" href="{{static "code.css"}}">
+{{if .Script}}<script src="{{static "issues.js"}}" defer></script>{{end}}
 {{if .Feed}}<link rel="alternate" type="application/atom+xml" title="{{.Title}}" href="{{.Feed}}">{{end}}
 </head>
 <body>
@@ -23,6 +24,7 @@
   <a class="brand" href="/">{{.SiteName}}</a>
   {{if .Repo}}<span class="sep" aria-hidden="true">/</span><a class="crumb" href="{{repoURL .Repo.Name "" "" ""}}">{{.Repo.Name}}</a>{{end}}
   <span class="grow"></span>
+  {{if .SoftServe}}<a class="who issueslink" href="/-/issues"{{if eq .Tab "myissues"}} aria-current="page"{{end}}>My issues</a>{{end}}
   {{if .Admin}}<a class="who adminlink" href="/-/admin"{{if eq .Tab "users" "settings"}}{{if not .Repo}} aria-current="page"{{end}}{{end}}>Admin</a>{{end}}
   {{if .SignedIn}}
   <a class="who" href="/-/me" title="{{if .SoftServe}}Your account: Soft Serve user {{.SoftServe}}{{else}}No Soft Serve user is named {{.SignedIn}}, so you see public repositories only{{end}}">{{.SignedIn}}{{if not .SoftServe}} <span class="badge">public only</span>{{end}}</a>
@@ -81,6 +83,7 @@
     <div class="tablinks">
     <a href="{{repoURL .Repo.Name "" .Ref ""}}"{{if eq .Tab "files"}} aria-current="page"{{end}}>Files</a>
     <a href="{{repoURL .Repo.Name "commits" .Ref ""}}"{{if eq .Tab "commits"}} aria-current="page"{{end}}>Commits</a>
+    <a href="{{repoURL .Repo.Name "issues" "" ""}}"{{if eq .Tab "issues"}} aria-current="page"{{end}}>Issues</a>
     <a href="{{repoURL .Repo.Name "refs" "" ""}}"{{if eq .Tab "refs"}} aria-current="page"{{end}}>Branches &amp; tags</a>
     <a href="{{repoURL .Repo.Name "compare" "" ""}}"{{if eq .Tab "compare"}} aria-current="page"{{end}}>Compare</a>
     <a href="{{repoURL .Repo.Name "search" .Ref ""}}"{{if eq .Tab "search"}} aria-current="page"{{end}}>Search</a>
